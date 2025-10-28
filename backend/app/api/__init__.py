@@ -1,18 +1,13 @@
 """API routes"""
 
 from fastapi import APIRouter
-
-# Import routers (will be created in subsequent steps)
-# from app.api.routes import proposals, sections, users, auth, validation
+from app.api.routes import proposals, sections
 
 api_router = APIRouter()
 
 # Include route modules
-# api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-# api_router.include_router(proposals.router, prefix="/proposals", tags=["Proposals"])
-# api_router.include_router(sections.router, prefix="/sections", tags=["Sections"])
-# api_router.include_router(users.router, prefix="/users", tags=["Users"])
-# api_router.include_router(validation.router, prefix="/validation", tags=["Validation"])
+api_router.include_router(proposals.router, prefix="/proposals", tags=["Proposals"])
+api_router.include_router(sections.router, prefix="/sections", tags=["Sections"])
 
 
 @api_router.get("/")
@@ -24,6 +19,8 @@ async def api_root():
         "endpoints": {
             "docs": "/docs",
             "health": "/health",
+            "proposals": "/api/v1/proposals",
+            "sections": "/api/v1/sections",
         },
     }
 
