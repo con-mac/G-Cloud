@@ -22,6 +22,7 @@ import {
   Warning as WarningIcon,
   Error as ErrorIcon,
   Schedule as ScheduleIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 import { proposalsService } from '../services/proposals';
 
@@ -76,13 +77,23 @@ export default function ProposalsList() {
 
   return (
     <Container maxWidth="xl" sx={{ py: 6 }}>
-      <Box mb={5}>
-        <Typography variant="h2" gutterBottom sx={{ fontWeight: 700 }}>
-          G-Cloud Proposals
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Manage and validate your G-Cloud framework proposals
-        </Typography>
+      <Box mb={5} display="flex" justifyContent="space-between" alignItems="center">
+        <Box>
+          <Typography variant="h2" gutterBottom sx={{ fontWeight: 700 }}>
+            G-Cloud Proposals
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Manage and validate your G-Cloud framework proposals
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          size="large"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/proposals/create')}
+        >
+          Create New Proposal
+        </Button>
       </Box>
 
       <Grid container spacing={3}>
