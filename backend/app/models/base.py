@@ -15,6 +15,7 @@ class Base:
 
     id: Any
     __name__: str
+    __allow_unmapped__ = True  # Allow legacy annotations
 
     # Generate __tablename__ automatically
     @declared_attr
