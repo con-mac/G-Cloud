@@ -109,7 +109,7 @@ async def download_document(filename: str):
     )
 
 
-@router.get("/templates")
+@router.get("/")
 async def list_templates():
     """List available G-Cloud templates"""
     return {
