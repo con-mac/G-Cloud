@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+env/
+ENV/
+.venv
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+dist-ssr/
+*.local
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.hypothesis/
+coverage/
+*.cover
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+
+# Azure
+*.azurePubxml
+*.PublishSettings
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+tmp/
+temp/
+
+# Generated documentation
+docs/_build/
+site/
+
+# Alembic
+alembic/versions/*.pyc
+
