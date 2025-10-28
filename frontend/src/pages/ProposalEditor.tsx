@@ -6,12 +6,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Container, Box, Typography, Grid, Paper, TextField, LinearProgress,
-  Alert, Chip, Button, List, ListItem, ListItemButton, ListItemText,
+  Container, Box, Typography, Paper, TextField, LinearProgress,
+  Alert, Chip, List, ListItem, ListItemButton, ListItemText,
   CircularProgress, IconButton,
 } from '@mui/material';
 import {
-  CheckCircle, Warning, Error, ArrowBack, Save,
+  CheckCircle, Warning, Error, ArrowBack,
 } from '@mui/icons-material';
 import { debounce } from 'lodash';
 import { proposalsService } from '../services/proposals';

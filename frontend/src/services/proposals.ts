@@ -3,14 +3,13 @@
  */
 
 import apiService from './api';
-import type { Proposal, Section } from '../types';
 
 export const proposalsService = {
-  async getAllProposals(): Promise<Proposal[]> {
-    return apiService.get<Proposal[]>('/proposals');
+  async getAllProposals(): Promise<any[]> {
+    return apiService.get<any[]>('/proposals/');
   },
 
-  async getProposalById(id: string): Promise<Proposal & { sections: Section[] }> {
+  async getProposalById(id: string): Promise<any> {
     return apiService.get(`/proposals/${id}`);
   },
 

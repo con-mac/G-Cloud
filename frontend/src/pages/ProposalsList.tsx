@@ -24,7 +24,6 @@ import {
   Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import { proposalsService } from '../services/proposals';
-import type { Proposal } from '../types';
 
 export default function ProposalsList() {
   const [proposals, setProposals] = useState<any[]>([]);
