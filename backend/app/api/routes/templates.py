@@ -21,7 +21,8 @@ class ServiceDescriptionRequest(BaseModel):
     features: List[str] = Field(..., min_items=1, max_items=10, description="Service features (max 10)")
     benefits: List[str] = Field(..., min_items=1, max_items=10, description="Service benefits (max 10)")
     # New: service definition subsections (no constraints)
-    service_definition: Optional[List[dict]] = Field(default_factory=list, description="Service Definition subsections")
+    # Each block: { subtitle: str, content: str(HTML), images?: [url], table?: [][] }
+    service_definition: Optional[List[dict]] = Field(default_factory=list, description="Service Definition subsections (rich HTML content)")
     
     @validator('title')
     def validate_title(cls, v):

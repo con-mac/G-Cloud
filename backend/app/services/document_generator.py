@@ -11,6 +11,7 @@ from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import uuid
+from bs4 import BeautifulSoup
 
 
 class DocumentGenerator:
@@ -215,7 +216,7 @@ class DocumentGenerator:
         # Build content
         for block in blocks:
             subtitle = block.get('subtitle')
-            content = block.get('content')
+            content_html = block.get('content')
             images = block.get('images', []) or []
             table = block.get('table')
 
@@ -223,9 +224,9 @@ class DocumentGenerator:
                 insert_after = insert_after.insert_paragraph_after(subtitle)
                 insert_after.style = 'Heading 3'
 
-            if content:
-                insert_after = insert_after.insert_paragraph_after(content)
-                insert_after.style = 'Normal'
+            if content_html:
+                # Render limited HTML into docx
+                insert_after = self._insert_html(doc, insert_after, content_html)
 
             for img_url in images:
                 insert_after = _add_image(insert_after, img_url)
@@ -241,6 +242,67 @@ class DocumentGenerator:
                         t.cell(r_idx, c_idx).text = str(cell_text)
                 # Add a blank paragraph after table to maintain spacing
                 insert_after = insert_after.insert_paragraph_after('')
+
+    def _insert_html(self, doc: Document, after_para, html: str):
+        """Very basic HTML renderer supporting <p>, <strong>, <em>, <ul>/<ol>/<li>, <h3>, <br>, <a>.
+        Images are expected as separate 'images' array and handled elsewhere.
+        Returns the last paragraph inserted for chaining.
+        """
+        soup = BeautifulSoup(html, 'html.parser')
+
+        def render_inline(run, node):
+            if node.name == 'strong' or node.name == 'b':
+                r = run.add_text(node.get_text())
+                run.bold = True
+                return
+            if node.name == 'em' or node.name == 'i':
+                r = run.add_text(node.get_text())
+                run.italic = True
+                return
+            if node.name == 'br':
+                run.add_break()
+                return
+            # Default text
+            run.add_text(node if isinstance(node, str) else node.get_text())
+
+        def add_paragraph_with_inlines(text_or_node, style_name=None):
+            p = after_para.insert_paragraph_after('')
+            if style_name:
+                p.style = style_name
+            if isinstance(text_or_node, str):
+                p.add_run(text_or_node)
+            else:
+                for child in text_or_node.children:
+                    if isinstance(child, str):
+                        p.add_run(child)
+                    else:
+                        if child.name in ['strong','b','em','i','br']:
+                            render_inline(p.add_run(''), child)
+                        else:
+                            p.add_run(child.get_text())
+            return p
+
+        last = after_para
+        for el in soup.contents:
+            if isinstance(el, str) and el.strip():
+                last = add_paragraph_with_inlines(el, None)
+            elif getattr(el, 'name', None):
+                name = el.name.lower()
+                if name == 'h3':
+                    last = add_paragraph_with_inlines(el, 'Heading 3')
+                elif name == 'p':
+                    last = add_paragraph_with_inlines(el, 'Normal')
+                elif name in ['ul','ol']:
+                    for li in el.find_all('li', recursive=False):
+                        p = last.insert_paragraph_after(li.get_text())
+                        p.style = 'List Bullet' if name=='ul' else 'List Number'
+                        last = p
+                elif name == 'br':
+                    last = last.insert_paragraph_after('')
+                else:
+                    # Fallback as paragraph
+                    last = add_paragraph_with_inlines(el, 'Normal')
+        return last
     
     def cleanup_old_files(self, days: int = 7):
         """Remove generated documents older than specified days"""

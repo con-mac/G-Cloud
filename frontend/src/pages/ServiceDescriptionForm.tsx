@@ -15,6 +15,8 @@ import {
   ArrowBack, Add, Delete, CheckCircle, Error, Download,
 } from '@mui/icons-material';
 import apiService from '../services/api';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface ValidationState {
   isValid: boolean;
@@ -451,16 +453,25 @@ export default function ServiceDescriptionForm() {
                 sx={{ mb: 2 }}
               />
 
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                label="Content"
-                placeholder="Write the subsection content here..."
-                value={block.content}
-                onChange={(e) => updateServiceDefBlock(index, 'content', e.target.value)}
-                sx={{ mb: 2 }}
-              />
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                  Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists)
+                </Typography>
+                <ReactQuill
+                  theme="snow"
+                  value={block.content}
+                  onChange={(html) => updateServiceDefBlock(index, 'content', html)}
+                  modules={{
+                    toolbar: [
+                      [{ header: [3, false] }],
+                      ['bold', 'italic', 'underline'],
+                      [{ list: 'ordered' }, { list: 'bullet' }],
+                      ['link'],
+                      ['clean'],
+                    ],
+                  }}
+                />
+              </Box>
 
               <TextField
                 fullWidth
