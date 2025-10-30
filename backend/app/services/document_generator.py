@@ -76,6 +76,7 @@ class DocumentGenerator:
     
     def _replace_title(self, doc: Document, new_title: str):
         """Replace the first Heading 1 with the new title"""
+        replaced = False
         for paragraph in doc.paragraphs:
             if paragraph.style.name == 'Heading 1':
                 # Found the title, replace it
@@ -84,7 +85,15 @@ class DocumentGenerator:
                 for run in paragraph.runs:
                     run.font.size = Pt(24)
                     run.font.bold = True
+                replaced = True
                 break
+
+        # Fallback: replace literal occurrences of common sample title text in runs
+        if not replaced:
+            for p in doc.paragraphs:
+                for r in p.runs:
+                    if r.text and 'AI Security' in r.text:
+                        r.text = r.text.replace('AI Security', new_title)
     
     def _replace_content_sections(
         self,
@@ -111,36 +120,57 @@ class DocumentGenerator:
             if 'Short Service Description' in text:
                 current_section = 'description'
                 section_start_idx = i
+                # Clear existing content under this heading
+                self._clear_section_after_heading(doc, i)
                 # Replace content after this heading
                 self._insert_description(doc, i + 1, description)
                 
             elif 'Key Service Features' in text:
                 current_section = 'features'
                 section_start_idx = i
+                self._clear_section_after_heading(doc, i)
                 # Replace content after this heading
                 self._insert_bullet_list(doc, i + 1, features)
                 
             elif 'Key Service Benefits' in text:
                 current_section = 'benefits'
                 section_start_idx = i
+                self._clear_section_after_heading(doc, i)
                 # Replace content after this heading
                 self._insert_bullet_list(doc, i + 1, benefits)
+
+    def _clear_section_after_heading(self, doc: Document, heading_idx: int):
+        """Remove paragraphs following a heading until the next heading or end of document.
+
+        Note: python-docx doesn't support deleting list items as a group, so we remove
+        underlying elements paragraph by paragraph.
+        """
+        i = heading_idx + 1
+        while i < len(doc.paragraphs):
+            p = doc.paragraphs[i]
+            # Stop when next heading starts
+            if p.style and p.style.name.startswith('Heading'):
+                break
+            # Remove paragraph element
+            p._element.getparent().remove(p._element)
+            # Do not increment i because current index now refers to next paragraph
+        
     
     def _insert_description(self, doc: Document, start_idx: int, description: str):
         """Insert description text after a heading"""
-        # Find the next paragraph after the heading
-        if start_idx < len(doc.paragraphs):
-            target_para = doc.paragraphs[start_idx]
-            # Replace its text
-            target_para.text = description
-            target_para.style = 'Normal'
+        # Create a new paragraph right after the heading with the description
+        heading_para = doc.paragraphs[start_idx - 1]
+        new_para = heading_para.insert_paragraph_after(description)
+        new_para.style = 'Normal'
     
     def _insert_bullet_list(self, doc: Document, start_idx: int, items: List[str]):
         """Insert a bullet list after a heading"""
-        # This is simplified - in production, we'd need to handle existing bullets
-        # For now, we'll append new paragraphs
-        # Note: This is a basic implementation that needs refinement
-        pass
+        # Insert bullet list items right after the heading
+        heading_para = doc.paragraphs[start_idx - 1]
+        insert_after = heading_para
+        for item in items:
+            insert_after = insert_after.insert_paragraph_after(item)
+            insert_after.style = 'List Bullet'
     
     def cleanup_old_files(self, days: int = 7):
         """Remove generated documents older than specified days"""
