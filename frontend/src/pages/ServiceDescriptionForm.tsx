@@ -444,6 +444,20 @@ export default function ServiceDescriptionForm() {
                 mb: 2,
                 '& .ql-container': { minHeight: 260 },
                 '& .ql-editor': { minHeight: 260 },
+                // Make the custom attach button visible with a paperclip icon
+                '& .ql-toolbar .ql-attach::before': {
+                  content: '"📎"',
+                  fontSize: '16px',
+                  display: 'inline-block',
+                  lineHeight: 1,
+                },
+                '& .ql-toolbar .ql-attach': {
+                  width: '28px',
+                  height: '28px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                   Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists)
