@@ -17,7 +17,7 @@ router = APIRouter()
 class ServiceDescriptionRequest(BaseModel):
     """Request model for G-Cloud Service Description"""
     title: str = Field(..., min_length=1, max_length=100, description="Service name")
-    description: str = Field(..., min_length=50, max_length=500, description="Service description (50-500 words)")
+    description: str = Field(..., max_length=2000, description="Service description (max 50 words)")
     features: List[str] = Field(..., min_items=1, max_items=10, description="Service features (max 10)")
     benefits: List[str] = Field(..., min_items=1, max_items=10, description="Service benefits (max 10)")
     
@@ -30,12 +30,10 @@ class ServiceDescriptionRequest(BaseModel):
     
     @validator('description')
     def validate_description(cls, v):
-        """Validate word count for description"""
+        """Validate word count for description - maximum 50 words"""
         word_count = len(re.findall(r'\b\w+\b', v))
-        if word_count < 50:
-            raise ValueError(f'Description must be at least 50 words (currently {word_count})')
-        if word_count > 500:
-            raise ValueError(f'Description must not exceed 500 words (currently {word_count})')
+        if word_count > 50:
+            raise ValueError(f'Description must not exceed 50 words (currently {word_count})')
         return v.strip()
     
     @validator('features', 'benefits', each_item=True)
@@ -126,7 +124,7 @@ async def list_templates():
                 ],
                 "validation": {
                     "title": "Service name only, no extra keywords",
-                    "description": "50-500 words",
+                    "description": "max 50 words",
                     "features": "10 words each, max 10 features",
                     "benefits": "10 words each, max 10 benefits"
                 }

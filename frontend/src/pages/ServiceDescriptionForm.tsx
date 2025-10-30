@@ -62,15 +62,11 @@ export default function ServiceDescriptionForm() {
 
   const validateDescription = (value: string) => {
     const words = countWords(value);
-    if (words < 50) {
-      setDescValid({ isValid: false, message: `Description must be at least 50 words (currently ${words})` });
+    if (words > 50) {
+      setDescValid({ isValid: false, message: `Description must not exceed 50 words (currently ${words})` });
       return false;
     }
-    if (words > 500) {
-      setDescValid({ isValid: false, message: `Description must not exceed 500 words (currently ${words})` });
-      return false;
-    }
-    setDescValid({ isValid: true, message: `Valid (${words}/500 words)` });
+    setDescValid({ isValid: true, message: `Valid (${words}/50 words)` });
     return true;
   };
 
@@ -188,7 +184,7 @@ export default function ServiceDescriptionForm() {
   };
 
   const descWords = countWords(description);
-  const descProgress = Math.min((descWords / 500) * 100, 100);
+  const descProgress = Math.min((descWords / 50) * 100, 100);
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
@@ -257,7 +253,7 @@ export default function ServiceDescriptionForm() {
             value={description}
             onChange={(e) => handleDescriptionChange(e.target.value)}
             error={!descValid.isValid && description.length > 0}
-            helperText={`${descWords}/500 words • ${descValid.message}`}
+            helperText={`${descWords}/50 words • ${descValid.message}`}
             sx={{ mb: 1 }}
           />
 
