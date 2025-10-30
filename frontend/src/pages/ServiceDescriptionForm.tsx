@@ -34,10 +34,8 @@ export default function ServiceDescriptionForm() {
   // Service Definition subsections
   const [serviceDefinition, setServiceDefinition] = useState<Array<{
     subtitle: string;
-    content: string;
-    imageUrls: string; // comma-separated URLs
-    tableCsv: string;  // CSV text (optional)
-  }>>([{ subtitle: '', content: '', imageUrls: '', tableCsv: '' }]);
+    content: string; // HTML from editor
+  }>>([{ subtitle: '', content: '' }]);
   
   // Validation state
   const [titleValid, setTitleValid] = useState<ValidationState>({ isValid: true, message: '' });
@@ -136,28 +134,20 @@ export default function ServiceDescriptionForm() {
 
   // Service Definition handlers
   const addServiceDefBlock = () => {
-    setServiceDefinition([...serviceDefinition, { subtitle: '', content: '', imageUrls: '', tableCsv: '' }]);
+    setServiceDefinition([...serviceDefinition, { subtitle: '', content: '' }]);
   };
 
   const removeServiceDefBlock = (index: number) => {
     const next = serviceDefinition.filter((_, i) => i !== index);
-    setServiceDefinition(next.length === 0 ? [{ subtitle: '', content: '', imageUrls: '', tableCsv: '' }] : next);
+    setServiceDefinition(next.length === 0 ? [{ subtitle: '', content: '' }] : next);
   };
 
-  const updateServiceDefBlock = (index: number, field: 'subtitle' | 'content' | 'imageUrls' | 'tableCsv', value: string) => {
+  const updateServiceDefBlock = (index: number, field: 'subtitle' | 'content', value: string) => {
     const next = [...serviceDefinition];
     next[index] = { ...next[index], [field]: value };
     setServiceDefinition(next);
   };
-
-  const parseCsvToTable = (csv: string): string[][] => {
-    if (!csv.trim()) return [];
-    return csv
-      .split(/\r?\n/) // lines
-      .map(line => line.split(',').map(cell => cell.trim()))
-      .filter(row => row.length > 0);
-  };
-
+  
   const addFeature = () => {
     if (features.length < 10) {
       setFeatures([...features, '']);
@@ -203,12 +193,7 @@ export default function ServiceDescriptionForm() {
         benefits: benefits.filter(b => b.trim().length > 0),
         service_definition: serviceDefinition.map(b => ({
           subtitle: b.subtitle.trim(),
-          content: b.content.trim(),
-          images: b.imageUrls
-            .split(',')
-            .map(u => u.trim())
-            .filter(Boolean),
-          table: parseCsvToTable(b.tableCsv),
+          content: b.content,
         })),
       });
 
@@ -472,26 +457,6 @@ export default function ServiceDescriptionForm() {
                   }}
                 />
               </Box>
-
-              <TextField
-                fullWidth
-                size="small"
-                label="Image URLs (comma-separated)"
-                placeholder="https://example.com/image1.png, https://example.com/image2.jpg"
-                value={block.imageUrls}
-                onChange={(e) => updateServiceDefBlock(index, 'imageUrls', e.target.value)}
-                sx={{ mb: 2 }}
-              />
-
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Table CSV (optional)"
-                placeholder={"Header 1, Header 2\nRow 1 Col 1, Row 1 Col 2"}
-                value={block.tableCsv}
-                onChange={(e) => updateServiceDefBlock(index, 'tableCsv', e.target.value)}
-              />
             </Box>
           ))}
 
