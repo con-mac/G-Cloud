@@ -26,7 +26,8 @@ class DocumentGenerator:
         title: str,
         description: str,
         features: List[str],
-        benefits: List[str]
+        benefits: List[str],
+        service_definition: List[dict] | None = None
     ) -> Dict[str, str]:
         """
         Generate Service Description document from template
@@ -54,6 +55,9 @@ class DocumentGenerator:
         
         # Replace description, features, and benefits
         self._replace_content_sections(doc, description, features, benefits)
+        # Insert service definition blocks if provided
+        if service_definition:
+            self._insert_service_definition(doc, service_definition)
         
         # Generate unique filename
         doc_id = str(uuid.uuid4())[:8]
@@ -171,6 +175,72 @@ class DocumentGenerator:
         for item in items:
             insert_after = insert_after.insert_paragraph_after(item)
             insert_after.style = 'List Bullet'
+
+    def _insert_service_definition(self, doc: Document, blocks: List[dict]):
+        """Insert Service Definition content: subsections with optional images and tables.
+
+        Expected block format examples:
+        {"subtitle": "AI Security advisory", "content": "Paragraph text...", "images": ["http://..."], "table": [["H1","H2"],["R1C1","R1C2"]] }
+        """
+        # Find the 'Service Definition' heading
+        heading_idx = None
+        for i, p in enumerate(doc.paragraphs):
+            if p.text.strip() == 'Service Definition' or (
+                p.style and p.style.name.startswith('Heading') and 'Service Definition' in p.text
+            ):
+                heading_idx = i
+                break
+        if heading_idx is None:
+            return
+        # Clear existing content under the heading
+        self._clear_section_after_heading(doc, heading_idx)
+
+        insert_after = doc.paragraphs[heading_idx]
+
+        # Utilities for images
+        def _add_image(after_para, url: str):
+            try:
+                import requests
+                from io import BytesIO
+                img_data = requests.get(url, timeout=10).content
+                # Insert a new paragraph and add picture to the run
+                p = after_para.insert_paragraph_after('')
+                run = p.add_run()
+                run.add_picture(BytesIO(img_data))
+                return p
+            except Exception:
+                # Ignore image failures silently
+                return after_para
+
+        # Build content
+        for block in blocks:
+            subtitle = block.get('subtitle')
+            content = block.get('content')
+            images = block.get('images', []) or []
+            table = block.get('table')
+
+            if subtitle:
+                insert_after = insert_after.insert_paragraph_after(subtitle)
+                insert_after.style = 'Heading 3'
+
+            if content:
+                insert_after = insert_after.insert_paragraph_after(content)
+                insert_after.style = 'Normal'
+
+            for img_url in images:
+                insert_after = _add_image(insert_after, img_url)
+
+            if table and isinstance(table, list) and table:
+                # Insert table after current insert_after by using document-level add and moving near
+                rows = len(table)
+                cols = max(len(r) for r in table if isinstance(r, list))
+                t = doc.add_table(rows=rows, cols=cols)
+                t.style = 'Table Grid'
+                for r_idx, row in enumerate(table):
+                    for c_idx, cell_text in enumerate(row):
+                        t.cell(r_idx, c_idx).text = str(cell_text)
+                # Add a blank paragraph after table to maintain spacing
+                insert_after = insert_after.insert_paragraph_after('')
     
     def cleanup_old_files(self, days: int = 7):
         """Remove generated documents older than specified days"""

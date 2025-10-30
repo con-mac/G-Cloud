@@ -6,7 +6,7 @@ Handles template-based proposal creation
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, validator
-from typing import List
+from typing import List, Optional, Literal
 import re
 
 from app.services.document_generator import document_generator
@@ -20,6 +20,8 @@ class ServiceDescriptionRequest(BaseModel):
     description: str = Field(..., max_length=2000, description="Service description (max 50 words)")
     features: List[str] = Field(..., min_items=1, max_items=10, description="Service features (max 10)")
     benefits: List[str] = Field(..., min_items=1, max_items=10, description="Service benefits (max 10)")
+    # New: service definition subsections (no constraints)
+    service_definition: Optional[List[dict]] = Field(default_factory=list, description="Service Definition subsections")
     
     @validator('title')
     def validate_title(cls, v):
@@ -70,7 +72,8 @@ async def generate_service_description(request: ServiceDescriptionRequest):
             title=request.title,
             description=request.description,
             features=request.features,
-            benefits=request.benefits
+            benefits=request.benefits,
+            service_definition=request.service_definition or []
         )
         
         return GenerateResponse(
@@ -120,7 +123,8 @@ async def list_templates():
                     {"name": "title", "label": "Service Name", "required": True, "editable": True},
                     {"name": "description", "label": "Short Service Description", "required": True, "editable": False},
                     {"name": "features", "label": "Key Service Features", "required": True, "editable": False},
-                    {"name": "benefits", "label": "Key Service Benefits", "required": True, "editable": False}
+                    {"name": "benefits", "label": "Key Service Benefits", "required": True, "editable": False},
+                    {"name": "service_definition", "label": "Service Definition", "required": False, "editable": True}
                 ],
                 "validation": {
                     "title": "Service name only, no extra keywords",

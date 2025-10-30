@@ -29,6 +29,13 @@ export default function ServiceDescriptionForm() {
   const [description, setDescription] = useState('');
   const [features, setFeatures] = useState<string[]>(['']);
   const [benefits, setBenefits] = useState<string[]>(['']);
+  // Service Definition subsections
+  const [serviceDefinition, setServiceDefinition] = useState<Array<{
+    subtitle: string;
+    content: string;
+    imageUrls: string; // comma-separated URLs
+    tableCsv: string;  // CSV text (optional)
+  }>>([{ subtitle: '', content: '', imageUrls: '', tableCsv: '' }]);
   
   // Validation state
   const [titleValid, setTitleValid] = useState<ValidationState>({ isValid: true, message: '' });
@@ -125,6 +132,30 @@ export default function ServiceDescriptionForm() {
     validateListItems(newBenefits, 'benefits');
   };
 
+  // Service Definition handlers
+  const addServiceDefBlock = () => {
+    setServiceDefinition([...serviceDefinition, { subtitle: '', content: '', imageUrls: '', tableCsv: '' }]);
+  };
+
+  const removeServiceDefBlock = (index: number) => {
+    const next = serviceDefinition.filter((_, i) => i !== index);
+    setServiceDefinition(next.length === 0 ? [{ subtitle: '', content: '', imageUrls: '', tableCsv: '' }] : next);
+  };
+
+  const updateServiceDefBlock = (index: number, field: 'subtitle' | 'content' | 'imageUrls' | 'tableCsv', value: string) => {
+    const next = [...serviceDefinition];
+    next[index] = { ...next[index], [field]: value };
+    setServiceDefinition(next);
+  };
+
+  const parseCsvToTable = (csv: string): string[][] => {
+    if (!csv.trim()) return [];
+    return csv
+      .split(/\r?\n/) // lines
+      .map(line => line.split(',').map(cell => cell.trim()))
+      .filter(row => row.length > 0);
+  };
+
   const addFeature = () => {
     if (features.length < 10) {
       setFeatures([...features, '']);
@@ -168,6 +199,15 @@ export default function ServiceDescriptionForm() {
         description: description.trim(),
         features: features.filter(f => f.trim().length > 0),
         benefits: benefits.filter(b => b.trim().length > 0),
+        service_definition: serviceDefinition.map(b => ({
+          subtitle: b.subtitle.trim(),
+          content: b.content.trim(),
+          images: b.imageUrls
+            .split(',')
+            .map(u => u.trim())
+            .filter(Boolean),
+          table: parseCsvToTable(b.tableCsv),
+        })),
       });
 
       setGeneratedFiles(response);
@@ -373,6 +413,80 @@ export default function ServiceDescriptionForm() {
               {benefitsValid.message}
             </Alert>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Section 5: Service Definition (optional, unlimited subsections) */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Service Definition
+            </Typography>
+            <Chip label={`${serviceDefinition.length} subsection(s)`} size="small" />
+          </Box>
+
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+            Add as many subsections as needed. Subtitles will be styled as Heading 3 in the Word document.
+          </Typography>
+
+          {serviceDefinition.map((block, index) => (
+            <Box key={index} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2, mb: 2 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="subtitle2">Subsection {index + 1}</Typography>
+                {serviceDefinition.length > 1 && (
+                  <IconButton size="small" color="error" onClick={() => removeServiceDefBlock(index)}>
+                    <Delete />
+                  </IconButton>
+                )}
+              </Box>
+
+              <TextField
+                fullWidth
+                size="small"
+                label="Subtitle (Heading 3)"
+                placeholder="e.g., AI Security advisory"
+                value={block.subtitle}
+                onChange={(e) => updateServiceDefBlock(index, 'subtitle', e.target.value)}
+                sx={{ mb: 2 }}
+              />
+
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Content"
+                placeholder="Write the subsection content here..."
+                value={block.content}
+                onChange={(e) => updateServiceDefBlock(index, 'content', e.target.value)}
+                sx={{ mb: 2 }}
+              />
+
+              <TextField
+                fullWidth
+                size="small"
+                label="Image URLs (comma-separated)"
+                placeholder="https://example.com/image1.png, https://example.com/image2.jpg"
+                value={block.imageUrls}
+                onChange={(e) => updateServiceDefBlock(index, 'imageUrls', e.target.value)}
+                sx={{ mb: 2 }}
+              />
+
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Table CSV (optional)"
+                placeholder={"Header 1, Header 2\nRow 1 Col 1, Row 1 Col 2"}
+                value={block.tableCsv}
+                onChange={(e) => updateServiceDefBlock(index, 'tableCsv', e.target.value)}
+              />
+            </Box>
+          ))}
+
+          <Button startIcon={<Add />} variant="outlined" size="small" onClick={addServiceDefBlock}>
+            Add Subsection
+          </Button>
         </CardContent>
       </Card>
 
