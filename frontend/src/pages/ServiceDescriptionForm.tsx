@@ -438,7 +438,11 @@ export default function ServiceDescriptionForm() {
                 sx={{ mb: 2 }}
               />
 
-              <Box sx={{ mb: 2 }}>
+              <Box sx={{ 
+                mb: 2,
+                '& .ql-container': { minHeight: 260 },
+                '& .ql-editor': { minHeight: 260 },
+              }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                   Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists)
                 </Typography>
