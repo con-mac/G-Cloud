@@ -3,7 +3,7 @@
  * 4 required sections with G-Cloud v15 validation
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container, Box, Typography, TextField, Button, Card, CardContent,
@@ -47,6 +47,8 @@ export default function ServiceDescriptionForm() {
   const [submitting, setSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
   const [generatedFiles, setGeneratedFiles] = useState<any>(null);
+  const quillRefs = useRef<Array<any>>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Word counting helper
   const countWords = (text: string): number => {
@@ -451,14 +453,25 @@ export default function ServiceDescriptionForm() {
                   value={block.content}
                   onChange={(html) => updateServiceDefBlock(index, 'content', html)}
                   modules={{
-                    toolbar: [
-                      [{ header: [3, false] }],
-                      ['bold', 'italic', 'underline'],
-                      [{ list: 'ordered' }, { list: 'bullet' }],
-                      ['link'],
-                      ['clean'],
-                    ],
+                    toolbar: {
+                      container: [
+                        [{ header: [3, false] }],
+                        ['bold', 'italic', 'underline'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['link'],
+                        [{ attach: 'attach' }],
+                        ['clean'],
+                      ],
+                      handlers: {
+                        attach: () => {
+                          // store which editor index invoked
+                          (fileInputRef.current as any).dataset.index = String(index);
+                          fileInputRef.current?.click();
+                        },
+                      },
+                    },
                   }}
+                  ref={(el) => (quillRefs.current[index] = el)}
                 />
               </Box>
             </Box>
@@ -552,6 +565,33 @@ export default function ServiceDescriptionForm() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Hidden file input for attachments */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try {
+            const res: any = await apiService.uploadFile('/templates/upload', file);
+            const idx = Number((fileInputRef.current as any).dataset.index || 0);
+            const editor = quillRefs.current[idx]?.getEditor?.();
+            if (!editor) return;
+            const range = editor.getSelection(true) || { index: editor.getLength(), length: 0 };
+            const html = res.is_image
+              ? `<img src="${res.url}" />`
+              : `<a href="${res.url}" target="_blank" rel="noopener">${res.filename}</a>`;
+            editor.clipboard.dangerouslyPasteHTML(range.index, html);
+            editor.setSelection(range.index + 1, 0);
+          } catch (err) {
+            alert('Upload failed');
+          } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }
+        }}
+      />
     </Container>
   );
 }

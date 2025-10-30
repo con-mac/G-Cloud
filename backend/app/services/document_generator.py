@@ -278,6 +278,22 @@ class DocumentGenerator:
                     else:
                         if child.name in ['strong','b','em','i','br']:
                             render_inline(p.add_run(''), child)
+                        elif child.name == 'img':
+                            src = child.get('src')
+                            if src:
+                                # Insert image as separate paragraph after current
+                                p_img = p.insert_paragraph_after('')
+                                try:
+                                    import requests
+                                    from io import BytesIO
+                                    img_bytes = requests.get(src, timeout=10).content
+                                    run = p_img.add_run()
+                                    run.add_picture(BytesIO(img_bytes))
+                                    p = p_img
+                                except Exception:
+                                    # If image fetch fails, fall back to a link
+                                    p_img.add_run(f"[image: {src}]")
+                                    p = p_img
                         else:
                             p.add_run(child.get_text())
             return p

@@ -3,10 +3,12 @@ G-Cloud Template API routes
 Handles template-based proposal creation
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Literal
+import os
+import uuid
 import re
 
 from app.services.document_generator import document_generator
@@ -142,4 +144,35 @@ async def list_templates():
             }
         ]
     }
+
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload a file for embedding/linking in Service Definition content.
+
+    Returns a URL that can be used in the editor. Images will be detected by content type.
+    """
+    uploads_dir = "/app/uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
+    unique = str(uuid.uuid4())[:8]
+    filename = f"{unique}_{file.filename}"
+    dest_path = os.path.join(uploads_dir, filename)
+    try:
+        with open(dest_path, "wb") as f:
+            f.write(await file.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
+    url = f"/api/v1/templates/upload/{filename}"
+    is_image = (file.content_type or "").startswith("image/")
+    return {"url": url, "filename": file.filename, "content_type": file.content_type, "is_image": is_image}
+
+
+@router.get("/upload/{filename}")
+async def serve_upload(filename: str):
+    uploads_dir = "/app/uploads"
+    file_path = os.path.join(uploads_dir, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path=file_path, filename=filename)
 
