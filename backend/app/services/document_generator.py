@@ -12,6 +12,8 @@ from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import uuid
 from bs4 import BeautifulSoup
+from docx.oxml import OxmlElement
+from docx.text.paragraph import Paragraph
 
 
 class DocumentGenerator:
@@ -165,8 +167,7 @@ class DocumentGenerator:
         """Insert description text after a heading"""
         # Create a new paragraph right after the heading with the description
         heading_para = doc.paragraphs[start_idx - 1]
-        new_para = heading_para.insert_paragraph_after(description)
-        new_para.style = 'Normal'
+        new_para = self._insert_paragraph_after(heading_para, description, 'Normal')
     
     def _insert_bullet_list(self, doc: Document, start_idx: int, items: List[str]):
         """Insert a bullet list after a heading"""
@@ -174,8 +175,7 @@ class DocumentGenerator:
         heading_para = doc.paragraphs[start_idx - 1]
         insert_after = heading_para
         for item in items:
-            insert_after = insert_after.insert_paragraph_after(item)
-            insert_after.style = 'List Bullet'
+            insert_after = self._insert_paragraph_after(insert_after, item, 'List Bullet')
 
     def _insert_service_definition(self, doc: Document, blocks: List[dict]):
         """Insert Service Definition content: subsections with optional images and tables.
@@ -205,7 +205,7 @@ class DocumentGenerator:
                 from io import BytesIO
                 img_data = requests.get(url, timeout=10).content
                 # Insert a new paragraph and add picture to the run
-                p = after_para.insert_paragraph_after('')
+                p = self._insert_paragraph_after(after_para, '')
                 run = p.add_run()
                 run.add_picture(BytesIO(img_data))
                 return p
@@ -221,8 +221,7 @@ class DocumentGenerator:
             table = block.get('table')
 
             if subtitle:
-                insert_after = insert_after.insert_paragraph_after(subtitle)
-                insert_after.style = 'Heading 3'
+                insert_after = self._insert_paragraph_after(insert_after, subtitle, 'Heading 3')
 
             if content_html:
                 # Render limited HTML into docx
@@ -241,7 +240,7 @@ class DocumentGenerator:
                     for c_idx, cell_text in enumerate(row):
                         t.cell(r_idx, c_idx).text = str(cell_text)
                 # Add a blank paragraph after table to maintain spacing
-                insert_after = insert_after.insert_paragraph_after('')
+                insert_after = self._insert_paragraph_after(insert_after, '')
 
     def _insert_html(self, doc: Document, after_para, html: str):
         """Very basic HTML renderer supporting <p>, <strong>, <em>, <ul>/<ol>/<li>, <h3>, <br>, <a>.
@@ -266,7 +265,7 @@ class DocumentGenerator:
             run.add_text(node if isinstance(node, str) else node.get_text())
 
         def add_paragraph_with_inlines(text_or_node, style_name=None):
-            p = after_para.insert_paragraph_after('')
+            p = self._insert_paragraph_after(after_para, '')
             if style_name:
                 p.style = style_name
             if isinstance(text_or_node, str):
@@ -282,7 +281,7 @@ class DocumentGenerator:
                             src = child.get('src')
                             if src:
                                 # Insert image as separate paragraph after current
-                                p_img = p.insert_paragraph_after('')
+                                p_img = self._insert_paragraph_after(p, '')
                                 try:
                                     import requests
                                     from io import BytesIO
@@ -310,15 +309,26 @@ class DocumentGenerator:
                     last = add_paragraph_with_inlines(el, 'Normal')
                 elif name in ['ul','ol']:
                     for li in el.find_all('li', recursive=False):
-                        p = last.insert_paragraph_after(li.get_text())
-                        p.style = 'List Bullet' if name=='ul' else 'List Number'
-                        last = p
+                        p_li = self._insert_paragraph_after(last, li.get_text(), 'List Bullet' if name=='ul' else 'List Number')
+                        last = p_li
                 elif name == 'br':
-                    last = last.insert_paragraph_after('')
+                    last = self._insert_paragraph_after(last, '')
                 else:
                     # Fallback as paragraph
                     last = add_paragraph_with_inlines(el, 'Normal')
         return last
+
+    def _insert_paragraph_after(self, paragraph: Paragraph, text: str = '', style_name: str | None = None) -> Paragraph:
+        """Insert a new paragraph directly after the given paragraph using low-level XML ops."""
+        # Create a new paragraph element and insert after current
+        new_p = OxmlElement('w:p')
+        paragraph._p.addnext(new_p)
+        new_para = Paragraph(new_p, paragraph._parent)
+        if text:
+            new_para.add_run(text)
+        if style_name:
+            new_para.style = style_name
+        return new_para
     
     def cleanup_old_files(self, days: int = 7):
         """Remove generated documents older than specified days"""
