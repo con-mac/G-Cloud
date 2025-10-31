@@ -3,7 +3,7 @@
  * 4 required sections with G-Cloud v15 validation
  */
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container, Box, Typography, TextField, Button, Card, CardContent,
@@ -419,7 +419,25 @@ export default function ServiceDescriptionForm() {
             Add as many subsections as needed. Subtitles will be styled as Heading 3 in the Word document.
           </Typography>
 
-          {serviceDefinition.map((block, index) => (
+          {serviceDefinition.map((block, index) => {
+            const modules = useMemo(() => ({
+              toolbar: {
+                container: [
+                  [{ header: [3, false] }],
+                  ['bold', 'italic', 'underline'],
+                  [{ list: 'ordered' }, { list: 'bullet' }],
+                  ['link', 'attach'],
+                  ['clean'],
+                ],
+                handlers: {
+                  attach: () => {
+                    (fileInputRef.current as any).dataset.id = String(block.id);
+                    fileInputRef.current?.click();
+                  },
+                },
+              },
+            }), [block.id]);
+            return (
             <Box key={block.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2, mb: 2 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                 <Typography variant="subtitle2">Subsection {index + 1}</Typography>
@@ -466,29 +484,12 @@ export default function ServiceDescriptionForm() {
                   theme="snow"
                   value={block.content}
                   onChange={(html) => updateServiceDefBlock(block.id, 'content', html)}
-                  modules={{
-                    toolbar: {
-                      container: [
-                        [{ header: [3, false] }],
-                        ['bold', 'italic', 'underline'],
-                        [{ list: 'ordered' }, { list: 'bullet' }],
-                        ['link', 'attach'],
-                        ['clean'],
-                      ],
-                      handlers: {
-                        attach: () => {
-                          // store which editor index invoked
-                          (fileInputRef.current as any).dataset.id = String(block.id);
-                          fileInputRef.current?.click();
-                        },
-                      },
-                    },
-                  }}
+                  modules={modules}
                   ref={(el) => (quillRefs.current[block.id] = el)}
                 />
               </Box>
             </Box>
-          ))}
+          );})}
 
           <Button startIcon={<Add />} variant="outlined" size="small" onClick={addServiceDefBlock}>
             Add Subsection
