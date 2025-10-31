@@ -14,6 +14,7 @@ import uuid
 from bs4 import BeautifulSoup
 from docx.oxml import OxmlElement
 from docx.text.paragraph import Paragraph
+from docx.oxml.ns import qn
 
 
 class DocumentGenerator:
@@ -61,6 +62,12 @@ class DocumentGenerator:
         # Insert service definition blocks if provided
         if service_definition:
             self._insert_service_definition(doc, service_definition)
+
+        # Ensure Contents (ToC) is regenerated
+        self._refresh_contents_section(doc)
+
+        # Aggressive global replace for sample title lingering in shapes etc.
+        self._replace_text_globally(doc, 'AI Security', title)
         
         # Generate unique filename
         doc_id = str(uuid.uuid4())[:8]
@@ -329,6 +336,79 @@ class DocumentGenerator:
         if style_name:
             new_para.style = style_name
         return new_para
+
+    def _refresh_contents_section(self, doc: Document):
+        """Clear any existing 'Contents' or 'Table of Contents' entries and insert a TOC field."""
+        # Find a heading named 'Contents' or 'Table of Contents'
+        heading_idx = None
+        for i, p in enumerate(doc.paragraphs):
+            txt = (p.text or '').strip()
+            if txt.lower() in ('contents', 'table of contents') and p.style and p.style.name.startswith('Heading'):
+                heading_idx = i
+                break
+        if heading_idx is None:
+            return
+        # Clear everything after this heading until next heading
+        self._clear_section_after_heading(doc, heading_idx)
+        # Insert a TOC field
+        self._insert_toc_after_heading(doc, heading_idx)
+
+    def _insert_toc_after_heading(self, doc: Document, heading_idx: int):
+        """Insert a Table of Contents field after the specified heading.
+
+        Word will populate/update this when the user updates fields (e.g. open/print).
+        """
+        para = doc.paragraphs[heading_idx]
+        p = self._insert_paragraph_after(para, '')
+
+        # Build field codes: TOC \o "1-3" \h \z \u
+        fld_begin = OxmlElement('w:fldChar')
+        fld_begin.set(qn('w:fldCharType'), 'begin')
+
+        instr = OxmlElement('w:instrText')
+        instr.set(qn('xml:space'), 'preserve')
+        instr.text = 'TOC \\o "1-3" \\h \\z \\u'
+
+        fld_sep = OxmlElement('w:fldChar')
+        fld_sep.set(qn('w:fldCharType'), 'separate')
+
+        fld_end = OxmlElement('w:fldChar')
+        fld_end.set(qn('w:fldCharType'), 'end')
+
+        r1 = OxmlElement('w:r')
+        r1.append(fld_begin)
+        r2 = OxmlElement('w:r')
+        r2.append(instr)
+        r3 = OxmlElement('w:r')
+        r3.append(fld_sep)
+        r4 = OxmlElement('w:r')
+        r4.append(fld_end)
+
+        p._p.append(r1)
+        p._p.append(r2)
+        p._p.append(r3)
+        p._p.append(r4)
+
+    def _replace_text_globally(self, doc: Document, old: str, new: str):
+        """Aggressively replace text across all document XML parts (covers shapes/textboxes).
+
+        Note: relies on private attributes; safe enough for our constrained use-case.
+        """
+        try:
+            pkg = doc.part.package
+            for part in pkg.parts:
+                # Only process XML parts
+                if hasattr(part, 'blob') and isinstance(part.blob, (bytes, bytearray)):
+                    try:
+                        xml = part.blob.decode('utf-8')
+                    except Exception:
+                        continue
+                    if old in xml:
+                        xml = xml.replace(old, new)
+                        part._blob = xml.encode('utf-8')
+        except Exception:
+            # Fail silently; best-effort replacement
+            pass
     
     def cleanup_old_files(self, days: int = 7):
         """Remove generated documents older than specified days"""
