@@ -32,10 +32,12 @@ export default function ServiceDescriptionForm() {
   const [features, setFeatures] = useState<string[]>(['']);
   const [benefits, setBenefits] = useState<string[]>(['']);
   // Service Definition subsections
+  const generateId = () => `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   const [serviceDefinition, setServiceDefinition] = useState<Array<{
+    id: string;
     subtitle: string;
     content: string; // HTML from editor
-  }>>([{ subtitle: '', content: '' }]);
+  }>>(() => [{ id: `${Date.now()}_${Math.random().toString(36).slice(2,8)}`, subtitle: '', content: '' }]);
   
   // Validation state
   const [titleValid, setTitleValid] = useState<ValidationState>({ isValid: true, message: '' });
@@ -47,7 +49,7 @@ export default function ServiceDescriptionForm() {
   const [submitting, setSubmitting] = useState(false);
   const [successDialog, setSuccessDialog] = useState(false);
   const [generatedFiles, setGeneratedFiles] = useState<any>(null);
-  const quillRefs = useRef<Array<any>>([]);
+  const quillRefs = useRef<Record<string, any>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Word counting helper
@@ -136,18 +138,16 @@ export default function ServiceDescriptionForm() {
 
   // Service Definition handlers
   const addServiceDefBlock = () => {
-    setServiceDefinition([...serviceDefinition, { subtitle: '', content: '' }]);
+    setServiceDefinition([...serviceDefinition, { id: generateId(), subtitle: '', content: '' }]);
   };
 
-  const removeServiceDefBlock = (index: number) => {
-    const next = serviceDefinition.filter((_, i) => i !== index);
-    setServiceDefinition(next.length === 0 ? [{ subtitle: '', content: '' }] : next);
+  const removeServiceDefBlock = (id: string) => {
+    const next = serviceDefinition.filter((b) => b.id !== id);
+    setServiceDefinition(next.length === 0 ? [{ id: generateId(), subtitle: '', content: '' }] : next);
   };
 
-  const updateServiceDefBlock = (index: number, field: 'subtitle' | 'content', value: string) => {
-    const next = [...serviceDefinition];
-    next[index] = { ...next[index], [field]: value };
-    setServiceDefinition(next);
+  const updateServiceDefBlock = (id: string, field: 'subtitle' | 'content', value: string) => {
+    setServiceDefinition(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
   };
   
   const addFeature = () => {
@@ -420,11 +420,11 @@ export default function ServiceDescriptionForm() {
           </Typography>
 
           {serviceDefinition.map((block, index) => (
-            <Box key={index} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2, mb: 2 }}>
+            <Box key={block.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2, mb: 2 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                 <Typography variant="subtitle2">Subsection {index + 1}</Typography>
                 {serviceDefinition.length > 1 && (
-                  <IconButton size="small" color="error" onClick={() => removeServiceDefBlock(index)}>
+                  <IconButton size="small" color="error" onClick={() => removeServiceDefBlock(block.id)}>
                     <Delete />
                   </IconButton>
                 )}
@@ -436,7 +436,7 @@ export default function ServiceDescriptionForm() {
                 label="Subtitle (Heading 3)"
                 placeholder="e.g., AI Security advisory"
                 value={block.subtitle}
-                onChange={(e) => updateServiceDefBlock(index, 'subtitle', e.target.value)}
+                onChange={(e) => updateServiceDefBlock(block.id, 'subtitle', e.target.value)}
                 sx={{ mb: 2 }}
               />
 
@@ -465,27 +465,26 @@ export default function ServiceDescriptionForm() {
                 <ReactQuill
                   theme="snow"
                   value={block.content}
-                  onChange={(html) => updateServiceDefBlock(index, 'content', html)}
+                  onChange={(html) => updateServiceDefBlock(block.id, 'content', html)}
                   modules={{
                     toolbar: {
                       container: [
                         [{ header: [3, false] }],
                         ['bold', 'italic', 'underline'],
                         [{ list: 'ordered' }, { list: 'bullet' }],
-                        ['link'],
-                        [{ attach: 'attach' }],
+                        ['link', 'attach'],
                         ['clean'],
                       ],
                       handlers: {
                         attach: () => {
                           // store which editor index invoked
-                          (fileInputRef.current as any).dataset.index = String(index);
+                          (fileInputRef.current as any).dataset.id = String(block.id);
                           fileInputRef.current?.click();
                         },
                       },
                     },
                   }}
-                  ref={(el) => (quillRefs.current[index] = el)}
+                  ref={(el) => (quillRefs.current[block.id] = el)}
                 />
               </Box>
             </Box>
@@ -590,8 +589,8 @@ export default function ServiceDescriptionForm() {
           if (!file) return;
           try {
             const res: any = await apiService.uploadFile('/templates/upload', file);
-            const idx = Number((fileInputRef.current as any).dataset.index || 0);
-            const editor = quillRefs.current[idx]?.getEditor?.();
+            const id = String((fileInputRef.current as any).dataset.id || '');
+            const editor = quillRefs.current[id]?.getEditor?.();
             if (!editor) return;
             const range = editor.getSelection(true) || { index: editor.getLength(), length: 0 };
             const html = res.is_image
