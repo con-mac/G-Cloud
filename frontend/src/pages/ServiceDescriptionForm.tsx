@@ -3,7 +3,7 @@
  * 4 required sections with G-Cloud v15 validation
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container, Box, Typography, TextField, Button, Card, CardContent,
@@ -51,6 +51,8 @@ export default function ServiceDescriptionForm() {
   const [generatedFiles, setGeneratedFiles] = useState<any>(null);
   const quillRefs = useRef<Record<string, any>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const modulesByIdRef = useRef<Record<string, any>>({});
+  const draftKey = 'service-description-draft-v1';
 
   // Word counting helper
   const countWords = (text: string): number => {
@@ -149,6 +151,74 @@ export default function ServiceDescriptionForm() {
   const updateServiceDefBlock = (id: string, field: 'subtitle' | 'content', value: string) => {
     setServiceDefinition(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
   };
+
+  // Stable toolbar modules per subsection (cached by id)
+  const getModulesFor = (id: string) => {
+    if (modulesByIdRef.current[id]) return modulesByIdRef.current[id];
+    modulesByIdRef.current[id] = {
+      toolbar: {
+        container: [
+          [{ header: [3, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link', 'attach'],
+          ['clean'],
+        ],
+        handlers: {
+          attach: () => {
+            (fileInputRef.current as any).dataset.id = String(id);
+            fileInputRef.current?.click();
+          },
+        },
+      },
+    };
+    return modulesByIdRef.current[id];
+  };
+
+  // Draft persistence: load on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (typeof data.title === 'string') setTitle(data.title);
+        if (typeof data.description === 'string') setDescription(data.description);
+        if (Array.isArray(data.features)) setFeatures(data.features);
+        if (Array.isArray(data.benefits)) setBenefits(data.benefits);
+        if (Array.isArray(data.serviceDefinition)) {
+          const restored = data.serviceDefinition.map((b: any) => ({
+            id: typeof b.id === 'string' ? b.id : generateId(),
+            subtitle: b.subtitle || '',
+            content: b.content || '',
+          }));
+          setServiceDefinition(restored.length ? restored : [{ id: generateId(), subtitle: '', content: '' }]);
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Draft persistence: save (debounced) on changes
+  const saveTimeoutRef = useRef<number | null>(null);
+  const scheduleSave = () => {
+    if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = window.setTimeout(() => {
+      try {
+        const payload = {
+          title,
+          description,
+          features,
+          benefits,
+          serviceDefinition,
+        };
+        localStorage.setItem(draftKey, JSON.stringify(payload));
+      } catch {}
+    }, 600);
+  };
+  useEffect(() => {
+    scheduleSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, description, JSON.stringify(features), JSON.stringify(benefits), JSON.stringify(serviceDefinition)]);
   
   const addFeature = () => {
     if (features.length < 10) {
@@ -420,23 +490,7 @@ export default function ServiceDescriptionForm() {
           </Typography>
 
           {serviceDefinition.map((block, index) => {
-            const modules = useMemo(() => ({
-              toolbar: {
-                container: [
-                  [{ header: [3, false] }],
-                  ['bold', 'italic', 'underline'],
-                  [{ list: 'ordered' }, { list: 'bullet' }],
-                  ['link', 'attach'],
-                  ['clean'],
-                ],
-                handlers: {
-                  attach: () => {
-                    (fileInputRef.current as any).dataset.id = String(block.id);
-                    fileInputRef.current?.click();
-                  },
-                },
-              },
-            }), [block.id]);
+            const modules = getModulesFor(block.id);
             return (
             <Box key={block.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2, mb: 2 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
