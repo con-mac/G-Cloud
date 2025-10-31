@@ -53,8 +53,10 @@ services:
       AZURE_AD_CLIENT_ID: "your-client-id"
       AZURE_AD_CLIENT_SECRET: "your-client-secret"
       AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+      SERVICE_DESC_TEMPLATE_PATH: "/app/docs/service_description_template.docx"
     volumes:
       - ./backend:/app
+      - ./docs:/app/docs:ro
     ports:
       - "8000:8000"
     depends_on:

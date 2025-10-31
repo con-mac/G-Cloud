@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, List
 from docx import Document
 from docx.shared import Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 import uuid
 from bs4 import BeautifulSoup
 from docx.oxml import OxmlElement
@@ -46,9 +46,23 @@ class DocumentGenerator:
             Dict with paths to generated Word and PDF files
         """
         
-        # Load template
-        template_path = self.templates_dir / "service_description_template.docx"
-        if not template_path.exists():
+        # Load template (prefer docs override if present)
+        template_env = os.environ.get("SERVICE_DESC_TEMPLATE_PATH")
+        template_path: Path | None = None
+        if template_env:
+            env_path = Path(template_env)
+            if env_path.exists():
+                template_path = env_path
+        if template_path is None:
+            # Prefer a .docx in /app/docs if available, otherwise fallback to /app/templates
+            docs_dir = Path("/app/docs")
+            candidate = None
+            if docs_dir.exists():
+                for p in docs_dir.glob("*.docx"):
+                    candidate = p
+                    break
+            template_path = candidate or (self.templates_dir / "service_description_template.docx")
+        if not Path(template_path).exists():
             raise FileNotFoundError(f"Template not found: {template_path}")
         
         # Create a copy to work with
@@ -57,17 +71,48 @@ class DocumentGenerator:
         # Replace title (first Heading 1)
         self._replace_title(doc, title)
         
-        # Replace description, features, and benefits
-        self._replace_content_sections(doc, description, features, benefits)
-        # Insert service definition blocks if provided
-        if service_definition:
-            self._insert_service_definition(doc, service_definition)
+        # Clean target sections entirely and build a fresh content block after TOC
+        self._remove_sections(doc, [
+            'Short Service Description',
+            'Key Service Features',
+            'Key Service Benefits',
+            'Service Definition',
+        ])
+        # Capture and remove 'About PA' block using marker or heading, to re-append at the very end
+        about_pa_block = self._extract_block_by_marker(doc, '{{ABOUT_PA_START}}')
+        if not about_pa_block:
+            about_pa_block = self._extract_heading_block(doc, 'About PA')
 
-        # Ensure Contents (ToC) is regenerated
-        self._refresh_contents_section(doc)
+        after_toc_para = self._ensure_toc_and_pagebreak(doc)
+        # Insert fresh content block starting on a new page
+        last_para = self._insert_full_content_block(
+            doc=doc,
+            after_para=after_toc_para,
+            service_title=title,
+            description=description,
+            features=features,
+            benefits=benefits,
+            service_definition=service_definition or [],
+        )
+        # Re-append About PA block as the final page on its own
+        if about_pa_block:
+            # Page break before About PA
+            tail_para = last_para or (doc.paragraphs[-1] if doc.paragraphs else None)
+            if tail_para is not None:
+                tail_para.add_run().add_break(WD_BREAK.PAGE)
+            body = doc._element.body
+            for el in about_pa_block:
+                body.append(el)
 
-        # Aggressive global replace for sample title lingering in shapes etc.
-        self._replace_text_globally(doc, 'AI Security', title)
+        # Placeholders and ToC handling occur after content is built
+        self._enable_update_fields_on_open(doc)
+
+        # Replace placeholders across all text nodes (including inside shapes/textboxes)
+        self._replace_text_in_all_wt(doc, {
+            'AI Security': title,
+            'Add Title': title,
+            '{{SERVICE_NAME}}': title,
+        })
         
         # Generate unique filename
         doc_id = str(uuid.uuid4())[:8]
@@ -77,6 +122,13 @@ class DocumentGenerator:
         # Save Word document
         word_path = self.output_dir / f"{filename_base}.docx"
         doc.save(str(word_path))
+
+        # Final safeguard: replace placeholders directly in the saved XML parts
+        self._replace_in_saved_docx(str(word_path), {
+            'AI Security': title,
+            'Add Title': title,
+            '{{SERVICE_NAME}}': title,
+        })
         
         # For now, PDF generation would require LibreOffice or similar
         # We'll create a placeholder PDF path
@@ -127,6 +179,10 @@ class DocumentGenerator:
         current_section = None
         section_start_idx = None
         
+        found_description = False
+        found_features = False
+        found_benefits = False
+
         for i, paragraph in enumerate(doc.paragraphs):
             text = paragraph.text.strip()
             
@@ -138,6 +194,7 @@ class DocumentGenerator:
                 self._clear_section_after_heading(doc, i)
                 # Replace content after this heading
                 self._insert_description(doc, i + 1, description)
+                found_description = True
                 
             elif 'Key Service Features' in text:
                 current_section = 'features'
@@ -145,6 +202,7 @@ class DocumentGenerator:
                 self._clear_section_after_heading(doc, i)
                 # Replace content after this heading
                 self._insert_bullet_list(doc, i + 1, features)
+                found_features = True
                 
             elif 'Key Service Benefits' in text:
                 current_section = 'benefits'
@@ -152,6 +210,222 @@ class DocumentGenerator:
                 self._clear_section_after_heading(doc, i)
                 # Replace content after this heading
                 self._insert_bullet_list(doc, i + 1, benefits)
+                found_benefits = True
+
+        # Fallback: append sections to end if headings not present
+        end_para = doc.paragraphs[-1] if doc.paragraphs else None
+        def append_heading(title: str, style: str = 'Heading 2'):
+            nonlocal end_para
+            end_para = self._insert_paragraph_after(end_para, title, style) if end_para else doc.add_paragraph(title, style)
+            return end_para
+        if not found_description:
+            append_heading('Short Service Description')
+            end_para = self._insert_paragraph_after(end_para, description, 'Normal')
+        if not found_features:
+            append_heading('Key Service Features')
+            for f in features:
+                end_para = self._insert_paragraph_after(end_para, f, 'List Bullet')
+        if not found_benefits:
+            append_heading('Key Service Benefits')
+            for b in benefits:
+                end_para = self._insert_paragraph_after(end_para, b, 'List Bullet')
+
+    def _find_heading_index(self, doc: Document, heading_text: str) -> int | None:
+        for i, p in enumerate(doc.paragraphs):
+            if p.style and p.style.name.startswith('Heading') and heading_text in (p.text or ''):
+                return i
+        return None
+
+    def _remove_sections(self, doc: Document, headings: List[str]):
+        for h in headings:
+            idx = self._find_heading_index(doc, h)
+            if idx is not None:
+                # Remove from the heading paragraph itself through to next heading
+                self._remove_heading_block(doc, idx)
+
+    def _remove_heading_block(self, doc: Document, heading_idx: int):
+        body = doc._element.body
+        heading_p = doc.paragraphs[heading_idx]._p
+        # Remove the heading paragraph itself
+        el = heading_p
+        # Then continue removing siblings until next heading
+        while el is not None:
+            nxt = el.getnext()
+            if el.tag == qn('w:p'):
+                p = Paragraph(el, doc)
+                # if we're past the original heading and hit a new heading, stop
+                if el is not heading_p and p.style and p.style.name.startswith('Heading'):
+                    break
+            if el.getparent() is body:
+                body.remove(el)
+            el = nxt
+
+    def _ensure_toc_and_pagebreak(self, doc: Document):
+        # Insert/refresh contents section and get the TOC paragraph
+        after_para = self._refresh_contents_section(doc)
+        if after_para is not None:
+            # Add a page break on the contents paragraph only if not already present
+            try:
+                has_break = False
+                for r in after_para.runs:
+                    if r._r.xpath('.//w:br', namespaces={'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}):
+                        has_break = True
+                        break
+                if not has_break:
+                    after_para.add_run().add_break(WD_BREAK.PAGE)
+            except Exception:
+                pass
+            return after_para
+        # No contents, fallback to last paragraph
+        return doc.paragraphs[-1] if doc.paragraphs else None
+
+    def _insert_full_content_block(
+        self,
+        doc: Document,
+        after_para: Paragraph | None,
+        service_title: str,
+        description: str,
+        features: List[str],
+        benefits: List[str],
+        service_definition: List[dict],
+    ) -> Paragraph | None:
+        cur = after_para
+        def add_para(text: str, style: str | None = None, space_after: int = 12) -> Paragraph:
+            nonlocal cur
+            cur = self._insert_paragraph_after(cur, text, style) if cur else doc.add_paragraph(text, style)
+            try:
+                pf = cur.paragraph_format
+                pf.space_after = Pt(space_after)
+            except Exception:
+                pass
+            return cur
+
+        # Title as Heading 1 in main content (add extra spacing below)
+        add_para(service_title, 'Heading 1', space_after=16)
+
+        # Short Service Description
+        add_para('Short Service Description', 'Heading 2', space_after=10)
+        add_para(description, 'Normal', space_after=16)
+
+        # Key Service Features as numbered red list (1-10)
+        add_para('Key Service Features', 'Heading 2', space_after=10)
+        cur = self._insert_numbered_list_block(doc, cur, features[:10])
+        # extra spacing after features section
+        cur = self._insert_paragraph_after(cur, '')
+        try:
+            cur.paragraph_format.space_after = Pt(14)
+        except Exception:
+            pass
+
+        # Key Service Benefits as numbered red list (1-10)
+        add_para('Key Service Benefits', 'Heading 2', space_after=8)
+        cur = self._insert_numbered_list_block(doc, cur, benefits[:10])
+        # extra spacing after benefits section
+        cur = self._insert_paragraph_after(cur, '')
+        try:
+            cur.paragraph_format.space_after = Pt(16)
+        except Exception:
+            pass
+
+        # Service Definition
+        if service_definition:
+            add_para('Service Definition', 'Heading 2', space_after=6)
+            for block in service_definition:
+                subtitle = block.get('subtitle') or ''
+                content_html = block.get('content') or ''
+                if subtitle:
+                    add_para(subtitle, 'Heading 3', space_after=6)
+                if content_html:
+                    cur = self._insert_html(doc, cur, content_html)
+                    # add spacing after html block
+                    cur = self._insert_paragraph_after(cur, '')
+        return cur
+
+    def _insert_numbered_list_block(self, doc: Document, after_para: Paragraph | None, items: List[str]) -> Paragraph | None:
+        """Insert manual numbered list where only the numbers are red and text stays black."""
+        cur = after_para
+        for idx, item in enumerate(items, start=1):
+            # create a normal paragraph and two runs: red number + black text
+            cur = self._insert_paragraph_after(cur, '') if cur else doc.add_paragraph('')
+            try:
+                pf = cur.paragraph_format
+                pf.space_after = Pt(4)
+            except Exception:
+                pass
+            r_num = cur.add_run(f"{idx}. ")
+            try:
+                r_num.font.color.rgb = RGBColor(192, 0, 0)
+                r_num.bold = True
+            except Exception:
+                pass
+            r_txt = cur.add_run(item)
+            try:
+                r_txt.font.color.rgb = RGBColor(0, 0, 0)
+            except Exception:
+                pass
+        return cur
+
+    def _find_heading_element(self, doc: Document, heading_text: str):
+        for i, p in enumerate(doc.paragraphs):
+            if p.style and p.style.name.startswith('Heading') and heading_text.lower() in (p.text or '').lower():
+                return i, p._p
+        return None, None
+
+    def _extract_heading_block(self, doc: Document, heading_text: str):
+        """Extract a heading and its following content until next heading as XML elements.
+        Removes them from the document and returns a list of detached elements to re-append later.
+        """
+        idx, heading_el = self._find_heading_element(doc, heading_text)
+        if heading_el is None:
+            return []
+        body = doc._element.body
+        result = []
+        el = heading_el
+        while el is not None:
+            nxt = el.getnext()
+            # Stop before next heading (skip removing it)
+            if el is not heading_el and el.tag == qn('w:p'):
+                p = Paragraph(el, doc)
+                if p.style and p.style.name.startswith('Heading'):
+                    break
+            # Detach and collect
+            result.append(el)
+            body.remove(el)
+            el = nxt
+        return result
+
+    def _extract_block_by_marker(self, doc: Document, marker: str):
+        """Find a block that starts where a literal marker appears (in w:t or a:t) and
+        extract that element and everything after it to the end of the document.
+        Returns a list of detached elements (can be empty if marker not found).
+        """
+        root = doc._element
+        start_el = None
+        # Search all text nodes regardless of namespace
+        for t in root.xpath(".//*[local-name()='t']"):
+            if getattr(t, 'text', None) and marker in t.text:
+                # Remove marker text
+                t.text = t.text.replace(marker, '')
+                # Find top-level ancestor under body
+                el = t
+                while el is not None and el.tag not in (qn('w:p'), qn('w:tbl'), qn('w:sdt')):
+                    el = el.getparent()
+                # Climb until direct child of body
+                while el is not None and el.getparent() is not None and el.getparent() is not doc._element.body:
+                    el = el.getparent()
+                start_el = el
+                break
+        if start_el is None:
+            return []
+        body = doc._element.body
+        result = []
+        el = start_el
+        while el is not None:
+            nxt = el.getnext()
+            result.append(el)
+            body.remove(el)
+            el = nxt
+        return result
 
     def _clear_section_after_heading(self, doc: Document, heading_idx: int):
         """Remove paragraphs following a heading until the next heading or end of document.
@@ -159,15 +433,22 @@ class DocumentGenerator:
         Note: python-docx doesn't support deleting list items as a group, so we remove
         underlying elements paragraph by paragraph.
         """
-        i = heading_idx + 1
-        while i < len(doc.paragraphs):
-            p = doc.paragraphs[i]
-            # Stop when next heading starts
-            if p.style and p.style.name.startswith('Heading'):
-                break
-            # Remove paragraph element
-            p._element.getparent().remove(p._element)
-            # Do not increment i because current index now refers to next paragraph
+        # Work at XML level to also remove tables and content controls
+        body = doc._element.body
+        heading_p = doc.paragraphs[heading_idx]._p
+        # Iterate siblings after heading until next heading paragraph
+        el = heading_p.getnext()
+        while el is not None:
+            # Stop at next heading paragraph
+            if el.tag == qn('w:p'):
+                # Check if it's a heading style
+                p = Paragraph(el, doc)
+                if p.style and p.style.name.startswith('Heading'):
+                    break
+            # Remove tables, paragraphs, sdts indiscriminately
+            nxt = el.getnext()
+            body.remove(el)
+            el = nxt
         
     
     def _insert_description(self, doc: Document, start_idx: int, description: str):
@@ -290,9 +571,15 @@ class DocumentGenerator:
                                 # Insert image as separate paragraph after current
                                 p_img = self._insert_paragraph_after(p, '')
                                 try:
-                                    import requests
                                     from io import BytesIO
-                                    img_bytes = requests.get(src, timeout=10).content
+                                    if src.startswith('data:'):
+                                        # data URL: data:image/png;base64,....
+                                        import base64
+                                        header, b64 = src.split(',', 1)
+                                        img_bytes = base64.b64decode(b64)
+                                    else:
+                                        import requests
+                                        img_bytes = requests.get(src, timeout=10).content
                                     run = p_img.add_run()
                                     run.add_picture(BytesIO(img_bytes))
                                     p = p_img
@@ -338,7 +625,9 @@ class DocumentGenerator:
         return new_para
 
     def _refresh_contents_section(self, doc: Document):
-        """Clear any existing 'Contents' or 'Table of Contents' entries and insert a TOC field."""
+        """Clear any existing 'Contents' or 'Table of Contents' entries and insert a TOC field.
+        Returns the paragraph containing the TOC field if inserted, else None.
+        """
         # Find a heading named 'Contents' or 'Table of Contents'
         heading_idx = None
         for i, p in enumerate(doc.paragraphs):
@@ -347,17 +636,15 @@ class DocumentGenerator:
                 heading_idx = i
                 break
         if heading_idx is None:
-            return
+            return None
         # Clear everything after this heading until next heading
         self._clear_section_after_heading(doc, heading_idx)
-        # Insert a TOC field
-        self._insert_toc_after_heading(doc, heading_idx)
+        # Remove any legacy TOC field codes/content and insert a TOC field
+        self._remove_existing_toc(doc)
+        return self._insert_toc_after_heading(doc, heading_idx)
 
     def _insert_toc_after_heading(self, doc: Document, heading_idx: int):
-        """Insert a Table of Contents field after the specified heading.
-
-        Word will populate/update this when the user updates fields (e.g. open/print).
-        """
+        """Insert a Table of Contents field after the specified heading and return the paragraph."""
         para = doc.paragraphs[heading_idx]
         p = self._insert_paragraph_after(para, '')
 
@@ -388,6 +675,36 @@ class DocumentGenerator:
         p._p.append(r2)
         p._p.append(r3)
         p._p.append(r4)
+        return p
+
+    def _remove_existing_toc(self, doc: Document):
+        """Remove any existing TOC field code blocks to avoid duplication."""
+        ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+        try:
+            for instr in doc._element.xpath('.//w:instrText', namespaces=ns):
+                if instr.text and 'TOC' in instr.text:
+                    # Remove the containing paragraph or sdt
+                    parent = instr
+                    # Climb to the paragraph
+                    while parent is not None and parent.tag != qn('w:p'):
+                        parent = parent.getparent()
+                    if parent is not None and parent.getparent() is not None:
+                        parent.getparent().remove(parent)
+        except Exception:
+            pass
+
+    def _enable_update_fields_on_open(self, doc: Document):
+        """Enable Word to update fields (e.g., TOC) when the document is opened."""
+        try:
+            settings = doc.settings
+            # Remove existing updateFields if present
+            for el in list(settings._element.findall(qn('w:updateFields'))):
+                settings._element.remove(el)
+            upd = OxmlElement('w:updateFields')
+            upd.set(qn('w:val'), 'true')
+            settings._element.append(upd)
+        except Exception:
+            pass
 
     def _replace_text_globally(self, doc: Document, old: str, new: str):
         """Aggressively replace text across all document XML parts (covers shapes/textboxes).
@@ -408,6 +725,52 @@ class DocumentGenerator:
                         part._blob = xml.encode('utf-8')
         except Exception:
             # Fail silently; best-effort replacement
+            pass
+
+    def _replace_text_in_all_wt(self, doc: Document, mapping: Dict[str, str]):
+        """Replace text in all w:t nodes within the main document (handles shapes/textboxes)."""
+        ns = {
+            'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+            'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+        }
+        try:
+            for xpath in ('.//w:t', './/a:t'):
+                for t in doc._element.xpath(xpath, namespaces=ns):
+                    if t.text:
+                        txt = t.text
+                        replaced = txt
+                        for old, new in mapping.items():
+                            if old in replaced:
+                                replaced = replaced.replace(old, new)
+                        if replaced != txt:
+                            t.text = replaced
+        except Exception:
+            pass
+
+    def _replace_in_saved_docx(self, docx_path: str, mapping: Dict[str, str]):
+        """Open the saved .docx and replace placeholders in XML files as a last step."""
+        try:
+            from zipfile import ZipFile, ZIP_DEFLATED
+            import io
+            with ZipFile(docx_path, 'r') as zin:
+                buf = io.BytesIO()
+                with ZipFile(buf, 'w', ZIP_DEFLATED) as zout:
+                    for item in zin.infolist():
+                        data = zin.read(item.filename)
+                        if item.filename.startswith('word/') and item.filename.endswith('.xml'):
+                            try:
+                                text = data.decode('utf-8')
+                                for old, new in mapping.items():
+                                    if old in text:
+                                        text = text.replace(old, new)
+                                data = text.encode('utf-8')
+                            except Exception:
+                                pass
+                        zout.writestr(item, data)
+            # Overwrite original file
+            with open(docx_path, 'wb') as f:
+                f.write(buf.getvalue())
+        except Exception:
             pass
     
     def cleanup_old_files(self, days: int = 7):

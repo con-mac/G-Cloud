@@ -643,18 +643,24 @@ export default function ServiceDescriptionForm() {
           const file = e.target.files?.[0];
           if (!file) return;
           try {
-            const res: any = await apiService.uploadFile('/templates/upload', file);
             const id = String((fileInputRef.current as any).dataset.id || '');
             const editor = quillRefs.current[id]?.getEditor?.();
             if (!editor) return;
             const range = editor.getSelection(true) || { index: editor.getLength(), length: 0 };
-            const html = res.is_image
-              ? `<img src="${res.url}" />`
-              : `<a href="${res.url}" target="_blank" rel="noopener">${res.filename}</a>`;
-            editor.clipboard.dangerouslyPasteHTML(range.index, html);
-            editor.setSelection(range.index + 1, 0);
-          } catch (err) {
-            alert('Upload failed');
+            if (file.type.startsWith('image/')) {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const dataUrl = reader.result as string;
+                const html = `<img src="${dataUrl}" />`;
+                editor.clipboard.dangerouslyPasteHTML(range.index, html);
+                editor.setSelection(range.index + 1, 0);
+              };
+              reader.readAsDataURL(file);
+            } else {
+              const html = `<span>${file.name}</span>`;
+              editor.clipboard.dangerouslyPasteHTML(range.index, html);
+              editor.setSelection(range.index + 1, 0);
+            }
           } finally {
             if (fileInputRef.current) fileInputRef.current.value = '';
           }
