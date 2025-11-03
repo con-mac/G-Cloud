@@ -37,3 +37,13 @@ output "upload_bucket" {
   value       = aws_s3_bucket.uploads.id
 }
 
+output "pdf_converter_function_name" {
+  description = "PDF converter Lambda function name"
+  value       = aws_lambda_function.pdf_converter.function_name
+}
+
+output "pdf_converter_ecr_repository" {
+  description = "ECR repository URL for PDF converter"
+  value       = aws_ecr_repository.pdf_converter.repository_url
+}
+

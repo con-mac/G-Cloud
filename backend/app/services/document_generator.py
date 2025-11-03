@@ -4,6 +4,7 @@ Generates Word and PDF documents from templates
 """
 
 import os
+import json
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -173,14 +174,36 @@ class DocumentGenerator:
             self.s3_service.upload_document(word_path, word_s3_key)
             word_url = self.s3_service.get_presigned_url(word_s3_key)
             
-            # For now, PDF generation would require LibreOffice or similar
-            # Return placeholder S3 key for PDF (not yet implemented)
+            # Invoke PDF converter Lambda to generate PDF
             pdf_s3_key = f"generated/{filename_base}.pdf"
+            pdf_url = None
+            
+            try:
+                import boto3
+                pdf_converter_function = os.environ.get("PDF_CONVERTER_FUNCTION_NAME")
+                if pdf_converter_function:
+                    lambda_client = boto3.client('lambda')
+                    response = lambda_client.invoke(
+                        FunctionName=pdf_converter_function,
+                        InvocationType='RequestResponse',  # Synchronous invocation
+                        Payload=json.dumps({
+                            'word_s3_key': word_s3_key,
+                            'word_bucket': os.environ.get('OUTPUT_BUCKET_NAME')
+                        })
+                    )
+                    result = json.loads(response['Payload'].read())
+                    if result.get('success'):
+                        pdf_url = result.get('pdf_url')
+                        pdf_s3_key = result.get('pdf_s3_key', pdf_s3_key)
+            except Exception as e:
+                # If PDF conversion fails, continue without PDF
+                print(f"PDF conversion failed: {e}")
+                pdf_url = None
             
             return {
                 "word_path": word_url,  # Return presigned URL
                 "word_s3_key": word_s3_key,
-                "pdf_path": pdf_s3_key,  # Return S3 key, will be converted to presigned URL in route handler
+                "pdf_path": pdf_url or pdf_s3_key,  # Return PDF URL or S3 key
                 "pdf_s3_key": pdf_s3_key,
                 "filename": filename_base
             }

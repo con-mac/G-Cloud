@@ -190,6 +190,13 @@ resource "aws_iam_role_policy" "lambda_s3" {
       {
         Effect = "Allow"
         Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = aws_lambda_function.pdf_converter.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents"
@@ -219,6 +226,7 @@ resource "aws_lambda_function" "api" {
       OUTPUT_BUCKET_NAME          = aws_s3_bucket.output.id
       UPLOAD_BUCKET_NAME          = aws_s3_bucket.uploads.id
       TEMPLATE_S3_KEY             = "templates/service_description_template.docx"
+      PDF_CONVERTER_FUNCTION_NAME = try(aws_lambda_function.pdf_converter.function_name, "")
       SECRET_KEY                  = var.app_secret_key
       ENVIRONMENT                 = var.environment
       DEBUG                       = var.environment == "dev" ? "true" : "false"
@@ -236,6 +244,96 @@ resource "aws_lambda_function" "api" {
   depends_on = [
     aws_iam_role_policy.lambda_s3
   ]
+}
+
+# ECR Repository for PDF Converter Container
+resource "aws_ecr_repository" "pdf_converter" {
+  name                 = "${var.project_name}-${var.environment}-pdf-converter"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+# IAM Role for PDF Converter Lambda
+resource "aws_iam_role" "pdf_converter_lambda" {
+  name = "${var.project_name}-${var.environment}-pdf-converter-lambda-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "pdf_converter_lambda_s3" {
+  name = "${var.project_name}-${var.environment}-pdf-converter-lambda-s3-policy"
+  role = aws_iam_role.pdf_converter_lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.output.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
+# PDF Converter Lambda Function (Container Image)
+resource "aws_lambda_function" "pdf_converter" {
+  function_name = "${var.project_name}-${var.environment}-pdf-converter"
+  role          = aws_iam_role.pdf_converter_lambda.arn
+  timeout       = 300  # 5 minutes for PDF conversion
+  memory_size   = 1024
+
+  package_type = "Image"
+  image_uri    = "${aws_ecr_repository.pdf_converter.repository_url}:latest"
+
+  environment {
+    variables = {
+      OUTPUT_BUCKET_NAME = aws_s3_bucket.output.id
+      ENVIRONMENT        = var.environment
+    }
+  }
+
+  depends_on = [
+    aws_iam_role_policy.pdf_converter_lambda_s3
+  ]
+}
+
+# Grant main API Lambda permission to invoke PDF converter
+resource "aws_lambda_permission" "allow_api_invoke_pdf_converter" {
+  statement_id  = "AllowAPILambdaInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.pdf_converter.function_name
+  principal     = "lambda.amazonaws.com"
+  source_arn    = aws_lambda_function.api.arn
 }
 
 # API Gateway HTTP API
