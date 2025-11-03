@@ -65,6 +65,10 @@ Pillow==10.4.0
 requests==2.32.3
 beautifulsoup4==4.12.3
 
+# AWS Lambda
+mangum==0.17.0
+boto3==1.34.0
+
 # Development
 black==23.11.0
 flake8==6.1.0

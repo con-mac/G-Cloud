@@ -6,7 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.section import SectionType, ValidationStatus
+# Import from constants module (no database dependency)
+from app.models.constants import SectionType, ValidationStatus
 
 
 class SectionBase(BaseModel):

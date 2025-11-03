@@ -6,7 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.proposal import ProposalStatus
+# Import from constants (no database dependency)
+from app.models.constants import ProposalStatus
 
 
 class ProposalBase(BaseModel):

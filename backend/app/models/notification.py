@@ -1,15 +1,38 @@
 """Notification model"""
 
+import os
+_use_s3 = os.environ.get("USE_S3", "false").lower() == "true"
+
+if not _use_s3:
+    try:
+        import importlib
+        sqlalchemy_module = importlib.import_module("sqlalchemy")
+        postgresql_dialect = importlib.import_module("sqlalchemy.dialects.postgresql")
+        orm_module = importlib.import_module("sqlalchemy.orm")
+        models_base = importlib.import_module("app.models.base")
+        
+        Column = getattr(sqlalchemy_module, "Column", None)
+        String = getattr(sqlalchemy_module, "String", None)
+        Text = getattr(sqlalchemy_module, "Text", None)
+        Boolean = getattr(sqlalchemy_module, "Boolean", None)
+        DateTime = getattr(sqlalchemy_module, "DateTime", None)
+        SQLEnum = getattr(sqlalchemy_module, "Enum", None)
+        ForeignKey = getattr(sqlalchemy_module, "ForeignKey", None)
+        UUID = getattr(postgresql_dialect, "UUID", None)
+        relationship = getattr(orm_module, "relationship", None)
+        Base = getattr(models_base, "Base", None)
+        SQLALCHEMY_AVAILABLE = True
+    except (ImportError, AttributeError, ModuleNotFoundError):
+        SQLALCHEMY_AVAILABLE = False
+        Base = None
+else:
+    SQLALCHEMY_AVAILABLE = False
+    Base = None
+
 import enum
-from sqlalchemy import Column, String, Text, Boolean, DateTime, Enum as SQLEnum, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
-
-from app.models.base import Base
-
 
 class NotificationType(str, enum.Enum):
-    """Types of notifications"""
+    """Notification types"""
 
     DEADLINE_30_DAYS = "deadline_30_days"
     DEADLINE_14_DAYS = "deadline_14_days"
@@ -26,35 +49,26 @@ class NotificationType(str, enum.Enum):
     COMMENT_ADDED = "comment_added"
     CUSTOM = "custom"
 
+if SQLALCHEMY_AVAILABLE and Base is not None:
+    class Notification(Base):
+        """Notification model for user notifications"""
 
-class Notification(Base):
-    """Notification model for user alerts"""
+        __tablename__ = "notifications"
 
-    __tablename__ = "notifications"
+        # References
+        user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+        proposal_id = Column(UUID(as_uuid=True), ForeignKey("proposals.id"), nullable=True)
 
-    # References
-    proposal_id = Column(UUID(as_uuid=True), ForeignKey("proposals.id"), nullable=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+        # Notification details
+        notification_type = Column(SQLEnum(NotificationType), nullable=False)
+        title = Column(String(255), nullable=False)
+        message = Column(Text, nullable=False)
+        is_read = Column(Boolean, default=False, nullable=False)
+        read_at = Column(DateTime, nullable=True)
 
-    # Notification details
-    notification_type = Column(SQLEnum(NotificationType), nullable=False)
-    title = Column(String(255), nullable=False)
-    message = Column(Text, nullable=False)
-
-    # Delivery
-    sent_at = Column(DateTime, nullable=True)
-    read_at = Column(DateTime, nullable=True)
-    is_sent = Column(Boolean, default=False, nullable=False)
-    is_read = Column(Boolean, default=False, nullable=False)
-
-    # Email specific
-    email_sent = Column(Boolean, default=False, nullable=False)
-    email_sent_at = Column(DateTime, nullable=True)
-
-    # Relationships
-    proposal = relationship("Proposal", back_populates="notifications")
-    user = relationship("User", back_populates="notifications")
-
-    def __repr__(self) -> str:
-        return f"<Notification {self.notification_type} to {self.user_id}>"
-
+        def __repr__(self) -> str:
+            return f"<Notification {self.title} for user {self.user_id}>"
+else:
+    # Dummy Notification class for Lambda
+    class Notification:
+        pass

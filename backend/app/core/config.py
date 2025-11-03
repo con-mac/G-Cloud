@@ -1,6 +1,6 @@
 """Application configuration"""
 
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
 
@@ -13,6 +13,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        validate_default=False,  # Don't validate defaults, allow empty strings
     )
 
     # Application
@@ -20,25 +21,25 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    SECRET_KEY: str = Field(..., min_length=32)
+    SECRET_KEY: str = Field(default="min-32-char-secret-key-for-development-only-use", min_length=32, validate_default=False)
 
-    # Database
-    DATABASE_URL: str
+    # Database (optional for Lambda - not needed for document generation)
+    DATABASE_URL: str = ""
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
 
-    # Redis
+    # Redis (optional for Lambda)
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_CACHE_TTL: int = 3600
 
-    # Azure Active Directory
-    AZURE_AD_TENANT_ID: str
-    AZURE_AD_CLIENT_ID: str
-    AZURE_AD_CLIENT_SECRET: str
+    # Azure Active Directory (optional for Lambda)
+    AZURE_AD_TENANT_ID: str = ""
+    AZURE_AD_CLIENT_ID: str = ""
+    AZURE_AD_CLIENT_SECRET: str = ""
     AZURE_AD_AUTHORITY: str = "https://login.microsoftonline.com/"
 
-    # Azure Storage
-    AZURE_STORAGE_CONNECTION_STRING: str
+    # Azure Storage (optional for Lambda - using S3 instead)
+    AZURE_STORAGE_CONNECTION_STRING: str = ""
     AZURE_STORAGE_CONTAINER_NAME: str = "gcloud-documents"
 
     # Azure Key Vault
@@ -92,9 +93,30 @@ class Settings(BaseSettings):
     @property
     def database_url_sync(self) -> str:
         """Get synchronous database URL for Alembic"""
-        return self.DATABASE_URL.replace("+asyncpg", "")
+        if not self.DATABASE_URL:
+            return ""
+        return str(self.DATABASE_URL).replace("+asyncpg", "")
 
 
 # Create settings instance
-settings = Settings()
+# Handle validation errors gracefully for Lambda environment
+try:
+    settings = Settings()
+except Exception as e:
+    # If validation fails, create settings with explicit values
+    import os
+    _env = os.environ.copy()
+    _env.setdefault("DATABASE_URL", "")
+    _env.setdefault("AZURE_AD_TENANT_ID", "")
+    _env.setdefault("AZURE_AD_CLIENT_ID", "")
+    _env.setdefault("AZURE_AD_CLIENT_SECRET", "")
+    _env.setdefault("AZURE_STORAGE_CONNECTION_STRING", "")
+    _env.setdefault("SECRET_KEY", "min-32-char-secret-key-for-development-only-use")
+    
+    # Temporarily set env vars
+    for k, v in _env.items():
+        if k not in os.environ:
+            os.environ[k] = v
+    
+    settings = Settings()
 

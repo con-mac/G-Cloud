@@ -6,7 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
 
-from app.models.user import UserRole
+# Import from constants (no database dependency)
+from app.models.constants import UserRole
 
 
 class UserBase(BaseModel):

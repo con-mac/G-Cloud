@@ -77,6 +77,13 @@ backend/generated_documents/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
+terraform.tfvars
+*.tfvars.backup
+
+# AWS
+.aws/
+*.pem
+*.key
 
 # Azure
 .azure/

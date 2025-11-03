@@ -6,7 +6,7 @@ Generates Word and PDF documents from templates
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
@@ -20,10 +20,40 @@ from docx.oxml.ns import qn
 class DocumentGenerator:
     """Generates G-Cloud proposal documents from templates"""
     
-    def __init__(self):
-        self.templates_dir = Path("/app/templates")
-        self.output_dir = Path("/app/generated_documents")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, s3_service=None):
+        """
+        Initialize document generator
+        
+        Args:
+            s3_service: Optional S3Service instance for AWS Lambda deployment
+        """
+        self.s3_service = s3_service
+        self.use_s3 = s3_service is not None
+        
+        if self.use_s3:
+            # Lambda environment: use /tmp for temporary files
+            self.templates_dir = Path("/tmp/templates")
+            self.output_dir = Path("/tmp/generated_documents")
+        else:
+            # Docker/local environment
+            self.templates_dir = Path("/app/templates")
+            self.output_dir = Path("/app/generated_documents")
+        
+        # Only create directories if they don't exist and are writable
+        # In Lambda, /tmp is always available, but we don't need to create /app
+        try:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            # If we can't create directories (e.g., Lambda read-only filesystem),
+            # fall back to /tmp (which is always writable in Lambda)
+            if self.use_s3:
+                # Already using /tmp, so this shouldn't happen
+                raise
+            else:
+                # Fallback to /tmp if /app is not writable
+                self.templates_dir = Path("/tmp/templates")
+                self.output_dir = Path("/tmp/generated_documents")
+                self.output_dir.mkdir(parents=True, exist_ok=True)
     
     def generate_service_description(
         self,
@@ -46,24 +76,31 @@ class DocumentGenerator:
             Dict with paths to generated Word and PDF files
         """
         
-        # Load template (prefer docs override if present)
-        template_env = os.environ.get("SERVICE_DESC_TEMPLATE_PATH")
-        template_path: Path | None = None
-        if template_env:
-            env_path = Path(template_env)
-            if env_path.exists():
-                template_path = env_path
-        if template_path is None:
-            # Prefer a .docx in /app/docs if available, otherwise fallback to /app/templates
-            docs_dir = Path("/app/docs")
-            candidate = None
-            if docs_dir.exists():
-                for p in docs_dir.glob("*.docx"):
-                    candidate = p
-                    break
-            template_path = candidate or (self.templates_dir / "service_description_template.docx")
-        if not Path(template_path).exists():
-            raise FileNotFoundError(f"Template not found: {template_path}")
+        # Load template
+        if self.use_s3:
+            # AWS Lambda: download template from S3 to /tmp
+            template_key = os.environ.get("TEMPLATE_S3_KEY", "templates/service_description_template.docx")
+            template_path = self.output_dir / "template.docx"
+            self.s3_service.download_template(template_key, template_path)
+        else:
+            # Docker/local: use local filesystem
+            template_env = os.environ.get("SERVICE_DESC_TEMPLATE_PATH")
+            template_path: Path | None = None
+            if template_env:
+                env_path = Path(template_env)
+                if env_path.exists():
+                    template_path = env_path
+            if template_path is None:
+                # Prefer a .docx in /app/docs if available, otherwise fallback to /app/templates
+                docs_dir = Path("/app/docs")
+                candidate = None
+                if docs_dir.exists():
+                    for p in docs_dir.glob("*.docx"):
+                        candidate = p
+                        break
+                template_path = candidate or (self.templates_dir / "service_description_template.docx")
+            if not Path(template_path).exists():
+                raise FileNotFoundError(f"Template not found: {template_path}")
         
         # Create a copy to work with
         doc = Document(str(template_path))
@@ -119,7 +156,7 @@ class DocumentGenerator:
         safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_'))[:50]
         filename_base = f"{safe_title}_{doc_id}"
         
-        # Save Word document
+        # Save Word document locally first
         word_path = self.output_dir / f"{filename_base}.docx"
         doc.save(str(word_path))
 
@@ -130,15 +167,32 @@ class DocumentGenerator:
             '{{SERVICE_NAME}}': title,
         })
         
-        # For now, PDF generation would require LibreOffice or similar
-        # We'll create a placeholder PDF path
-        pdf_path = self.output_dir / f"{filename_base}.pdf"
-        
-        return {
-            "word_path": str(word_path),
-            "pdf_path": str(pdf_path),
-            "filename": filename_base
-        }
+        # Upload to S3 if in Lambda environment
+        if self.use_s3:
+            word_s3_key = f"generated/{filename_base}.docx"
+            self.s3_service.upload_document(word_path, word_s3_key)
+            word_url = self.s3_service.get_presigned_url(word_s3_key)
+            
+            # For now, PDF generation would require LibreOffice or similar
+            # Return placeholder S3 key for PDF (not yet implemented)
+            pdf_s3_key = f"generated/{filename_base}.pdf"
+            
+            return {
+                "word_path": word_url,  # Return presigned URL
+                "word_s3_key": word_s3_key,
+                "pdf_path": pdf_s3_key,  # Return S3 key, will be converted to presigned URL in route handler
+                "pdf_s3_key": pdf_s3_key,
+                "filename": filename_base
+            }
+        else:
+            # Docker/local: return local paths
+            pdf_path = self.output_dir / f"{filename_base}.pdf"
+            
+            return {
+                "word_path": str(word_path),
+                "pdf_path": str(pdf_path),
+                "filename": filename_base
+            }
     
     def _replace_title(self, doc: Document, new_title: str):
         """Replace the first Heading 1 with the new title"""
@@ -786,6 +840,14 @@ class DocumentGenerator:
                     file_path.unlink()
 
 
-# Global instance
-document_generator = DocumentGenerator()
+# Global instance (lazy initialization - not created in Lambda)
+# In Lambda, instances are created in routes with s3_service
+# Only create global instance if not in Lambda environment
+_use_s3 = os.environ.get("USE_S3", "false").lower() == "true"
+if not _use_s3:
+    # Only create global instance for Docker/local environment
+    document_generator = DocumentGenerator()
+else:
+    # Lambda environment - don't create global instance
+    document_generator = None
 

@@ -278,8 +278,16 @@ export default function ServiceDescriptionForm() {
     }
   };
 
-  const handleDownload = async (filename: string) => {
-    window.open(`http://localhost:8000/api/v1/templates/service-description/download/${filename}`, '_blank');
+  const handleDownload = (url: string) => {
+    // Use the presigned URL directly from the API response
+    if (url && url.startsWith('http')) {
+      window.open(url, '_blank');
+    } else {
+      // Fallback: construct download URL if we only have a filename
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://jqms1xopz9.execute-api.eu-west-2.amazonaws.com';
+      const downloadUrl = `${apiBaseUrl}/api/v1/templates/service-description/download/${url}`;
+      window.open(downloadUrl, '_blank');
+    }
   };
 
   const descWords = countWords(description);
@@ -537,9 +545,9 @@ export default function ServiceDescriptionForm() {
                 <ReactQuill
                   theme="snow"
                   value={block.content}
-                  onChange={(html) => updateServiceDefBlock(block.id, 'content', html)}
+                  onChange={(html: string) => updateServiceDefBlock(block.id, 'content', html)}
                   modules={modules}
-                  ref={(el) => (quillRefs.current[block.id] = el)}
+                  ref={(el: any) => (quillRefs.current[block.id] = el)}
                 />
               </Box>
             </Box>
@@ -592,7 +600,7 @@ export default function ServiceDescriptionForm() {
                 startIcon={<Download />}
                 variant="outlined"
                 size="small"
-                onClick={() => handleDownload(generatedFiles?.word_filename)}
+                onClick={() => handleDownload(generatedFiles?.word_path || generatedFiles?.word_filename)}
               >
                 Download
               </Button>
@@ -606,10 +614,10 @@ export default function ServiceDescriptionForm() {
                 startIcon={<Download />}
                 variant="outlined"
                 size="small"
-                onClick={() => handleDownload(generatedFiles?.pdf_filename)}
-                disabled
+                onClick={() => handleDownload(generatedFiles?.pdf_path || generatedFiles?.pdf_filename)}
+                disabled={!generatedFiles?.pdf_path || !generatedFiles?.pdf_path.startsWith('http')}
               >
-                Coming Soon
+                {generatedFiles?.pdf_path && generatedFiles?.pdf_path.startsWith('http') ? 'Download' : 'Coming Soon'}
               </Button>
             </ListItem>
           </List>

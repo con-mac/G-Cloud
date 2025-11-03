@@ -1,0 +1,32 @@
+# Lambda-specific requirements (minimal runtime dependencies)
+# Excludes development, testing, and non-essential packages
+
+# FastAPI and server (core runtime)
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+mangum==0.17.0
+
+# AWS
+boto3==1.34.0
+
+# Document processing (core functionality)
+python-docx==1.1.0
+Pillow==10.4.0
+beautifulsoup4==4.12.3
+requests==2.32.3
+
+# Data validation (pydantic-core is installed automatically with pydantic)
+pydantic==2.5.0
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# Utilities
+python-slugify==8.0.1
+
+# Authentication and security (if needed)
+python-jose[cryptography]==3.3.0
+
+# HTTP client
+httpx==0.25.2
+

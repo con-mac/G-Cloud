@@ -1,50 +1,61 @@
 """Proposal model"""
 
-import enum
-from sqlalchemy import Column, String, Float, DateTime, Enum as SQLEnum, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+import os
+_use_s3 = os.environ.get("USE_S3", "false").lower() == "true"
 
-from app.models.base import Base
+if not _use_s3:
+    try:
+        import importlib
+        sqlalchemy_module = importlib.import_module("sqlalchemy")
+        postgresql_dialect = importlib.import_module("sqlalchemy.dialects.postgresql")
+        orm_module = importlib.import_module("sqlalchemy.orm")
+        models_base = importlib.import_module("app.models.base")
+        
+        Column = getattr(sqlalchemy_module, "Column", None)
+        String = getattr(sqlalchemy_module, "String", None)
+        Float = getattr(sqlalchemy_module, "Float", None)
+        DateTime = getattr(sqlalchemy_module, "DateTime", None)
+        SQLEnum = getattr(sqlalchemy_module, "Enum", None)
+        ForeignKey = getattr(sqlalchemy_module, "ForeignKey", None)
+        UUID = getattr(postgresql_dialect, "UUID", None)
+        relationship = getattr(orm_module, "relationship", None)
+        Base = getattr(models_base, "Base", None)
+        SQLALCHEMY_AVAILABLE = True
+    except (ImportError, AttributeError, ModuleNotFoundError):
+        SQLALCHEMY_AVAILABLE = False
+        Base = None
+else:
+    SQLALCHEMY_AVAILABLE = False
+    Base = None
 
+# Import from constants (no database dependency)
+from app.models.constants import ProposalStatus
 
-class ProposalStatus(str, enum.Enum):
-    """Proposal status enum"""
+if SQLALCHEMY_AVAILABLE and Base is not None:
+    class Proposal(Base):
+        """Proposal model for G-Cloud proposals"""
 
-    DRAFT = "draft"
-    IN_REVIEW = "in_review"
-    READY_FOR_SUBMISSION = "ready_for_submission"
-    SUBMITTED = "submitted"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+        __tablename__ = "proposals"
 
+        # Basic information
+        title = Column(String(500), nullable=False)
+        framework_version = Column(String(50), nullable=False)  # e.g., "G-Cloud 14"
+        status = Column(SQLEnum(ProposalStatus), default=ProposalStatus.DRAFT, nullable=False)
+        deadline = Column(DateTime, nullable=True)
 
-class Proposal(Base):
-    """Proposal model for G-Cloud proposals"""
+        # Progress tracking
+        completion_percentage = Column(Float, default=0.0, nullable=False)
 
-    __tablename__ = "proposals"
+        # Ownership
+        created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
-    # Basic information
-    title = Column(String(500), nullable=False)
-    framework_version = Column(String(50), nullable=False)  # e.g., "G-Cloud 14"
-    status = Column(SQLEnum(ProposalStatus), default=ProposalStatus.DRAFT, nullable=False)
-    
-    # Deadline and progress
-    deadline = Column(DateTime, nullable=True)
-    completion_percentage = Column(Float, default=0.0, nullable=False)
-    
-    # User tracking
-    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    last_modified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    
-    # Document reference
-    original_document_url = Column(String(1000), nullable=True)  # Azure Blob Storage URL
-    
-    # Relationships
-    created_by_user = relationship("User", foreign_keys=[created_by], back_populates="proposals")
-    sections = relationship("Section", back_populates="proposal", cascade="all, delete-orphan")
-    notifications = relationship("Notification", back_populates="proposal", cascade="all, delete-orphan")
+        # Relationships
+        created_by_user = relationship("User", back_populates="created_proposals", foreign_keys=[created_by])
+        sections = relationship("Section", back_populates="proposal", cascade="all, delete-orphan", order_by="Section.order")
 
-    def __repr__(self) -> str:
-        return f"<Proposal {self.title} ({self.status})>"
-
+        def __repr__(self) -> str:
+            return f"<Proposal {self.title} ({self.framework_version})>"
+else:
+    # Dummy Proposal class for Lambda
+    class Proposal:
+        pass

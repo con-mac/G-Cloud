@@ -11,7 +11,16 @@ import os
 import uuid
 import re
 
-from app.services.document_generator import document_generator
+from app.services.document_generator import DocumentGenerator
+from app.services.s3_service import S3Service
+
+# Initialize services based on environment
+_use_s3 = os.environ.get("USE_S3", "false").lower() == "true"
+if _use_s3:
+    s3_service = S3Service()
+    document_generator = DocumentGenerator(s3_service=s3_service)
+else:
+    document_generator = DocumentGenerator()
 
 router = APIRouter()
 
@@ -79,13 +88,23 @@ async def generate_service_description(request: ServiceDescriptionRequest):
             service_definition=request.service_definition or []
         )
         
+        # Handle PDF path - may be None in Lambda if PDF generation not implemented
+        pdf_path = result.get('pdf_path') or result.get('pdf_s3_key', '')
+        if pdf_path and not pdf_path.startswith('http'):
+            # Convert S3 key to presigned URL if needed
+            if _use_s3 and s3_service:
+                try:
+                    pdf_path = s3_service.get_presigned_url(pdf_path, expiration=3600)
+                except:
+                    pass
+        
         return GenerateResponse(
             success=True,
             message="Documents generated successfully",
             word_filename=f"{result['filename']}.docx",
             pdf_filename=f"{result['filename']}.pdf",
             word_path=result['word_path'],
-            pdf_path=result['pdf_path']
+            pdf_path=pdf_path or f"{result.get('filename', 'document')}.pdf"  # Fallback to filename if no path
         )
     
     except FileNotFoundError as e:
@@ -97,20 +116,30 @@ async def generate_service_description(request: ServiceDescriptionRequest):
 @router.get("/service-description/download/{filename}")
 async def download_document(filename: str):
     """Download generated Word or PDF document"""
-    import os
-    file_path = f"/app/generated_documents/{filename}"
-    
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
-        if filename.endswith('.docx') else "application/pdf"
-    
-    return FileResponse(
-        path=file_path,
-        media_type=media_type,
-        filename=filename
-    )
+    if _use_s3 and s3_service:
+        # AWS Lambda: generate presigned URL for S3 file
+        s3_key = f"generated/{filename}"
+        try:
+            presigned_url = s3_service.get_presigned_url(s3_key, expiration=3600)
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=presigned_url)
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"File not found in S3: {str(e)}")
+    else:
+        # Docker/local: serve from filesystem
+        file_path = f"/app/generated_documents/{filename}"
+        
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
+            if filename.endswith('.docx') else "application/pdf"
+        
+        return FileResponse(
+            path=file_path,
+            media_type=media_type,
+            filename=filename
+        )
 
 
 @router.get("/")
@@ -152,27 +181,53 @@ async def upload_file(file: UploadFile = File(...)):
 
     Returns a URL that can be used in the editor. Images will be detected by content type.
     """
-    uploads_dir = "/app/uploads"
-    os.makedirs(uploads_dir, exist_ok=True)
+    content = await file.read()
     unique = str(uuid.uuid4())[:8]
     filename = f"{unique}_{file.filename}"
-    dest_path = os.path.join(uploads_dir, filename)
-    try:
-        with open(dest_path, "wb") as f:
-            f.write(await file.read())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
-
-    url = f"/api/v1/templates/upload/{filename}"
     is_image = (file.content_type or "").startswith("image/")
-    return {"url": url, "filename": file.filename, "content_type": file.content_type, "is_image": is_image}
+    
+    if _use_s3 and s3_service:
+        # AWS Lambda: upload to S3
+        s3_key = f"uploads/{filename}"
+        try:
+            s3_service.upload_file(content, s3_key, file.content_type or "application/octet-stream")
+            # Return presigned URL
+            url = s3_service.get_presigned_url(s3_key, expiration=86400)  # 24 hours
+            return {"url": url, "filename": file.filename, "content_type": file.content_type, "is_image": is_image}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Upload to S3 failed: {e}")
+    else:
+        # Docker/local: save to filesystem
+        uploads_dir = "/app/uploads"
+        os.makedirs(uploads_dir, exist_ok=True)
+        dest_path = os.path.join(uploads_dir, filename)
+        try:
+            with open(dest_path, "wb") as f:
+                f.write(content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
+        url = f"/api/v1/templates/upload/{filename}"
+        return {"url": url, "filename": file.filename, "content_type": file.content_type, "is_image": is_image}
 
 
 @router.get("/upload/{filename}")
 async def serve_upload(filename: str):
-    uploads_dir = "/app/uploads"
-    file_path = os.path.join(uploads_dir, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(path=file_path, filename=filename)
+    """Serve uploaded file (only for Docker/local, S3 uses presigned URLs)"""
+    if _use_s3 and s3_service:
+        # AWS Lambda: generate presigned URL
+        s3_key = f"uploads/{filename}"
+        try:
+            presigned_url = s3_service.get_presigned_url(s3_key, expiration=3600)
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=presigned_url)
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"File not found in S3: {str(e)}")
+    else:
+        # Docker/local: serve from filesystem
+        uploads_dir = "/app/uploads"
+        file_path = os.path.join(uploads_dir, filename)
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        return FileResponse(path=file_path, filename=filename)
 

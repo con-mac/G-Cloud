@@ -5,15 +5,19 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { toast } from 'react-toastify';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Support both VITE_API_BASE_URL (for AWS) and VITE_API_URL (for Docker)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_VERSION = import.meta.env.VITE_API_VERSION || 'v1';
 
 class ApiService {
   private client: AxiosInstance;
 
   constructor() {
+    // API Gateway preserves full path, so always use /api/v1 prefix
+    const baseURL = `${API_BASE_URL}/api/${API_VERSION}`;
+    
     this.client = axios.create({
-      baseURL: `${API_BASE_URL}/api/${API_VERSION}`,
+      baseURL: baseURL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',

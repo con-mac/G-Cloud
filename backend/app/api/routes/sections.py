@@ -4,7 +4,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 
-from app.services.database import db_service
+# Lazy import for Lambda compatibility
+try:
+    from app.services.database import db_service
+except ImportError:
+    db_service = None
 
 router = APIRouter()
 

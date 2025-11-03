@@ -1,9 +1,22 @@
 """Database service layer"""
 
-import psycopg2
 import os
 from typing import List, Dict, Any, Optional
 import json
+
+# Optional import for Lambda (not needed for document generation)
+# Check if we're in Lambda (USE_S3 environment variable)
+_use_s3 = os.environ.get("USE_S3", "false").lower() == "true"
+
+psycopg2 = None
+if not _use_s3:
+    # Only try to import psycopg2 if not in Lambda
+    # Use importlib to avoid parse-time import errors
+    try:
+        import importlib
+        psycopg2 = importlib.import_module("psycopg2")
+    except (ImportError, ModuleNotFoundError):
+        psycopg2 = None
 
 
 class DatabaseService:
@@ -15,6 +28,8 @@ class DatabaseService:
     
     def get_connection(self):
         """Get database connection"""
+        if psycopg2 is None:
+            raise ImportError("psycopg2 is not installed. Database features are unavailable.")
         return psycopg2.connect(self.db_url)
     
     def get_all_proposals(self) -> List[Dict[str, Any]]:
@@ -216,6 +231,27 @@ class DatabaseService:
             conn.close()
 
 
-# Global instance
-db_service = DatabaseService()
+# Global instance (lazy initialization for Lambda compatibility)
+_db_service_instance = None
+
+def get_db_service():
+    """Get or create database service instance (lazy for Lambda)"""
+    global _db_service_instance
+    if _db_service_instance is None:
+        try:
+            _db_service_instance = DatabaseService()
+        except (ImportError, AttributeError):
+            # psycopg2 not available (Lambda environment)
+            _db_service_instance = None
+    return _db_service_instance
+
+# For backwards compatibility - use a class to simulate lazy access
+class _LazyDBService:
+    def __getattr__(self, name):
+        service = get_db_service()
+        if service is None:
+            raise AttributeError("Database service is not available (psycopg2 not installed)")
+        return getattr(service, name)
+
+db_service = _LazyDBService()
 

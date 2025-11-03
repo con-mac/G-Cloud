@@ -1,0 +1,48 @@
+/**
+ * Terraform variables example file
+ * Copy this to terraform.tfvars and customize for your deployment
+ * 
+ * Usage:
+ *   cp terraform.tfvars.example terraform.tfvars
+ *   # Edit terraform.tfvars with your values
+ */
+
+# Project name - used for all resource naming
+# Format: <project-name>-<environment>-<resource>
+# Example: gcloud-automation-dev-frontend
+project_name = "gcloud-automation"
+
+# Environment (dev, staging, prod)
+# Affects resource naming and some default values
+environment = "dev"
+
+# AWS Region
+# Options:
+#   eu-west-2 (London) - Default
+#   eu-west-1 (Ireland)
+#   us-east-1 (N. Virginia) - Cheapest
+#   us-west-2 (Oregon)
+#   ap-southeast-1 (Singapore)
+aws_region = "eu-west-2"
+
+# Application secret key
+# Generate one: openssl rand -base64 32
+# Minimum 32 characters required
+app_secret_key = "CHANGE-THIS-TO-A-SECURE-RANDOM-STRING-MINIMUM-32-CHARACTERS"
+
+# Enable CloudFront CDN for frontend
+# Recommended for production (better performance, HTTPS, custom domain)
+# Disable for development to save costs
+enable_cloudfront = true
+
+# Lambda deployment package name
+# Name of the ZIP file in the deployment bucket
+lambda_deploy_s3_key = "lambda-package.zip"
+
+# Tags applied to all resources
+tags = {
+  Project     = "G-Cloud Automation"
+  Environment = "Development"
+  ManagedBy   = "Terraform"
+}
+
