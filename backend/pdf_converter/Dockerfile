@@ -1,26 +1,25 @@
-# Use pre-built LibreOffice base image from Shelf
-# This image has LibreOffice 7.6 pre-installed and configured for Lambda
-# The shelf image is based on Amazon Linux 2023 (uses dnf, not yum)
-FROM public.ecr.aws/shelf/lambda-libreoffice-base:7.6-node20-x86_64
+# Multi-stage build: Use Lambda Python base and copy LibreOffice from Shelf
+# Stage 1: Get LibreOffice from shelf image
+FROM public.ecr.aws/shelf/lambda-libreoffice-base:7.6-node20-x86_64 as libreoffice-source
 
-# Python 3 is already installed in the shelf image (we verified it)
-# Just install pip if needed
-RUN python3 -m ensurepip --upgrade || \
-    dnf install -y python3-pip && \
-    dnf clean all || \
-    true
+# Stage 2: Lambda Python runtime with LibreOffice
+FROM public.ecr.aws/lambda/python:3.10
 
-# Create symlinks for libreoffice (it's at /usr/bin/libreoffice7.6)
-RUN ln -sf /usr/bin/libreoffice7.6 /usr/bin/libreoffice && \
-    ln -sf /usr/bin/libreoffice7.6 /usr/bin/soffice
+# Copy LibreOffice from /opt/libreoffice7.6 (this is where it's installed in shelf image)
+COPY --from=libreoffice-source /opt/libreoffice7.6 /opt/libreoffice7.6
 
-# Verify LibreOffice is accessible
-RUN /usr/bin/libreoffice7.6 --version || echo "LibreOffice version check"
+# Copy the symlink and create our own
+COPY --from=libreoffice-source /usr/bin/libreoffice7.6 /usr/bin/libreoffice7.6
 
-# Set up Python environment
-ENV PYTHONUNBUFFERED=1
+# Create symlinks
+RUN ln -sf /opt/libreoffice7.6/program/soffice /usr/bin/libreoffice && \
+    ln -sf /opt/libreoffice7.6/program/soffice /usr/bin/soffice && \
+    ln -sf /opt/libreoffice7.6/program/soffice /usr/bin/libreoffice7.6
+
+# Set up environment
 ENV HOME=/tmp
-ENV PATH=/usr/bin:${PATH}
+ENV PATH=/opt/libreoffice7.6/program:/usr/bin:${PATH}
+ENV LD_LIBRARY_PATH=/opt/libreoffice7.6/program:${LD_LIBRARY_PATH}
 
 # Copy Python requirements and install
 COPY requirements.txt ${LAMBDA_TASK_ROOT}/
@@ -29,11 +28,12 @@ RUN python3 -m pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.tx
 # Copy function code
 COPY pdf_converter.py ${LAMBDA_TASK_ROOT}/
 
-# Create Lambda handler wrapper
-# Lambda expects handler in format "module.function"
-RUN echo 'import sys; sys.path.insert(0, "/var/task"); from pdf_converter import handler as pdf_handler; \
-def lambda_handler(event, context): \
-    return pdf_handler(event, context)' > ${LAMBDA_TASK_ROOT}/lambda_handler.py
+# Create Lambda handler
+RUN printf 'import sys\n\
+sys.path.insert(0, "/var/task")\n\
+from pdf_converter import handler\n\
+def lambda_handler(event, context):\n\
+    return handler(event, context)\n' > ${LAMBDA_TASK_ROOT}/handler.py
 
-# Set the CMD - Lambda will call lambda_handler.lambda_handler
-CMD ["python3", "/var/task/lambda_handler.py"]
+# Lambda Python runtime expects handler.handler
+CMD ["handler.lambda_handler"]

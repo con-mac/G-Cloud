@@ -63,19 +63,36 @@ def handler(event, context):
         local_pdf_path = output_dir / pdf_filename
         
         # LibreOffice headless command
-        # Try libreoffice7.6 first (shelf image), then libreoffice, then soffice
+        # Try different paths for LibreOffice
         libreoffice_cmd = None
-        for cmd_name in ['libreoffice7.6', 'libreoffice', 'soffice']:
+        possible_paths = [
+            '/opt/libreoffice7.6/program/soffice',  # Shelf image location
+            '/usr/bin/libreoffice7.6',
+            '/usr/bin/libreoffice',
+            '/usr/bin/soffice',
+            'libreoffice7.6',
+            'libreoffice',
+            'soffice'
+        ]
+        
+        for cmd_path in possible_paths:
             try:
-                result = subprocess.run(['which', cmd_name], capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    libreoffice_cmd = cmd_name
-                    break
+                # Check if it's an absolute path
+                if cmd_path.startswith('/'):
+                    if os.path.exists(cmd_path) and os.access(cmd_path, os.X_OK):
+                        libreoffice_cmd = cmd_path
+                        break
+                else:
+                    # Use which for commands in PATH
+                    result = subprocess.run(['which', cmd_path], capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        libreoffice_cmd = result.stdout.strip()
+                        break
             except:
                 continue
         
         if not libreoffice_cmd:
-            raise RuntimeError("LibreOffice not found. Checked: libreoffice7.6, libreoffice, soffice")
+            raise RuntimeError(f"LibreOffice not found. Checked: {', '.join(possible_paths)}")
         
         # --headless: Run without GUI
         # --convert-to pdf: Convert to PDF format
