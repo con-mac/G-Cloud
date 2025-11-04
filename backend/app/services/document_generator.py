@@ -134,16 +134,25 @@ class DocumentGenerator:
         )
         # Re-append About PA block as the final page on its own
         if about_pa_block:
-            # Page break before About PA
+            # Page break before About PA - ensure proper spacing
+            # Add a blank paragraph first, then page break to ensure proper separation
             tail_para = last_para or (doc.paragraphs[-1] if doc.paragraphs else None)
             if tail_para is not None:
-                tail_para.add_run().add_break(WD_BREAK.PAGE)
+                # Add a blank paragraph for spacing
+                blank_para = self._insert_paragraph_after(tail_para, '')
+                # Add page break to the blank paragraph
+                blank_para.add_run().add_break(WD_BREAK.PAGE)
+                tail_para = blank_para
             body = doc._element.body
             for el in about_pa_block:
                 body.append(el)
 
         # Placeholders and ToC handling occur after content is built
         self._enable_update_fields_on_open(doc)
+        
+        # Update TOC field after content insertion
+        # This ensures the TOC is populated with actual headings
+        self._update_toc_field(doc)
 
         # Replace placeholders across all text nodes (including inside shapes/textboxes)
         self._replace_text_in_all_wt(doc, {
@@ -781,6 +790,63 @@ class DocumentGenerator:
             upd.set(qn('w:val'), 'true')
             settings._element.append(upd)
         except Exception:
+            pass
+    
+    def _update_toc_field(self, doc: Document):
+        """Update/refresh the TOC field to populate it with actual headings."""
+        try:
+            ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+            # Find all TOC field codes and mark them as dirty (needs update)
+            for instr in doc._element.xpath('.//w:instrText', namespaces=ns):
+                if instr.text and 'TOC' in instr.text:
+                    # Find the parent field and mark it as dirty
+                    parent = instr.getparent()
+                    # Find the fldChar elements for this field
+                    field_begin = None
+                    field_sep = None
+                    field_end = None
+                    
+                    # Traverse up to find the paragraph containing this field
+                    para = instr
+                    while para is not None and para.tag != qn('w:p'):
+                        para = para.getparent()
+                    
+                    if para is not None:
+                        # Find all fldChar elements in this paragraph
+                        for elem in para.iter():
+                            if elem.tag == qn('w:fldChar'):
+                                fld_char_type = elem.get(qn('w:fldCharType'))
+                                if fld_char_type == 'begin':
+                                    field_begin = elem
+                                elif fld_char_type == 'separate':
+                                    field_sep = elem
+                                elif fld_char_type == 'end':
+                                    field_end = elem
+                        
+                        # Mark the field as dirty by adding a dirty attribute
+                        # This tells Word to update the field when the document is opened
+                        if field_begin is not None:
+                            # Add dirty attribute to force update
+                            dirty = OxmlElement('w:dirty')
+                            dirty.set(qn('w:val'), 'true')
+                            # Try to find or create a run with the field begin
+                            run = field_begin.getparent()
+                            if run is not None:
+                                # Add dirty to the run
+                                run_properties = run.find(qn('w:rPr'))
+                                if run_properties is None:
+                                    run_properties = OxmlElement('w:rPr')
+                                    run.insert(0, run_properties)
+                                # Check if dirty already exists
+                                existing_dirty = run_properties.find(qn('w:dirty'))
+                                if existing_dirty is None:
+                                    dirty_elem = OxmlElement('w:dirty')
+                                    dirty_elem.set(qn('w:val'), 'true')
+                                    run_properties.append(dirty_elem)
+                                    
+        except Exception as e:
+            # If updating fails, at least ensure updateFields is enabled
+            print(f"Warning: Could not mark TOC field as dirty: {e}")
             pass
 
     def _replace_text_globally(self, doc: Document, old: str, new: str):

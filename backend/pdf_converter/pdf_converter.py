@@ -99,11 +99,13 @@ def handler(event, context):
         # --outdir: Output directory
         # --nofirststartwizard: Skip first start wizard
         # --nodefault: Don't use default settings
+        # --update: Update fields (like TOC) before converting
         cmd = [
             libreoffice_cmd,
             '--headless',
             '--nofirststartwizard',
             '--nodefault',
+            '--update',  # Update fields (TOC, etc.) before conversion
             '--convert-to', 'pdf',
             '--outdir', str(output_dir),
             str(local_word_path)
