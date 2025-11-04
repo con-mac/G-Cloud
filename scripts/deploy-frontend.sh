@@ -8,7 +8,18 @@ ENVIRONMENT=${1:-dev}
 PROJECT_NAME=${PROJECT_NAME:-gcloud-automation}
 AWS_REGION=${AWS_REGION:-eu-west-2}
 FRONTEND_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-frontend"
-API_GATEWAY_URL=${API_GATEWAY_URL:-""}
+API_GATEWAY_URL=${2:-${API_GATEWAY_URL:-""}}
+
+# If API_GATEWAY_URL not provided, try to get it from Terraform outputs
+if [ -z "$API_GATEWAY_URL" ]; then
+  echo "📡 API Gateway URL not provided, trying to get from Terraform..."
+  API_GATEWAY_URL=$(terraform -chdir=infrastructure/terraform/aws output -raw api_gateway_url 2>/dev/null || echo "")
+  if [ -z "$API_GATEWAY_URL" ]; then
+    echo "⚠️  Warning: Could not get API Gateway URL from Terraform. Build will use default (localhost)."
+  else
+    echo "✅ Found API Gateway URL: $API_GATEWAY_URL"
+  fi
+fi
 
 echo "🚀 Deploying frontend to S3..."
 echo "Environment: $ENVIRONMENT"
