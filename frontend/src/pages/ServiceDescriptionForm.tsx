@@ -522,21 +522,12 @@ export default function ServiceDescriptionForm() {
 
               <Box sx={{ 
                 mb: 2,
+                position: 'relative',
                 '& .ql-container': { minHeight: 260 },
                 '& .ql-editor': { minHeight: 260 },
-                // Make the custom attach button visible with a paperclip icon
-                '& .ql-toolbar .ql-attach::before': {
-                  content: '"📎"',
-                  fontSize: '16px',
-                  display: 'inline-block',
-                  lineHeight: 1,
-                },
+                // Hide the default Quill attach button (we're using custom one)
                 '& .ql-toolbar .ql-attach': {
-                  width: '28px',
-                  height: '28px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: 'none',
                 },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
@@ -549,6 +540,28 @@ export default function ServiceDescriptionForm() {
                   modules={modules}
                   ref={(el: any) => (quillRefs.current[block.id] = el)}
                 />
+                {/* Custom attach button with MUI icon and tooltip */}
+                <Tooltip title="Attach file or image" arrow>
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      (fileInputRef.current as any).dataset.id = String(block.id);
+                      fileInputRef.current?.click();
+                    }}
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      zIndex: 10,
+                      backgroundColor: 'background.paper',
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
+                  >
+                    <AttachFile fontSize="small" />
+                  </IconButton>
+                </Tooltip>
               </Box>
             </Box>
           );})}
