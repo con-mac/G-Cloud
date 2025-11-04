@@ -305,22 +305,21 @@ resource "aws_iam_role_policy" "pdf_converter_lambda_s3" {
   })
 }
 
-# PDF Converter Lambda Function (ZIP Package - simpler than container)
+# PDF Converter Lambda Function (Container Image - needed for LibreOffice)
 resource "aws_lambda_function" "pdf_converter" {
   function_name = "${var.project_name}-${var.environment}-pdf-converter"
-  handler       = "pdf_converter.handler"
-  runtime       = "python3.10"
   role          = aws_iam_role.pdf_converter_lambda.arn
   timeout       = 300  # 5 minutes for PDF conversion
-  memory_size   = 1024
+  memory_size   = 2048  # Increased memory for LibreOffice
 
-  s3_bucket = aws_s3_bucket.lambda_deploy.id
-  s3_key    = "pdf-converter.zip"
+  package_type = "Image"
+  image_uri    = "${aws_ecr_repository.pdf_converter.repository_url}:latest"
 
   environment {
     variables = {
       OUTPUT_BUCKET_NAME = aws_s3_bucket.output.id
       ENVIRONMENT        = var.environment
+      HOME               = "/tmp"  # LibreOffice needs HOME directory
     }
   }
 

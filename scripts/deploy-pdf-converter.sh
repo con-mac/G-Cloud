@@ -26,7 +26,8 @@ echo "🔐 Logging in to ECR..."
 aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_URI}
 
 # Build Docker image for Lambda (linux/amd64 platform)
-echo "🏗️  Building Docker image for Lambda (linux/amd64)..."
+# Using multi-stage build to get LibreOffice from Ubuntu into Lambda base image
+echo "🏗️  Building Docker image for Lambda (linux/amd64) with LibreOffice..."
 docker build --platform linux/amd64 -t ${ECR_REPO}:latest .
 docker tag ${ECR_REPO}:latest ${ECR_URI}:latest
 

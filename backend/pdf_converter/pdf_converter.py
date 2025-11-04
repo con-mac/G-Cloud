@@ -1,96 +1,23 @@
 """
 PDF Converter Lambda Function
-Converts Word documents to PDF using Python libraries
-(Simplified approach without LibreOffice for Lambda compatibility)
+Converts Word documents to PDF using LibreOffice headless
+This preserves all formatting, images, colors, cover page, contents page, etc.
 """
 
 import os
 import json
+import subprocess
 import boto3
 from pathlib import Path
-from docx import Document
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-from reportlab.lib.enums import TA_LEFT, TA_CENTER
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 
 s3_client = boto3.client('s3')
 
 OUTPUT_BUCKET = os.environ.get('OUTPUT_BUCKET_NAME')
 
 
-def extract_text_from_docx(docx_path):
-    """
-    Extract text content from DOCX file
-    Returns structured content with headings and paragraphs
-    """
-    doc = Document(str(docx_path))
-    content = []
-    
-    for element in doc.element.body:
-        # Check if it's a paragraph
-        if element.tag.endswith('p'):
-            para = None
-            for p in doc.paragraphs:
-                if p._element == element:
-                    para = p
-                    break
-            
-            if para:
-                text = para.text.strip()
-                if text:
-                    style_name = para.style.name if para.style else 'Normal'
-                    content.append({
-                        'text': text,
-                        'style': style_name,
-                        'is_heading': style_name.startswith('Heading'),
-                        'level': int(style_name.split()[-1]) if style_name.split()[-1].isdigit() else 0
-                    })
-    
-    return content
-
-
-def create_pdf_from_content(content, pdf_path):
-    """
-    Create PDF from extracted content using ReportLab
-    """
-    doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
-    styles = getSampleStyleSheet()
-    story = []
-    
-    # Create custom styles
-    heading_style = ParagraphStyle(
-        'CustomHeading1',
-        parent=styles['Heading1'],
-        fontSize=18,
-        spaceAfter=12,
-        alignment=TA_LEFT
-    )
-    
-    for item in content:
-        text = item['text']
-        
-        if item['is_heading']:
-            if item['level'] == 1:
-                story.append(Paragraph(text, heading_style))
-            elif item['level'] == 2:
-                story.append(Paragraph(text, styles['Heading2']))
-            else:
-                story.append(Paragraph(text, styles['Heading3']))
-            story.append(Spacer(1, 0.2 * inch))
-        else:
-            story.append(Paragraph(text, styles['Normal']))
-            story.append(Spacer(1, 0.1 * inch))
-    
-    doc.build(story)
-
-
 def handler(event, context):
     """
-    Lambda handler for PDF conversion
+    Lambda handler for PDF conversion using LibreOffice
     
     Expected event format:
     {
@@ -130,23 +57,63 @@ def handler(event, context):
         local_word_path = input_dir / word_filename
         s3_client.download_file(word_bucket, word_s3_key, str(local_word_path))
         
-        # Extract content from DOCX
-        content = extract_text_from_docx(local_word_path)
-        
-        # Convert to PDF
+        # Convert to PDF using LibreOffice headless
+        # This preserves all formatting, images, colors, cover page, contents page, etc.
         pdf_filename = word_filename.replace('.docx', '.pdf')
         local_pdf_path = output_dir / pdf_filename
         
-        create_pdf_from_content(content, local_pdf_path)
+        # LibreOffice headless command
+        # --headless: Run without GUI
+        # --convert-to pdf: Convert to PDF format
+        # --outdir: Output directory
+        # --nofirststartwizard: Skip first start wizard
+        # --nodefault: Don't use default settings
+        cmd = [
+            'libreoffice',
+            '--headless',
+            '--nofirststartwizard',
+            '--nodefault',
+            '--convert-to', 'pdf',
+            '--outdir', str(output_dir),
+            str(local_word_path)
+        ]
         
+        # Set environment variables for LibreOffice
+        env = os.environ.copy()
+        env['HOME'] = '/tmp'
+        env['USERPROFILE'] = '/tmp'
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,  # 2 minutes timeout
+            env=env,
+            cwd=str(input_dir)
+        )
+        
+        if result.returncode != 0:
+            error_msg = f"LibreOffice conversion failed: {result.stderr}"
+            print(f"ERROR: {error_msg}")
+            print(f"STDOUT: {result.stdout}")
+            raise RuntimeError(error_msg)
+        
+        # LibreOffice outputs PDF with same name but .pdf extension
         # Check if PDF was created
-        if not local_pdf_path.exists():
-            raise FileNotFoundError(f"PDF not generated: {local_pdf_path}")
+        expected_pdf = output_dir / pdf_filename
+        if not expected_pdf.exists():
+            # Sometimes LibreOffice creates PDF with different casing or naming
+            # Try to find any PDF file in output directory
+            pdf_files = list(output_dir.glob('*.pdf'))
+            if pdf_files:
+                expected_pdf = pdf_files[0]
+            else:
+                raise FileNotFoundError(f"PDF not generated: {expected_pdf}")
         
         # Upload PDF to S3
         pdf_s3_key = word_s3_key.replace('.docx', '.pdf')
         s3_client.upload_file(
-            str(local_pdf_path),
+            str(expected_pdf),
             word_bucket,
             pdf_s3_key,
             ExtraArgs={'ContentType': 'application/pdf'}
@@ -161,7 +128,7 @@ def handler(event, context):
         
         # Cleanup
         local_word_path.unlink(missing_ok=True)
-        local_pdf_path.unlink(missing_ok=True)
+        expected_pdf.unlink(missing_ok=True)
         
         return {
             'success': True,
@@ -171,8 +138,11 @@ def handler(event, context):
         
     except Exception as e:
         import traceback
-        return {
+        error_details = {
             'success': False,
             'error': str(e),
+            'error_type': type(e).__name__,
             'traceback': traceback.format_exc()
         }
+        print(f"PDF conversion error: {json.dumps(error_details)}")
+        return error_details
