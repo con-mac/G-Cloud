@@ -135,14 +135,17 @@ class DocumentGenerator:
         # Re-append About PA block as the final page on its own
         if about_pa_block:
             # Page break before About PA - ensure proper spacing
-            # Add a blank paragraph first, then page break to ensure proper separation
+            # Add multiple blank paragraphs and explicit page break for proper separation
             tail_para = last_para or (doc.paragraphs[-1] if doc.paragraphs else None)
             if tail_para is not None:
                 # Add a blank paragraph for spacing
-                blank_para = self._insert_paragraph_after(tail_para, '')
-                # Add page break to the blank paragraph
-                blank_para.add_run().add_break(WD_BREAK.PAGE)
-                tail_para = blank_para
+                blank_para1 = self._insert_paragraph_after(tail_para, '')
+                # Add another blank paragraph
+                blank_para2 = self._insert_paragraph_after(blank_para1, '')
+                # Add page break to the second blank paragraph (ensures proper page break)
+                blank_para2.add_run().add_break(WD_BREAK.PAGE)
+                # Add one more blank paragraph after page break to ensure spacing
+                blank_para3 = self._insert_paragraph_after(blank_para2, '')
             body = doc._element.body
             for el in about_pa_block:
                 body.append(el)
