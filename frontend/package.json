@@ -28,6 +28,7 @@
     "draft-js": "^0.11.7",
     "lodash": "^4.17.21",
     "quill-image-resize": "^3.0.9",
+    "quill-image-resize-module-react": "^3.0.0",
     "quill-table": "^1.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
