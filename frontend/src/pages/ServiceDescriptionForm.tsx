@@ -564,34 +564,62 @@ export default function ServiceDescriptionForm() {
                   modules={modules}
                   ref={(el: any) => {
                     quillRefs.current[block.id] = el;
-                    // Add tooltips to toolbar buttons after editor is mounted
                     if (el) {
-                      setTimeout(() => {
+                      // Use multiple attempts to ensure toolbar is ready
+                      const addTooltips = () => {
                         const editor = el.getEditor?.();
-                        if (editor) {
-                          const toolbar = editor.container?.querySelector('.ql-toolbar');
-                          if (toolbar) {
-                            const tooltips: Record<string, string> = {
-                              '.ql-header': 'Heading 3',
-                              '.ql-bold': 'Bold',
-                              '.ql-italic': 'Italic',
-                              '.ql-underline': 'Underline',
-                              '.ql-list[value="ordered"]': 'Ordered List',
-                              '.ql-list[value="bullet"]': 'Bullet List',
-                              '.ql-link': 'Insert Link',
-                              '.ql-table': 'Insert Table',
-                              '.ql-clean': 'Clear Formatting',
-                            };
-                            
-                            Object.entries(tooltips).forEach(([selector, title]) => {
-                              const buttons = toolbar.querySelectorAll(selector);
-                              buttons.forEach((button: Element) => {
-                                (button as HTMLElement).setAttribute('title', title);
-                              });
-                            });
-                          }
+                        if (!editor) return;
+                        const toolbar = editor.container?.querySelector('.ql-toolbar');
+                        if (!toolbar) return;
+                        
+                        // More specific selectors for Quill buttons
+                        const tooltips: Array<{ selector: string; title: string }> = [
+                          { selector: 'button.ql-header', title: 'Heading 3' },
+                          { selector: 'button.ql-bold', title: 'Bold' },
+                          { selector: 'button.ql-italic', title: 'Italic' },
+                          { selector: 'button.ql-underline', title: 'Underline' },
+                          { selector: 'button.ql-list[value="ordered"]', title: 'Ordered List' },
+                          { selector: 'button.ql-list[value="bullet"]', title: 'Bullet List' },
+                          { selector: 'button.ql-link', title: 'Insert Link' },
+                          { selector: 'button.ql-table', title: 'Insert Table' },
+                          { selector: 'button.ql-clean', title: 'Clear Formatting' },
+                          // Also handle select dropdowns
+                          { selector: 'select.ql-header', title: 'Heading 3' },
+                          { selector: 'select.ql-list', title: 'List Type' },
+                        ];
+                        
+                        tooltips.forEach(({ selector, title }) => {
+                          const elements = toolbar.querySelectorAll(selector);
+                          elements.forEach((element: Element) => {
+                            (element as HTMLElement).setAttribute('title', title);
+                            // Also set aria-label for accessibility
+                            (element as HTMLElement).setAttribute('aria-label', title);
+                          });
+                        });
+                      };
+                      
+                      // Try immediately, then after delays
+                      addTooltips();
+                      setTimeout(addTooltips, 100);
+                      setTimeout(addTooltips, 300);
+                      setTimeout(addTooltips, 500);
+                      
+                      // Use MutationObserver to catch dynamic toolbar updates
+                      const observer = new MutationObserver(() => {
+                        addTooltips();
+                      });
+                      
+                      const editor = el.getEditor?.();
+                      if (editor) {
+                        const toolbar = editor.container?.querySelector('.ql-toolbar');
+                        if (toolbar) {
+                          observer.observe(toolbar, {
+                            childList: true,
+                            subtree: true,
+                            attributes: true,
+                          });
                         }
-                      }, 100);
+                      }
                     }
                   }}
                 />
