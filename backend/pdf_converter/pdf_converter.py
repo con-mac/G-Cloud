@@ -63,13 +63,27 @@ def handler(event, context):
         local_pdf_path = output_dir / pdf_filename
         
         # LibreOffice headless command
+        # Try libreoffice7.6 first (shelf image), then libreoffice, then soffice
+        libreoffice_cmd = None
+        for cmd_name in ['libreoffice7.6', 'libreoffice', 'soffice']:
+            try:
+                result = subprocess.run(['which', cmd_name], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    libreoffice_cmd = cmd_name
+                    break
+            except:
+                continue
+        
+        if not libreoffice_cmd:
+            raise RuntimeError("LibreOffice not found. Checked: libreoffice7.6, libreoffice, soffice")
+        
         # --headless: Run without GUI
         # --convert-to pdf: Convert to PDF format
         # --outdir: Output directory
         # --nofirststartwizard: Skip first start wizard
         # --nodefault: Don't use default settings
         cmd = [
-            'libreoffice',
+            libreoffice_cmd,
             '--headless',
             '--nofirststartwizard',
             '--nodefault',

@@ -1,40 +1,39 @@
-# Multi-stage build to get LibreOffice working in Lambda
-# Stage 1: Build LibreOffice on Fedora (has LibreOffice in default repos)
-FROM fedora:38 as builder
+# Use pre-built LibreOffice base image from Shelf
+# This image has LibreOffice 7.6 pre-installed and configured for Lambda
+# The shelf image is based on Amazon Linux 2023 (uses dnf, not yum)
+FROM public.ecr.aws/shelf/lambda-libreoffice-base:7.6-node20-x86_64
 
-# Install LibreOffice
-RUN dnf install -y \
-    libreoffice \
-    libreoffice-writer \
-    && dnf clean all \
-    && rm -rf /var/cache/dnf
+# Python 3 is already installed in the shelf image (we verified it)
+# Just install pip if needed
+RUN python3 -m ensurepip --upgrade || \
+    dnf install -y python3-pip && \
+    dnf clean all || \
+    true
 
-# Stage 2: Lambda runtime with LibreOffice
-FROM public.ecr.aws/lambda/python:3.10
+# Create symlinks for libreoffice (it's at /usr/bin/libreoffice7.6)
+RUN ln -sf /usr/bin/libreoffice7.6 /usr/bin/libreoffice && \
+    ln -sf /usr/bin/libreoffice7.6 /usr/bin/soffice
 
-# Copy LibreOffice binaries and libraries from Fedora
-# On Fedora, LibreOffice is in /usr/lib64
-COPY --from=builder /usr/lib64/libreoffice /usr/lib64/libreoffice
-COPY --from=builder /usr/bin/libreoffice /usr/bin/libreoffice
-COPY --from=builder /usr/bin/soffice /usr/bin/soffice
+# Verify LibreOffice is accessible
+RUN /usr/bin/libreoffice7.6 --version || echo "LibreOffice version check"
 
-# Copy essential shared libraries (create directories first)
-RUN mkdir -p /opt/lib64
-
-# Copy libraries from lib64 (Fedora uses lib64, not lib)
-COPY --from=builder /usr/lib64/ /opt/lib64/
-
-# Set library path
-ENV LD_LIBRARY_PATH=/opt/lib64:/usr/lib64:${LD_LIBRARY_PATH}
-ENV PATH=/usr/bin:${PATH}
+# Set up Python environment
+ENV PYTHONUNBUFFERED=1
 ENV HOME=/tmp
+ENV PATH=/usr/bin:${PATH}
 
 # Copy Python requirements and install
-COPY requirements.txt ${LAMBDA_TASK_ROOT}
-RUN python -m pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt ${LAMBDA_TASK_ROOT}/
+RUN python3 -m pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt
 
 # Copy function code
-COPY pdf_converter.py ${LAMBDA_TASK_ROOT}
+COPY pdf_converter.py ${LAMBDA_TASK_ROOT}/
 
-# Set the CMD to your handler
-CMD [ "pdf_converter.handler" ]
+# Create Lambda handler wrapper
+# Lambda expects handler in format "module.function"
+RUN echo 'import sys; sys.path.insert(0, "/var/task"); from pdf_converter import handler as pdf_handler; \
+def lambda_handler(event, context): \
+    return pdf_handler(event, context)' > ${LAMBDA_TASK_ROOT}/lambda_handler.py
+
+# Set the CMD - Lambda will call lambda_handler.lambda_handler
+CMD ["python3", "/var/task/lambda_handler.py"]
