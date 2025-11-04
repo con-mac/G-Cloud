@@ -529,39 +529,49 @@ export default function ServiceDescriptionForm() {
                 '& .ql-toolbar .ql-attach': {
                   display: 'none',
                 },
+                // Position custom attach button on toolbar
+                '& .ql-toolbar': {
+                  position: 'relative',
+                },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                   Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists)
                 </Typography>
-                <ReactQuill
-                  theme="snow"
-                  value={block.content}
-                  onChange={(html: string) => updateServiceDefBlock(block.id, 'content', html)}
-                  modules={modules}
-                  ref={(el: any) => (quillRefs.current[block.id] = el)}
-                />
-                {/* Custom attach button with MUI icon and tooltip */}
-                <Tooltip title="Attach file or image" arrow>
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      (fileInputRef.current as any).dataset.id = String(block.id);
-                      fileInputRef.current?.click();
-                    }}
-                    sx={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      zIndex: 10,
-                      backgroundColor: 'background.paper',
-                      '&:hover': {
-                        backgroundColor: 'action.hover',
-                      },
-                    }}
-                  >
-                    <AttachFile fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <Box sx={{ position: 'relative' }}>
+                  <ReactQuill
+                    theme="snow"
+                    value={block.content}
+                    onChange={(html: string) => updateServiceDefBlock(block.id, 'content', html)}
+                    modules={modules}
+                    ref={(el: any) => (quillRefs.current[block.id] = el)}
+                  />
+                  {/* Custom attach button positioned on toolbar */}
+                  <Tooltip title="Attach file or image" arrow>
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        (fileInputRef.current as any).dataset.id = String(block.id);
+                        fileInputRef.current?.click();
+                      }}
+                      sx={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        zIndex: 10,
+                        width: 28,
+                        height: 28,
+                        backgroundColor: 'transparent',
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                        // Match Quill toolbar button styling
+                        borderRadius: '2px',
+                      }}
+                    >
+                      <AttachFile fontSize="small" sx={{ fontSize: '16px' }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
             </Box>
           );})}
