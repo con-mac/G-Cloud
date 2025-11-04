@@ -12,11 +12,20 @@ import {
   CircularProgress,
 } from '@mui/material';
 import {
-  ArrowBack, Add, Delete, CheckCircle, Error, Download,
+  ArrowBack, Add, Delete, CheckCircle, Error, Download, AttachFile,
 } from '@mui/icons-material';
+import { Tooltip } from '@mui/material';
 import apiService from '../services/api';
-import ReactQuill from 'react-quill';
+import ReactQuill, { Quill } from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+
+// Import and register image resize module
+import ImageResize from 'quill-image-resize-module-react';
+Quill.register('modules/imageResize', ImageResize);
+
+// Import and register table module
+import QuillTable from 'quill-table';
+Quill.register('modules/table', QuillTable);
 
 interface ValidationState {
   isValid: boolean;
@@ -161,15 +170,24 @@ export default function ServiceDescriptionForm() {
           [{ header: [3, false] }],
           ['bold', 'italic', 'underline'],
           [{ list: 'ordered' }, { list: 'bullet' }],
-          ['link', 'attach'],
+          ['link', 'table'],
           ['clean'],
         ],
         handlers: {
-          attach: () => {
-            (fileInputRef.current as any).dataset.id = String(id);
-            fileInputRef.current?.click();
+          table: function(this: any) {
+            const table = this.quill.getModule('table');
+            if (table && table.insertTable) {
+              table.insertTable(2, 2);
+            }
           },
         },
+      },
+      imageResize: {
+        parchment: Quill.import('parchment'),
+        modules: ['Resize', 'DisplaySize', 'Toolbar'],
+      },
+      table: {
+        operationMenu: true,
       },
     };
     return modulesByIdRef.current[id];
@@ -522,33 +540,92 @@ export default function ServiceDescriptionForm() {
 
               <Box sx={{ 
                 mb: 2,
+                position: 'relative',
                 '& .ql-container': { minHeight: 260 },
                 '& .ql-editor': { minHeight: 260 },
-                // Make the custom attach button visible with a paperclip icon
-                '& .ql-toolbar .ql-attach::before': {
-                  content: '"📎"',
-                  fontSize: '16px',
-                  display: 'inline-block',
-                  lineHeight: 1,
-                },
+                // Hide the default attach button (we're using custom one)
                 '& .ql-toolbar .ql-attach': {
-                  width: '28px',
-                  height: '28px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: 'none',
+                },
+                // Image resize handles styling
+                '& .ql-editor img': {
+                  maxWidth: '100%',
+                  height: 'auto',
+                  cursor: 'move', // Indicate image can be moved/repositioned
                 },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                  Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists)
+                  Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists/Tables. Images can be resized and repositioned.)
                 </Typography>
                 <ReactQuill
                   theme="snow"
                   value={block.content}
                   onChange={(html: string) => updateServiceDefBlock(block.id, 'content', html)}
                   modules={modules}
-                  ref={(el: any) => (quillRefs.current[block.id] = el)}
+                  ref={(el: any) => {
+                    quillRefs.current[block.id] = el;
+                    // Add tooltips to toolbar buttons after editor is mounted
+                    if (el) {
+                      setTimeout(() => {
+                        const editor = el.getEditor?.();
+                        if (editor) {
+                          const toolbar = editor.container?.querySelector('.ql-toolbar');
+                          if (toolbar) {
+                            const tooltips: Record<string, string> = {
+                              '.ql-header': 'Heading 3',
+                              '.ql-bold': 'Bold',
+                              '.ql-italic': 'Italic',
+                              '.ql-underline': 'Underline',
+                              '.ql-list[value="ordered"]': 'Ordered List',
+                              '.ql-list[value="bullet"]': 'Bullet List',
+                              '.ql-link': 'Insert Link',
+                              '.ql-table': 'Insert Table',
+                              '.ql-clean': 'Clear Formatting',
+                            };
+                            
+                            Object.entries(tooltips).forEach(([selector, title]) => {
+                              const buttons = toolbar.querySelectorAll(selector);
+                              buttons.forEach((button: Element) => {
+                                (button as HTMLElement).setAttribute('title', title);
+                              });
+                            });
+                          }
+                        }
+                      }, 100);
+                    }
+                  }}
                 />
+                {/* Custom attach button with MUI icon and tooltip - positioned absolutely after toolbar */}
+                <Tooltip title="Attach file or image">
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={() => {
+                      (fileInputRef.current as any).dataset.id = String(block.id);
+                      fileInputRef.current?.click();
+                    }}
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 'calc(100% - 220px)', // Position after toolbar buttons
+                      width: 28,
+                      height: 28,
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 10,
+                      borderRadius: '2px',
+                      '&:hover': {
+                        backgroundColor: 'rgba(0,0,0,0.06)',
+                      },
+                    }}
+                  >
+                    <AttachFile sx={{ fontSize: 18 }} />
+                  </Box>
+                </Tooltip>
               </Box>
             </Box>
           );})}
@@ -659,9 +736,17 @@ export default function ServiceDescriptionForm() {
               const reader = new FileReader();
               reader.onload = () => {
                 const dataUrl = reader.result as string;
-                const html = `<img src="${dataUrl}" />`;
+                // Insert image with default size and make it resizable
+                const html = `<img src="${dataUrl}" style="max-width: 100%; height: auto;" />`;
                 editor.clipboard.dangerouslyPasteHTML(range.index, html);
-                editor.setSelection(range.index + 1, 0);
+                // Trigger image resize module to activate
+                setTimeout(() => {
+                  const img = editor.root.querySelector(`img[src="${dataUrl}"]`);
+                  if (img) {
+                    // Image resize module will handle resizing
+                    editor.setSelection(range.index + 1, 0);
+                  }
+                }, 100);
               };
               reader.readAsDataURL(file);
             } else {
