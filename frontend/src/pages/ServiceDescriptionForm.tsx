@@ -532,6 +532,7 @@ export default function ServiceDescriptionForm() {
                 // Position custom attach button on toolbar
                 '& .ql-toolbar': {
                   position: 'relative',
+                  paddingRight: '40px', // Make room for custom attach button
                 },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
@@ -543,11 +544,35 @@ export default function ServiceDescriptionForm() {
                     value={block.content}
                     onChange={(html: string) => updateServiceDefBlock(block.id, 'content', html)}
                     modules={modules}
-                    ref={(el: any) => (quillRefs.current[block.id] = el)}
+                    ref={(el: any) => {
+                      quillRefs.current[block.id] = el;
+                      // Position attach button on toolbar after toolbar renders
+                      if (el) {
+                        setTimeout(() => {
+                          const editor = el.getEditor?.();
+                          if (editor) {
+                            const toolbar = editor.container?.querySelector('.ql-toolbar');
+                            if (toolbar) {
+                              const attachBtn = toolbar.parentElement?.querySelector('.custom-attach-btn');
+                              if (attachBtn) {
+                                const toolbarRect = toolbar.getBoundingClientRect();
+                                const toolbarParent = toolbar.parentElement;
+                                if (toolbarParent) {
+                                  (attachBtn as HTMLElement).style.position = 'absolute';
+                                  (attachBtn as HTMLElement).style.top = `${toolbarRect.top - toolbarParent.getBoundingClientRect().top + 4}px`;
+                                  (attachBtn as HTMLElement).style.right = '4px';
+                                }
+                              }
+                            }
+                          }
+                        }, 100);
+                      }
+                    }}
                   />
                   {/* Custom attach button positioned on toolbar */}
                   <Tooltip title="Attach file or image" arrow>
                     <IconButton
+                      className="custom-attach-btn"
                       size="small"
                       onClick={() => {
                         (fileInputRef.current as any).dataset.id = String(block.id);
