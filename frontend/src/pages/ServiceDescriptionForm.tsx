@@ -12,20 +12,11 @@ import {
   CircularProgress,
 } from '@mui/material';
 import {
-  ArrowBack, Add, Delete, CheckCircle, Error, Download, AttachFile,
+  ArrowBack, Add, Delete, CheckCircle, Error, Download,
 } from '@mui/icons-material';
-import { Tooltip } from '@mui/material';
 import apiService from '../services/api';
-import ReactQuill, { Quill } from 'react-quill';
+import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-
-// Import and register image resize module
-import ImageResize from 'quill-image-resize-module-react';
-Quill.register('modules/imageResize', ImageResize);
-
-// Import and register table module
-import QuillTable from 'quill-table';
-Quill.register('modules/table', QuillTable);
 
 interface ValidationState {
   isValid: boolean;
@@ -170,24 +161,15 @@ export default function ServiceDescriptionForm() {
           [{ header: [3, false] }],
           ['bold', 'italic', 'underline'],
           [{ list: 'ordered' }, { list: 'bullet' }],
-          ['link', 'table'],
+          ['link', 'attach'],
           ['clean'],
         ],
         handlers: {
-          table: function(this: any) {
-            const table = this.quill.getModule('table');
-            if (table && table.insertTable) {
-              table.insertTable(2, 2);
-            }
+          attach: () => {
+            (fileInputRef.current as any).dataset.id = String(id);
+            fileInputRef.current?.click();
           },
         },
-      },
-      imageResize: {
-        parchment: Quill.import('parchment'),
-        modules: ['Resize', 'DisplaySize', 'Toolbar'],
-      },
-      table: {
-        operationMenu: true,
       },
     };
     return modulesByIdRef.current[id];
@@ -540,155 +522,33 @@ export default function ServiceDescriptionForm() {
 
               <Box sx={{ 
                 mb: 2,
-                position: 'relative',
                 '& .ql-container': { minHeight: 260 },
                 '& .ql-editor': { minHeight: 260 },
-                // Hide the default attach button (we're using custom one)
+                // Make the custom attach button visible with a paperclip icon
+                '& .ql-toolbar .ql-attach::before': {
+                  content: '"📎"',
+                  fontSize: '16px',
+                  display: 'inline-block',
+                  lineHeight: 1,
+                },
                 '& .ql-toolbar .ql-attach': {
-                  display: 'none',
-                },
-                // Image resize handles styling
-                '& .ql-editor img': {
-                  maxWidth: '100%',
-                  height: 'auto',
-                  cursor: 'move', // Indicate image can be moved/repositioned
-                },
-                // Tooltips on toolbar buttons - CSS-based for guaranteed visibility
-                '& .ql-toolbar button, & .ql-toolbar select': {
-                  position: 'relative',
-                  '&:hover::after': {
-                    content: 'attr(title)',
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    backgroundColor: '#333',
-                    color: '#fff',
-                    padding: '6px 10px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    whiteSpace: 'nowrap',
-                    zIndex: 10000,
-                    marginBottom: '5px',
-                    pointerEvents: 'none',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                    opacity: 1,
-                    display: 'block',
-                  },
-                  '&:hover::before': {
-                    content: '""',
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: '50%',
-                    transform: 'translateX(-50%) translateY(100%)',
-                    border: '5px solid transparent',
-                    borderTopColor: '#333',
-                    zIndex: 10001,
-                    marginBottom: '-5px',
-                    pointerEvents: 'none',
-                  },
+                  width: '28px',
+                  height: '28px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                  Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists/Tables. Images can be resized and repositioned.)
+                  Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists)
                 </Typography>
                 <ReactQuill
                   theme="snow"
                   value={block.content}
                   onChange={(html: string) => updateServiceDefBlock(block.id, 'content', html)}
                   modules={modules}
-                  ref={(el: any) => {
-                    quillRefs.current[block.id] = el;
-                    if (el) {
-                      // Use multiple attempts to ensure toolbar is ready
-                      const addTooltips = () => {
-                        const editor = el.getEditor?.();
-                        if (!editor) return;
-                        const toolbar = editor.container?.querySelector('.ql-toolbar');
-                        if (!toolbar) return;
-                        
-                        // More specific selectors for Quill buttons
-                        const tooltips: Array<{ selector: string; title: string }> = [
-                          { selector: 'button.ql-header', title: 'Heading 3' },
-                          { selector: 'button.ql-bold', title: 'Bold' },
-                          { selector: 'button.ql-italic', title: 'Italic' },
-                          { selector: 'button.ql-underline', title: 'Underline' },
-                          { selector: 'button.ql-list[value="ordered"]', title: 'Ordered List' },
-                          { selector: 'button.ql-list[value="bullet"]', title: 'Bullet List' },
-                          { selector: 'button.ql-link', title: 'Insert Link' },
-                          { selector: 'button.ql-table', title: 'Insert Table' },
-                          { selector: 'button.ql-clean', title: 'Clear Formatting' },
-                          // Also handle select dropdowns
-                          { selector: 'select.ql-header', title: 'Heading 3' },
-                          { selector: 'select.ql-list', title: 'List Type' },
-                        ];
-                        
-                        tooltips.forEach(({ selector, title }) => {
-                          const elements = toolbar.querySelectorAll(selector);
-                          elements.forEach((element: Element) => {
-                            (element as HTMLElement).setAttribute('title', title);
-                            // Also set aria-label for accessibility
-                            (element as HTMLElement).setAttribute('aria-label', title);
-                          });
-                        });
-                      };
-                      
-                      // Try immediately, then after delays
-                      addTooltips();
-                      setTimeout(addTooltips, 100);
-                      setTimeout(addTooltips, 300);
-                      setTimeout(addTooltips, 500);
-                      
-                      // Use MutationObserver to catch dynamic toolbar updates
-                      const observer = new MutationObserver(() => {
-                        addTooltips();
-                      });
-                      
-                      const editor = el.getEditor?.();
-                      if (editor) {
-                        const toolbar = editor.container?.querySelector('.ql-toolbar');
-                        if (toolbar) {
-                          observer.observe(toolbar, {
-                            childList: true,
-                            subtree: true,
-                            attributes: true,
-                          });
-                        }
-                      }
-                    }
-                  }}
+                  ref={(el: any) => (quillRefs.current[block.id] = el)}
                 />
-                {/* Custom attach button with MUI icon and tooltip - positioned absolutely after toolbar */}
-                <Tooltip title="Attach file or image">
-                  <Box
-                    component="button"
-                    type="button"
-                    onClick={() => {
-                      (fileInputRef.current as any).dataset.id = String(block.id);
-                      fileInputRef.current?.click();
-                    }}
-                    sx={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 'calc(100% - 220px)', // Position after toolbar buttons
-                      width: 28,
-                      height: 28,
-                      border: 'none',
-                      background: 'transparent',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      zIndex: 10,
-                      borderRadius: '2px',
-                      '&:hover': {
-                        backgroundColor: 'rgba(0,0,0,0.06)',
-                      },
-                    }}
-                  >
-                    <AttachFile sx={{ fontSize: 18 }} />
-                  </Box>
-                </Tooltip>
               </Box>
             </Box>
           );})}
@@ -799,17 +659,9 @@ export default function ServiceDescriptionForm() {
               const reader = new FileReader();
               reader.onload = () => {
                 const dataUrl = reader.result as string;
-                // Insert image with default size and make it resizable
-                const html = `<img src="${dataUrl}" style="max-width: 100%; height: auto;" />`;
+                const html = `<img src="${dataUrl}" />`;
                 editor.clipboard.dangerouslyPasteHTML(range.index, html);
-                // Trigger image resize module to activate
-                setTimeout(() => {
-                  const img = editor.root.querySelector(`img[src="${dataUrl}"]`);
-                  if (img) {
-                    // Image resize module will handle resizing
-                    editor.setSelection(range.index + 1, 0);
-                  }
-                }, 100);
+                editor.setSelection(range.index + 1, 0);
               };
               reader.readAsDataURL(file);
             } else {
