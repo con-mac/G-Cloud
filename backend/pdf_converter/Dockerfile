@@ -5,6 +5,18 @@ FROM public.ecr.aws/shelf/lambda-libreoffice-base:7.6-node20-x86_64 as libreoffi
 # Stage 2: Lambda Python runtime with LibreOffice
 FROM public.ecr.aws/lambda/python:3.10
 
+# Install system libraries required by LibreOffice
+# LibreOffice needs X11 libraries even in headless mode
+RUN yum install -y \
+    libXinerama \
+    libXext \
+    libXrender \
+    libSM \
+    libICE \
+    libGL \
+    && yum clean all \
+    && rm -rf /var/cache/yum
+
 # Copy LibreOffice from /opt/libreoffice7.6 (this is where it's installed in shelf image)
 COPY --from=libreoffice-source /opt/libreoffice7.6 /opt/libreoffice7.6
 
@@ -19,7 +31,7 @@ RUN ln -sf /opt/libreoffice7.6/program/soffice /usr/bin/libreoffice && \
 # Set up environment
 ENV HOME=/tmp
 ENV PATH=/opt/libreoffice7.6/program:/usr/bin:${PATH}
-ENV LD_LIBRARY_PATH=/opt/libreoffice7.6/program:${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/opt/libreoffice7.6/program:/usr/lib64:${LD_LIBRARY_PATH}
 
 # Copy Python requirements and install
 COPY requirements.txt ${LAMBDA_TASK_ROOT}/
