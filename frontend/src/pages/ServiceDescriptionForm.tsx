@@ -19,9 +19,9 @@ import apiService from '../services/api';
 import ReactQuill, { Quill } from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
-// Import and register image resize module
-import ImageResize from 'quill-image-resize-module-react';
-Quill.register('modules/imageResize', ImageResize);
+// Import and register image resize module using blot-formatter
+import BlotFormatter from 'quill-blot-formatter2';
+Quill.register('modules/blotFormatter', BlotFormatter);
 
 // Import and register table module
 import QuillTable from 'quill-table';

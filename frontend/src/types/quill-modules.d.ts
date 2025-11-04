@@ -1,6 +1,6 @@
-declare module 'quill-image-resize-module-react' {
-  const ImageResize: any;
-  export default ImageResize;
+declare module 'quill-blot-formatter2' {
+  const BlotFormatter: any;
+  export default BlotFormatter;
 }
 
 declare module 'quill-table' {
