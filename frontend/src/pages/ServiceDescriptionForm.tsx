@@ -553,6 +553,41 @@ export default function ServiceDescriptionForm() {
                   height: 'auto',
                   cursor: 'move', // Indicate image can be moved/repositioned
                 },
+                // Tooltips on toolbar buttons - CSS-based for guaranteed visibility
+                '& .ql-toolbar button, & .ql-toolbar select': {
+                  position: 'relative',
+                  '&:hover::after': {
+                    content: 'attr(title)',
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: '#333',
+                    color: '#fff',
+                    padding: '6px 10px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    whiteSpace: 'nowrap',
+                    zIndex: 10000,
+                    marginBottom: '5px',
+                    pointerEvents: 'none',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                    opacity: 1,
+                    display: 'block',
+                  },
+                  '&:hover::before': {
+                    content: '""',
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '50%',
+                    transform: 'translateX(-50%) translateY(100%)',
+                    border: '5px solid transparent',
+                    borderTopColor: '#333',
+                    zIndex: 10001,
+                    marginBottom: '-5px',
+                    pointerEvents: 'none',
+                  },
+                },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                   Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists/Tables. Images can be resized and repositioned.)
