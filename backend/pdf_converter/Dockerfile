@@ -14,6 +14,10 @@ RUN yum install -y \
     libSM \
     libICE \
     libGL \
+    cairo \
+    cairo-gobject \
+    pango \
+    gtk3 \
     && yum clean all \
     && rm -rf /var/cache/yum
 
@@ -28,7 +32,9 @@ RUN ln -sf /opt/libreoffice7.6/program/soffice /usr/bin/libreoffice && \
     ln -sf /opt/libreoffice7.6/program/soffice /usr/bin/soffice && \
     ln -sf /opt/libreoffice7.6/program/soffice /usr/bin/libreoffice7.6
 
-# Set up environment
+# Disable Java in LibreOffice (not needed for headless conversion)
+ENV JAVA_HOME=""
+ENV SAL_USE_VCLPLUGIN="headless"
 ENV HOME=/tmp
 ENV PATH=/opt/libreoffice7.6/program:/usr/bin:${PATH}
 ENV LD_LIBRARY_PATH=/opt/libreoffice7.6/program:/usr/lib64:${LD_LIBRARY_PATH}

@@ -113,6 +113,9 @@ def handler(event, context):
         env = os.environ.copy()
         env['HOME'] = '/tmp'
         env['USERPROFILE'] = '/tmp'
+        # Disable Java (not needed for headless conversion)
+        env['JAVA_HOME'] = ''
+        env['SAL_USE_VCLPLUGIN'] = 'headless'
         
         result = subprocess.run(
             cmd,
