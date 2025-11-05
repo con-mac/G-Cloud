@@ -103,12 +103,33 @@ async def generate_service_description(request: ServiceDescriptionRequest):
                 except:
                     pass
         
+        # Convert local file paths to download URLs for frontend
+        word_path = result.get('word_path', '')
+        if word_path and not word_path.startswith('http'):
+            # Extract filename from path
+            from pathlib import Path
+            word_filename_for_url = Path(word_path).name if word_path else f"{result['filename']}.docx"
+            # Convert to download URL
+            word_path = f"/api/v1/templates/service-description/download/{word_filename_for_url}"
+        
+        # Convert PDF path to download URL if it's a local path
+        if pdf_path and not pdf_path.startswith('http'):
+            from pathlib import Path
+            pdf_filename_for_url = Path(pdf_path).name if pdf_path else f"{result['filename']}.pdf"
+            # Only convert if PDF file exists (for now, PDF generation may not be available locally)
+            pdf_path_local = Path(pdf_path)
+            if pdf_path_local.exists():
+                pdf_path = f"/api/v1/templates/service-description/download/{pdf_filename_for_url}"
+            else:
+                # PDF doesn't exist yet, keep original path for "Coming Soon" message
+                pdf_path = pdf_path
+        
         return GenerateResponse(
             success=True,
             message="Documents generated successfully",
             word_filename=f"{result['filename']}.docx",
             pdf_filename=f"{result['filename']}.pdf",
-            word_path=result['word_path'],
+            word_path=word_path,
             pdf_path=pdf_path or f"{result.get('filename', 'document')}.pdf"  # Fallback to filename if no path
         )
     
@@ -118,9 +139,16 @@ async def generate_service_description(request: ServiceDescriptionRequest):
         raise HTTPException(status_code=500, detail=f"Document generation failed: {str(e)}")
 
 
-@router.get("/service-description/download/{filename}")
+@router.get("/service-description/download/{filename:path}")
 async def download_document(filename: str):
     """Download generated Word or PDF document"""
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    from urllib.parse import unquote
+    
+    # URL decode the filename in case it was encoded
+    filename = unquote(filename)
+    
     if _use_s3 and s3_service:
         # AWS Lambda: generate presigned URL for S3 file
         s3_key = f"generated/{filename}"
@@ -132,16 +160,50 @@ async def download_document(filename: str):
             raise HTTPException(status_code=404, detail=f"File not found in S3: {str(e)}")
     else:
         # Docker/local: serve from filesystem
-        file_path = f"/app/generated_documents/{filename}"
+        # Check if we're running in Docker (/app exists) or locally
+        is_docker = Path("/app").exists()
         
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="File not found")
+        file_path = None
+        
+        if is_docker:
+            # Docker environment: use /app paths
+            file_path = Path(f"/app/generated_documents/{filename}")
+        else:
+            # Local development: use relative paths from backend directory
+            backend_dir = Path(__file__).parent.parent.parent.parent / "backend"
+            file_path = backend_dir / "generated_documents" / filename
+            
+            # Also check mock_sharepoint folders (for updated documents)
+            if not file_path.exists():
+                # Try to find the file in mock_sharepoint structure
+                mock_base = Path(__file__).parent.parent.parent.parent / "mock_sharepoint"
+                if mock_base.exists():
+                    for gcloud_dir in mock_base.glob("GCloud *"):
+                        for lot_dir in gcloud_dir.glob("**/Cloud Support Services LOT *"):
+                            if lot_dir.is_dir():
+                                for service_dir in lot_dir.iterdir():
+                                    if service_dir.is_dir():
+                                        potential_file = service_dir / filename
+                                        if potential_file.exists():
+                                            file_path = potential_file
+                                            break
+                                    if file_path and file_path.exists():
+                                        break
+                                if file_path and file_path.exists():
+                                    break
+                            if file_path and file_path.exists():
+                                break
+                        if file_path and file_path.exists():
+                            break
+        
+        if not file_path or not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {filename}")
         
         media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
             if filename.endswith('.docx') else "application/pdf"
         
         return FileResponse(
-            path=file_path,
+            path=str(file_path),
             media_type=media_type,
             filename=filename
         )

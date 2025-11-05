@@ -415,9 +415,14 @@ export default function ServiceDescriptionForm() {
     // Use the presigned URL directly from the API response
     if (url && url.startsWith('http')) {
       window.open(url, '_blank');
+    } else if (url && url.startsWith('/api/')) {
+      // Relative API path - construct full URL
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const downloadUrl = `${apiBaseUrl}${url}`;
+      window.open(downloadUrl, '_blank');
     } else {
       // Fallback: construct download URL if we only have a filename
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://jqms1xopz9.execute-api.eu-west-2.amazonaws.com';
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const downloadUrl = `${apiBaseUrl}/api/v1/templates/service-description/download/${url}`;
       window.open(downloadUrl, '_blank');
     }
