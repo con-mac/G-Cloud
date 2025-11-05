@@ -666,6 +666,9 @@ class DocumentGenerator:
             table = block.get('table')
 
             if subtitle:
+                # Sanitize subtitle - replace AI Security advisory with Lorem Ipsum
+                if 'AI Security' in subtitle or 'advisory' in subtitle.lower() or '1.1.1' in subtitle or '1.4.1' in subtitle:
+                    subtitle = 'Lorem ipsum dolor sit amet'
                 insert_after = self._insert_paragraph_after(insert_after, subtitle, 'Heading 3')
 
             if content_html:
