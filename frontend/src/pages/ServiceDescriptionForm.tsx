@@ -158,11 +158,15 @@ export default function ServiceDescriptionForm() {
     modulesByIdRef.current[id] = {
       toolbar: {
         container: [
-          [{ header: [3, false] }],
-          ['bold', 'italic', 'underline'],
-          [{ list: 'ordered' }, { list: 'bullet' }],
-          ['link', 'attach'],
-          ['clean'],
+          [{ 'font': [] }], // Font family
+          [{ 'size': ['small', false, 'large', 'huge'] }], // Font size
+          ['bold', 'italic', 'underline', 'strike'], // Text formatting
+          [{ 'color': [] }, { 'background': [] }], // Text color, background color
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }], // Lists and indent
+          [{ 'align': [] }], // Text alignment
+          ['link', 'attach'], // Link and attach
+          ['blockquote', 'code-block'], // Blockquote and code block
+          ['clean'], // Remove formatting
         ],
         handlers: {
           attach: () => {
@@ -529,14 +533,54 @@ export default function ServiceDescriptionForm() {
                 '& .ql-toolbar .ql-attach': {
                   display: 'none',
                 },
-                // Position custom attach button on toolbar
+                // Style toolbar like Gmail compose
                 '& .ql-toolbar': {
                   position: 'relative',
                   paddingRight: '40px', // Make room for custom attach button
+                  border: '1px solid #d0d0d0',
+                  borderBottom: 'none',
+                  borderRadius: '4px 4px 0 0',
+                  backgroundColor: '#fafafa',
+                  padding: '8px',
+                },
+                // Style toolbar buttons
+                '& .ql-toolbar .ql-formats': {
+                  marginRight: '8px',
+                },
+                '& .ql-toolbar button': {
+                  width: '28px',
+                  height: '28px',
+                  padding: '4px',
+                  margin: '0 2px',
+                  borderRadius: '2px',
+                  '&:hover': {
+                    backgroundColor: '#e8eaed',
+                  },
+                  '&.ql-active': {
+                    backgroundColor: '#dadce0',
+                  },
+                },
+                '& .ql-toolbar .ql-picker': {
+                  height: '28px',
+                  '&.ql-expanded': {
+                    backgroundColor: '#e8eaed',
+                  },
+                },
+                '& .ql-toolbar .ql-picker-label': {
+                  padding: '4px 8px',
+                  borderRadius: '2px',
+                  '&:hover': {
+                    backgroundColor: '#e8eaed',
+                  },
+                },
+                '& .ql-container': {
+                  border: '1px solid #d0d0d0',
+                  borderTop: 'none',
+                  borderRadius: '0 0 4px 4px',
                 },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                  Content (use Heading 3 for subsections when needed; toolbar allows Bold/Italic/Lists)
+                  Content (rich text editor with formatting options)
                 </Typography>
                 <Box sx={{ position: 'relative' }}>
                   <ReactQuill
@@ -546,13 +590,53 @@ export default function ServiceDescriptionForm() {
                     modules={modules}
                     ref={(el: any) => {
                       quillRefs.current[block.id] = el;
-                      // Position attach button on toolbar after toolbar renders
+                      // Add tooltips to toolbar buttons and position attach button
                       if (el) {
                         setTimeout(() => {
                           const editor = el.getEditor?.();
                           if (editor) {
                             const toolbar = editor.container?.querySelector('.ql-toolbar');
                             if (toolbar) {
+                              // Tooltip mappings for Quill buttons
+                              const tooltips: Record<string, string> = {
+                                'ql-font': 'Font family',
+                                'ql-size': 'Font size',
+                                'ql-bold': 'Bold',
+                                'ql-italic': 'Italic',
+                                'ql-underline': 'Underline',
+                                'ql-strike': 'Strikethrough',
+                                'ql-color': 'Text colour',
+                                'ql-background': 'Background colour',
+                                'ql-list': 'List',
+                                'ql-indent': 'Indent',
+                                'ql-align': 'Text alignment',
+                                'ql-link': 'Insert link',
+                                'ql-blockquote': 'Blockquote',
+                                'ql-code-block': 'Code block',
+                                'ql-clean': 'Clear formatting',
+                              };
+                              
+                              // Add tooltips to all buttons
+                              toolbar.querySelectorAll('button, .ql-picker-label').forEach((btn: Element) => {
+                                const btnElement = btn as HTMLElement;
+                                if (btnElement.classList.contains('ql-picker-label')) {
+                                  const picker = btnElement.closest('.ql-picker');
+                                  if (picker) {
+                                    const pickerClass = Array.from(picker.classList).find(c => c.startsWith('ql-') && c !== 'ql-picker');
+                                    if (pickerClass && tooltips[pickerClass]) {
+                                      btnElement.setAttribute('title', tooltips[pickerClass]);
+                                    }
+                                  }
+                                } else {
+                                  // Regular button
+                                  const btnClass = Array.from(btnElement.classList).find(c => c.startsWith('ql-') && c !== 'ql-toolbar-button');
+                                  if (btnClass && tooltips[btnClass]) {
+                                    btnElement.setAttribute('title', tooltips[btnClass]);
+                                  }
+                                }
+                              });
+                              
+                              // Position attach button on toolbar
                               const attachBtn = toolbar.parentElement?.querySelector('.custom-attach-btn');
                               if (attachBtn) {
                                 const toolbarRect = toolbar.getBoundingClientRect();
@@ -587,7 +671,7 @@ export default function ServiceDescriptionForm() {
                         height: 28,
                         backgroundColor: 'transparent',
                         '&:hover': {
-                          backgroundColor: 'action.hover',
+                          backgroundColor: '#e8eaed',
                         },
                         // Match Quill toolbar button styling
                         borderRadius: '2px',
