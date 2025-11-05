@@ -527,7 +527,12 @@ export default function ServiceDescriptionForm() {
               <Box sx={{ 
                 mb: 2,
                 position: 'relative',
-                '& .ql-container': { minHeight: 260 },
+                '& .ql-container': { 
+                  minHeight: 260,
+                  border: '1px solid #d0d0d0',
+                  borderTop: 'none',
+                  borderRadius: '0 0 4px 4px',
+                },
                 '& .ql-editor': { minHeight: 260 },
                 // Hide the default Quill attach button (we're using custom one)
                 '& .ql-toolbar .ql-attach': {
@@ -572,11 +577,6 @@ export default function ServiceDescriptionForm() {
                   '&:hover': {
                     backgroundColor: '#e8eaed',
                   },
-                },
-                '& .ql-container': {
-                  border: '1px solid #d0d0d0',
-                  borderTop: 'none',
-                  borderRadius: '0 0 4px 4px',
                 },
               }}>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
