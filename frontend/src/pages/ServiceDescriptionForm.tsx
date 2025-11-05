@@ -190,8 +190,33 @@ export default function ServiceDescriptionForm() {
       if (updateDoc) {
         try {
           const updateData = JSON.parse(updateDoc);
-          if (updateData.content) {
+          
+          // Check if cache is stale (older than 5 minutes) - always fetch fresh
+          const cacheAge = updateData._timestamp ? Date.now() - updateData._timestamp : Infinity;
+          const CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
+          
+          if (cacheAge > CACHE_MAX_AGE) {
+            console.log('Cache is stale, clearing...');
+            sessionStorage.removeItem('updateDocument');
+            // Don't load from cache - will fetch fresh from backend
+          } else if (updateData.content) {
             const content = updateData.content;
+            
+            // Sanitize service_definition subtitles - replace AI Security advisory
+            if (Array.isArray(content.service_definition)) {
+              content.service_definition = content.service_definition.map((b: any) => {
+                let subtitle = b.subtitle || '';
+                // Replace AI Security advisory with Lorem Ipsum
+                if (subtitle.includes('AI Security') || subtitle.toLowerCase().includes('advisory')) {
+                  subtitle = 'Lorem ipsum dolor sit amet';
+                }
+                return {
+                  ...b,
+                  subtitle: subtitle,
+                };
+              });
+            }
+            
             // Pre-populate form with document content
             if (content.title) setTitle(content.title);
             if (content.description) setDescription(content.description);
@@ -213,6 +238,8 @@ export default function ServiceDescriptionForm() {
           }
         } catch (e) {
           console.error('Error parsing update document:', e);
+          // Clear invalid cache
+          sessionStorage.removeItem('updateDocument');
         }
       }
       

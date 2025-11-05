@@ -94,7 +94,19 @@ class ApiService {
 
   // Generic GET request
   async get<T>(url: string, params?: Record<string, any>): Promise<T> {
-    const response = await this.client.get<T>(url, { params });
+    // Add cache-busting timestamp to prevent browser caching
+    const cacheBustParams = {
+      ...params,
+      _t: Date.now(), // Timestamp to bust cache
+    };
+    const response = await this.client.get<T>(url, { 
+      params: cacheBustParams,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
     return response.data;
   }
 

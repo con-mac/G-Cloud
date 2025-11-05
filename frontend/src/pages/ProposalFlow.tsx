@@ -136,9 +136,13 @@ export default function ProposalFlow() {
             folder_path: selectedResult.folder_path || '',
           };
           
+          // Store document content with version to invalidate old cache
+          const cacheVersion = Date.now();
           sessionStorage.setItem('updateDocument', JSON.stringify({
             ...updateMetadata,
             content: documentContent,
+            _cacheVersion: cacheVersion, // Version to detect stale cache
+            _timestamp: Date.now(), // Timestamp for cache invalidation
           }));
           
           // Also store update metadata separately for document generation

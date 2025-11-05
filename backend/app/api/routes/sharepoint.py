@@ -2,7 +2,7 @@
 SharePoint API routes for document management.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict
 import logging
@@ -86,7 +86,8 @@ async def search_sharepoint_documents(request: SearchRequest):
 async def get_metadata(
     service_name: str,
     lot: str = Query(..., description="LOT number (2 or 3)"),
-    gcloud_version: str = Query("14", description="GCloud version (14 or 15)")
+    gcloud_version: str = Query("14", description="GCloud version (14 or 15)"),
+    response: Response = None
 ):
     """
     Get metadata for a service (from .txt file).
@@ -121,6 +122,12 @@ async def get_metadata(
         metadata = read_metadata_file(service_folder)
         if not metadata:
             raise HTTPException(status_code=404, detail=f"Metadata not found for: {service_name}")
+        
+        # Set cache-control headers to prevent browser caching
+        if response:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         
         return MetadataResponse(
             service=metadata.get('service', service_name),
@@ -288,7 +295,8 @@ async def get_document_content(
     service_name: str,
     doc_type: str = Query(..., description="Document type (SERVICE DESC or Pricing Doc)"),
     lot: str = Query(..., description="LOT number (2 or 3)"),
-    gcloud_version: str = Query("14", description="GCloud version (14 or 15)")
+    gcloud_version: str = Query("14", description="GCloud version (14 or 15)"),
+    response: Response = None
 ):
     """
     Get parsed content from an existing document.
@@ -310,6 +318,12 @@ async def get_document_content(
                 status_code=404,
                 detail=f"Document not found or could not be parsed: {service_name} ({doc_type})"
             )
+        
+        # Set cache-control headers to prevent browser caching
+        if response:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         
         return DocumentContentResponse(**content)
     except HTTPException:
