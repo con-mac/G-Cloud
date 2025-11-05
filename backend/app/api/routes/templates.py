@@ -6,7 +6,7 @@ Handles template-based proposal creation
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict
 import os
 import uuid
 import re
