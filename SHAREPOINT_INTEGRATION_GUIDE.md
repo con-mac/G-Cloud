@@ -1,5 +1,24 @@
 # SharePoint Integration Guide
 
+## Quick Reference - Testing URLs
+
+**🚀 Quick Access Links:**
+
+| What | URL | Description |
+|------|-----|-------------|
+| **Login Page** | http://localhost:5175/login | Login with @paconsulting.com email |
+| **Proposal Flow** | http://localhost:5175/proposals/flow | Update or Create workflow |
+| **API Health Check** | http://localhost:8000/health | Backend server status |
+| **API Docs (Swagger)** | http://localhost:8000/docs | Interactive API documentation |
+| **Backend Base URL** | http://localhost:8000/api/v1 | API base endpoint |
+
+**📝 Note:** 
+- Frontend port may vary (5173, 5174, 5175, etc.) - check your terminal
+- Backend should be on port 8000
+- Both servers must be running
+
+---
+
 ## Overview
 This guide provides comprehensive documentation for the SharePoint integration feature, including API endpoints, frontend routes, components, and testing instructions.
 
