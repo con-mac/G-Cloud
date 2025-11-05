@@ -170,14 +170,17 @@ async def download_document(filename: str):
             file_path = Path(f"/app/generated_documents/{filename}")
         else:
             # Local development: use relative paths from backend directory
-            backend_dir = Path(__file__).parent.parent.parent.parent / "backend"
+            # __file__ is at backend/app/api/routes/templates.py
+            # Go up 4 levels to get to backend/, then up 1 more to get to project root
+            backend_dir = Path(__file__).parent.parent.parent.parent
+            project_root = backend_dir.parent
             file_path = backend_dir / "generated_documents" / filename
             
             # Also check mock_sharepoint folders (for updated documents)
             if not file_path.exists():
                 # Try to find the file in mock_sharepoint structure
                 # Path structure: mock_sharepoint/GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/{filename}
-                mock_base = Path(__file__).parent.parent.parent.parent / "mock_sharepoint"
+                mock_base = project_root / "mock_sharepoint"
                 if mock_base.exists():
                     # Search more thoroughly - check all service folders
                     for gcloud_dir in sorted(mock_base.glob("GCloud *")):
