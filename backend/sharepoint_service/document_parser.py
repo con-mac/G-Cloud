@@ -86,7 +86,11 @@ def parse_service_description_document(doc_path: Path) -> Dict:
                 if current_subsection:
                     result['service_definition'].append(current_subsection)
                 # Start new subsection
-                current_subsection = {'subtitle': text, 'content': ''}
+                # Replace AI Security advisory with Lorem Ipsum
+                subtitle = text
+                if 'AI Security' in subtitle or 'advisory' in subtitle.lower() or '1.4.1' in subtitle:
+                    subtitle = 'Lorem ipsum dolor sit amet'
+                current_subsection = {'subtitle': subtitle, 'content': ''}
                 in_features = False
                 in_benefits = False
                 in_service_def = True
