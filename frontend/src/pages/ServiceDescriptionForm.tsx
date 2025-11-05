@@ -52,7 +52,7 @@ export default function ServiceDescriptionForm() {
   const quillRefs = useRef<Record<string, any>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modulesByIdRef = useRef<Record<string, any>>({});
-  const draftKey = 'service-description-draft-v1';
+  const draftKey = 'service-description-draft-v2'; // Incremented version to clear old cache
   const draftsKey = 'service-description-drafts';
   const [draftsMenuAnchor, setDraftsMenuAnchor] = useState<null | HTMLElement>(null);
   const [savedDrafts, setSavedDrafts] = useState<Array<{id: string; name: string; timestamp: string; data: any}>>([]);
