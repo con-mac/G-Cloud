@@ -6,8 +6,8 @@
 
 | What | URL | Description |
 |------|-----|-------------|
-| **Login Page** | http://localhost:5175/login | Login with @paconsulting.com email |
-| **Proposal Flow** | http://localhost:5175/proposals/flow | Update or Create workflow |
+| **Login Page** | http://localhost:5173/login | Login with @paconsulting.com email |
+| **Proposal Flow** | http://localhost:5173/proposals/flow | Update or Create workflow |
 | **API Health Check** | http://localhost:8000/health | Backend server status |
 | **API Docs (Swagger)** | http://localhost:8000/docs | Interactive API documentation |
 | **Backend Base URL** | http://localhost:8000/api/v1 | API base endpoint |

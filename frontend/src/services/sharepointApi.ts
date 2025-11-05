@@ -65,9 +65,7 @@ class SharePointApiService {
     try {
       const response = await apiService.get<MetadataResponse>(
         `/sharepoint/metadata/${encodeURIComponent(serviceName)}`,
-        {
-          params: { lot, gcloud_version: gcloudVersion },
-        }
+        { lot, gcloud_version: gcloudVersion }
       );
       return response;
     } catch (error: any) {
@@ -88,9 +86,7 @@ class SharePointApiService {
     try {
       const response = await apiService.get<{ service_name: string; doc_type: string; lot: string; gcloud_version: string; file_path: string; exists: boolean }>(
         `/sharepoint/document/${encodeURIComponent(serviceName)}`,
-        {
-          params: { doc_type: docType, lot, gcloud_version: gcloudVersion },
-        }
+        { doc_type: docType, lot, gcloud_version: gcloudVersion }
       );
       return response;
     } catch (error: any) {
@@ -137,9 +133,7 @@ class SharePointApiService {
     try {
       const response = await apiService.get<{ title: string; description: string; features: string[]; benefits: string[]; service_definition: Array<{ subtitle: string; content: string }> }>(
         `/sharepoint/document-content/${encodeURIComponent(serviceName)}`,
-        {
-          params: { doc_type: docType, lot, gcloud_version: gcloudVersion },
-        }
+        { doc_type: docType, lot, gcloud_version: gcloudVersion }
       );
       return response;
     } catch (error: any) {

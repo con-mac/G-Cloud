@@ -106,22 +106,57 @@ export default function ProposalFlow() {
       if (flowType === 'update' && selectedResult) {
         // Load document content and redirect to editor with pre-populated data
         try {
+          // Use docType from state if selectedResult doesn't have it
+          const docTypeToUse = (selectedResult.doc_type || docType) as 'SERVICE DESC' | 'Pricing Doc';
+          const lotToUse = (selectedResult.lot || '2') as '2' | '3';
+          const gcloudVersionToUse = (selectedResult.gcloud_version || '14') as '14' | '15';
+          
+          console.log('Loading document:', {
+            service_name: selectedResult.service_name,
+            doc_type: docTypeToUse,
+            lot: lotToUse,
+            gcloud_version: gcloudVersionToUse
+          });
+          
           const documentContent = await sharepointApi.getDocumentContent(
             selectedResult.service_name,
-            selectedResult.doc_type as 'SERVICE DESC' | 'Pricing Doc',
-            selectedResult.lot as '2' | '3',
-            selectedResult.gcloud_version as '14' | '15'
+            docTypeToUse,
+            lotToUse,
+            gcloudVersionToUse
           );
           
           // Store document content and metadata for the form
+          const updateMetadata = {
+            service_name: selectedResult.service_name,
+            owner: selectedResult.owner,
+            sponsor: selectedResult.sponsor,
+            lot: lotToUse,
+            doc_type: docTypeToUse,
+            gcloud_version: gcloudVersionToUse,
+            folder_path: selectedResult.folder_path || '',
+          };
+          
           sessionStorage.setItem('updateDocument', JSON.stringify({
-            ...selectedResult,
+            ...updateMetadata,
             content: documentContent,
           }));
           
+          // Also store update metadata separately for document generation
+          sessionStorage.setItem('updateMetadata', JSON.stringify(updateMetadata));
+          
           navigate(`/proposals/create/service-description`);
         } catch (err: any) {
-          setError(`Failed to load document: ${err.response?.data?.detail || err.message}`);
+          let errorMessage = 'Failed to load document';
+          if (err.response?.data?.detail) {
+            const detail = err.response.data.detail;
+            errorMessage += `: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`;
+          } else if (err.message) {
+            errorMessage += `: ${err.message}`;
+          } else if (err.response?.data?.message) {
+            errorMessage += `: ${err.response.data.message}`;
+          }
+          console.error('Error loading document:', err);
+          setError(errorMessage);
           setLoading(false);
           return;
         }
