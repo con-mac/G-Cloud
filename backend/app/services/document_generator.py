@@ -63,7 +63,9 @@ class DocumentGenerator:
         features: List[str],
         benefits: List[str],
         service_definition: List[dict] | None = None,
-        update_metadata: Dict | None = None
+        update_metadata: Dict | None = None,
+        save_as_draft: bool = False,
+        new_proposal_metadata: Dict | None = None
     ) -> Dict[str, str]:
         """
         Generate Service Description document from template
@@ -197,24 +199,57 @@ class DocumentGenerator:
         })
         
         # Determine output location and filename
-        if update_metadata:
-            # Update existing document - save to SharePoint folder
-            folder_path = Path(update_metadata.get('folder_path', ''))
-            gcloud_version = update_metadata.get('gcloud_version', '14')
-            doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
-            service_name = update_metadata.get('service_name', title)
+        if update_metadata or new_proposal_metadata:
+            # Save to SharePoint folder (either update or new proposal)
+            if update_metadata:
+                folder_path = Path(update_metadata.get('folder_path', ''))
+                gcloud_version = update_metadata.get('gcloud_version', '14')
+                doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
+                service_name = update_metadata.get('service_name', title)
+            else:  # new_proposal_metadata
+                # Get folder path from new proposal metadata
+                from sharepoint_service.mock_sharepoint import get_document_path
+                service_name = new_proposal_metadata.get('service', title)
+                lot = new_proposal_metadata.get('lot', '2')
+                gcloud_version = new_proposal_metadata.get('gcloud_version', '15')
+                doc_type = 'SERVICE DESC'  # Always SERVICE DESC for new proposals
+                
+                # Find folder path
+                doc_path = get_document_path(service_name, doc_type, lot, gcloud_version)
+                if doc_path:
+                    folder_path = doc_path.parent
+                else:
+                    # Fallback: construct path
+                    from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
+                    folder_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name
             
-            # Use exact filename format: PA GC14 SERVICE DESC [Service Name].docx
+            # Use exact filename format: PA GC15 SERVICE DESC [Service Name].docx
             if doc_type == 'SERVICE DESC':
                 word_filename = f"PA GC{gcloud_version} SERVICE DESC {service_name}.docx"
             else:
                 word_filename = f"PA GC{gcloud_version} Pricing Doc {service_name}.docx"
             
+            # Add _draft suffix if saving as draft
+            if save_as_draft:
+                word_filename = word_filename.replace('.docx', '_draft.docx')
+            else:
+                # Remove any existing _draft files when completing
+                draft_filename = word_filename.replace('.docx', '_draft.docx')
+                draft_path = folder_path / draft_filename
+                if draft_path.exists():
+                    draft_path.unlink()
+                
+                # Remove any existing SERVICE DESC files (to replace them)
+                if 'SERVICE DESC' in word_filename:
+                    for existing_file in folder_path.glob(f"PA GC{gcloud_version} SERVICE DESC {service_name}*.docx"):
+                        if existing_file.name != word_filename:
+                            existing_file.unlink()
+            
             word_path = folder_path / word_filename
             filename_base = service_name
             output_dir = folder_path
         else:
-            # Create new document - save to generated_documents
+            # Create new document - save to generated_documents (no folder metadata)
             doc_id = str(uuid.uuid4())[:8]
             safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_'))[:50]
             filename_base = f"{safe_title}_{doc_id}"

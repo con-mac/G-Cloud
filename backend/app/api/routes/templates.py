@@ -36,6 +36,10 @@ class ServiceDescriptionRequest(BaseModel):
     service_definition: Optional[List[dict]] = Field(default_factory=list, description="Service Definition subsections (rich HTML content)")
     # Update metadata (optional - for replacing existing documents)
     update_metadata: Optional[Dict] = Field(default=None, description="Metadata for updating existing document (service_name, lot, doc_type, gcloud_version, folder_path)")
+    # New proposal metadata (optional - for saving to new folder)
+    new_proposal_metadata: Optional[Dict] = Field(default=None, description="Metadata for new proposal (service, owner, sponsor, lot, gcloud_version)")
+    # Save as draft (optional - adds _draft suffix)
+    save_as_draft: Optional[bool] = Field(default=False, description="Save as draft with _draft suffix")
     
     @validator('title')
     def validate_title(cls, v):
@@ -90,7 +94,9 @@ async def generate_service_description(request: ServiceDescriptionRequest):
             features=request.features,
             benefits=request.benefits,
             service_definition=request.service_definition or [],
-            update_metadata=request.update_metadata
+            update_metadata=request.update_metadata,
+            save_as_draft=request.save_as_draft or False,
+            new_proposal_metadata=request.new_proposal_metadata
         )
         
         # Handle PDF path - may be None in Lambda if PDF generation not implemented

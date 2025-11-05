@@ -297,32 +297,66 @@ export default function ServiceDescriptionForm() {
     } catch {}
   }, []);
   
-  // Save draft with custom name
-  const handleSaveDraft = () => {
-    const draftName = prompt('Enter a name for this draft:');
-    if (!draftName || !draftName.trim()) return;
-    
+  // Save draft as Word doc to folder
+  const handleSaveDraft = async () => {
     try {
-      const draft = {
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        name: draftName.trim(),
-        timestamp: new Date().toISOString(),
-        data: {
-          title,
-          description,
-          features,
-          benefits,
-          serviceDefinition,
-        },
-      };
+      // Validate required fields
+      if (!title.trim()) {
+        alert('Please enter a service title before saving');
+        return;
+      }
+
+      // Get folder metadata from newProposal or updateMetadata
+      const newProposal = sessionStorage.getItem('newProposal');
+      const updateMetadata = sessionStorage.getItem('updateMetadata');
       
-      const existingDrafts = savedDrafts;
-      const updatedDrafts = [draft, ...existingDrafts].slice(0, 10); // Keep last 10 drafts
-      setSavedDrafts(updatedDrafts);
-      localStorage.setItem(draftsKey, JSON.stringify(updatedDrafts));
-      alert(`Draft "${draftName}" saved successfully!`);
-    } catch (error) {
-      alert('Failed to save draft');
+      let folderMetadata = null;
+      if (newProposal) {
+        folderMetadata = JSON.parse(newProposal);
+      } else if (updateMetadata) {
+        folderMetadata = JSON.parse(updateMetadata);
+      }
+
+      if (!folderMetadata) {
+        alert('No folder information found. Please create a new proposal first.');
+        return;
+      }
+
+      setSubmitting(true);
+
+      const requestBody: any = {
+        title: title.trim(),
+        description: description.trim(),
+        features: features.filter(f => f.trim().length > 0),
+        benefits: benefits.filter(b => b.trim().length > 0),
+        service_definition: serviceDefinition.map(b => ({
+          subtitle: b.subtitle.trim(),
+          content: b.content,
+        })),
+        save_as_draft: true,
+      };
+
+      // Add appropriate metadata
+      if (newProposal) {
+        requestBody.new_proposal_metadata = folderMetadata;
+      } else if (updateMetadata) {
+        requestBody.update_metadata = {
+          service_name: folderMetadata.service_name || title.trim(),
+          lot: folderMetadata.lot,
+          doc_type: folderMetadata.doc_type || 'SERVICE DESC',
+          gcloud_version: folderMetadata.gcloud_version || '15',
+          folder_path: folderMetadata.folder_path,
+        };
+      }
+
+      await apiService.post('/templates/service-description/generate', requestBody);
+      
+      alert('Draft saved successfully! The document has been saved to your proposal folder.');
+    } catch (error: any) {
+      console.error('Error saving draft:', error);
+      alert(`Error: ${error.response?.data?.detail || 'Failed to save draft'}`);
+    } finally {
+      setSubmitting(false);
     }
   };
   
@@ -401,9 +435,11 @@ export default function ServiceDescriptionForm() {
     setSubmitting(true);
 
     try {
-      // Check if we're updating an existing document
+      // Check if we're updating an existing document or creating new
       const updateMetadata = sessionStorage.getItem('updateMetadata');
+      const newProposal = sessionStorage.getItem('newProposal');
       const updateMeta = updateMetadata ? JSON.parse(updateMetadata) : null;
+      const newProposalMeta = newProposal ? JSON.parse(newProposal) : null;
       
       const requestBody: any = {
         title: title.trim(),
@@ -414,17 +450,22 @@ export default function ServiceDescriptionForm() {
           subtitle: b.subtitle.trim(),
           content: b.content,
         })),
+        save_as_draft: false, // Complete, not draft
       };
       
-      // Add update metadata if available
+      // Add appropriate metadata
       if (updateMeta) {
+        // Updating existing document
         requestBody.update_metadata = {
           service_name: updateMeta.service_name || title.trim(),
           lot: updateMeta.lot,
-          doc_type: updateMeta.doc_type,
-          gcloud_version: updateMeta.gcloud_version,
+          doc_type: updateMeta.doc_type || 'SERVICE DESC',
+          gcloud_version: updateMeta.gcloud_version || '14',
           folder_path: updateMeta.folder_path,
         };
+      } else if (newProposalMeta) {
+        // New proposal - save to folder
+        requestBody.new_proposal_metadata = newProposalMeta;
       }
       
       const response = await apiService.post('/templates/service-description/generate', requestBody);
@@ -915,7 +956,7 @@ export default function ServiceDescriptionForm() {
           onClick={handleSubmit}
           disabled={submitting || !titleValid.isValid || !descValid.isValid || !featuresValid.isValid || !benefitsValid.isValid}
         >
-          {submitting ? <CircularProgress size={24} /> : 'Generate Documents'}
+          {submitting ? <CircularProgress size={24} /> : 'Complete and generate documents'}
         </Button>
       </Box>
 
