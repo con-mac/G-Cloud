@@ -16,10 +16,10 @@ def fix_template():
     
     print(f"Loading template: {template_path}")
     
-    # Create backup
-    if template_path.exists():
-        shutil.copy2(template_path, backup_path)
-        print(f"Backup created: {backup_path}")
+    # DO NOT create backup - contains classified content
+    # if template_path.exists():
+    #     shutil.copy2(template_path, backup_path)
+    #     print(f"Backup created: {backup_path}")
     
     doc = Document(str(template_path))
     
@@ -28,9 +28,14 @@ def fix_template():
         # Title
         'AI Security': 'ENTER SERVICE NAME HERE',
         
-        # Description
+        # Description - catch all AI Security description content
         'AI Security Advisory': '[SERVICE NAME]',
         'AI security': '[service area]',
+        'AI Security': '[SERVICE NAME]',
+        'enables teams to understand and use AI ethically and securely': '[generic service description placeholder]',
+        'Secure Design and Development of AI helps': '[generic service description placeholder]',
+        'AI products are secure-by-design': '[generic service description placeholder]',
+        'use case-relevant': '[generic service description placeholder]',
         
         # Features - replace with generic placeholders
         'Map AI use across the enterprise': 'Feature placeholder 1',
@@ -60,6 +65,27 @@ def fix_template():
         'AI Security advisory': 'Service Definition Subsection 1',
         'Secure Design and Development for AI systems': 'Service Definition Subsection 2',
         'Leverage AI to Protect from Cyber Attack': 'Service Definition Subsection 3',
+        
+        # Additional AI Security content in description and service definition
+        'Use of AI is rapidly growing': '[Generic service description text]',
+        'generative AI services such as ChatGPT': '[Generic service description text]',
+        "organisation's use of AI": '[Generic service description text]',
+        "'shadow' AI use": '[Generic service description text]',
+        "shadow' AI use": '[Generic service description text]',
+        'shadow AI use': '[Generic service description text]',
+        "identifying 'shadow' AI": '[Generic service description text]',
+        'identifying shadow AI': '[Generic service description text]',
+        'develop innovative AI systems': '[Generic service description text]',
+        'AI technology and threat landscapes': '[Generic service description text]',
+        'distinct security challenges': '[Generic service description text]',
+        'Security by Design principles': '[Generic service description text]',
+        'leverage AI to do business': '[Generic service description text]',
+        'leverage AI to enhance': '[Generic service description text]',
+        'AI to enhance and strength': '[Generic service description text]',
+        'AI to reduce': '[Generic service description text]',
+        'AI systems': '[service systems]',
+        'AI infrastructure': '[service infrastructure]',
+        'AI capabilities': '[service capabilities]',
     }
     
     # Replace in paragraphs
