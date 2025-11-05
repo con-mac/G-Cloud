@@ -169,14 +169,16 @@ async def download_document(filename: str):
             # Docker environment: use /app paths
             file_path = Path(f"/app/generated_documents/{filename}")
         else:
-            # Local development: use relative paths from backend directory
-            # __file__ is at backend/app/api/routes/templates.py
-            # Go up 4 levels to get to backend/, then up 1 more to get to project root
-            backend_dir = Path(__file__).parent.parent.parent.parent
-            project_root = backend_dir.parent
-            file_path = backend_dir / "generated_documents" / filename
+            # Local development: check multiple locations
+            # Priority 1: /tmp/generated_documents (where files are actually saved in local dev)
+            file_path = Path(f"/tmp/generated_documents/{filename}")
             
-            # Also check mock_sharepoint folders (for updated documents)
+            # Priority 2: backend/generated_documents (if /tmp doesn't exist)
+            if not file_path.exists():
+                backend_dir = Path(__file__).parent.parent.parent.parent
+                file_path = backend_dir / "generated_documents" / filename
+            
+            # Priority 3: mock_sharepoint folders (for updated documents)
             if not file_path.exists():
                 # Try to find the file in mock_sharepoint structure
                 # Path structure: mock_sharepoint/GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/{filename}
