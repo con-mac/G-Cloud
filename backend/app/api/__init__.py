@@ -11,6 +11,12 @@ _use_s3 = os.environ.get("USE_S3", "false").lower() == "true"
 # Always import templates (needed for document generation)
 from app.api.routes import templates
 
+# Import SharePoint routes (mock service, no database needed)
+try:
+    from app.api.routes import sharepoint
+except (ImportError, AttributeError, ModuleNotFoundError):
+    sharepoint = None
+
 # Only import database-dependent routes if not in Lambda
 if not _use_s3:
     try:
@@ -28,6 +34,8 @@ api_router = APIRouter()
 # Include route modules (only templates is needed for document generation)
 if templates:
     api_router.include_router(templates.router, prefix="/templates", tags=["Templates"])
+if sharepoint:
+    api_router.include_router(sharepoint.router, prefix="/sharepoint", tags=["SharePoint"])
 if proposals:
     api_router.include_router(proposals.router, prefix="/proposals", tags=["Proposals"])
 if sections:
