@@ -9,10 +9,10 @@ import {
   Container, Box, Typography, TextField, Button, Card, CardContent,
   LinearProgress, Alert, IconButton, Chip, Dialog, DialogTitle,
   DialogContent, DialogActions, List, ListItem, ListItemText,
-  CircularProgress, Tooltip,
+  CircularProgress, Tooltip, Menu, MenuItem,
 } from '@mui/material';
 import {
-  ArrowBack, Add, Delete, CheckCircle, Error, Download, AttachFile,
+  ArrowBack, Add, Delete, CheckCircle, Error, Download, AttachFile, Save, FolderOpen,
 } from '@mui/icons-material';
 import apiService from '../services/api';
 import ReactQuill from 'react-quill';
@@ -53,6 +53,9 @@ export default function ServiceDescriptionForm() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modulesByIdRef = useRef<Record<string, any>>({});
   const draftKey = 'service-description-draft-v1';
+  const draftsKey = 'service-description-drafts';
+  const [draftsMenuAnchor, setDraftsMenuAnchor] = useState<null | HTMLElement>(null);
+  const [savedDrafts, setSavedDrafts] = useState<Array<{id: string; name: string; timestamp: string; data: any}>>([]);
 
   // Word counting helper
   const countWords = (text: string): number => {
@@ -256,6 +259,83 @@ export default function ServiceDescriptionForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, description, JSON.stringify(features), JSON.stringify(benefits), JSON.stringify(serviceDefinition)]);
   
+  // Load saved drafts list on mount
+  useEffect(() => {
+    try {
+      const draftsData = localStorage.getItem(draftsKey);
+      if (draftsData) {
+        const drafts = JSON.parse(draftsData);
+        setSavedDrafts(drafts.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      }
+    } catch {}
+  }, []);
+  
+  // Save draft with custom name
+  const handleSaveDraft = () => {
+    const draftName = prompt('Enter a name for this draft:');
+    if (!draftName || !draftName.trim()) return;
+    
+    try {
+      const draft = {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: draftName.trim(),
+        timestamp: new Date().toISOString(),
+        data: {
+          title,
+          description,
+          features,
+          benefits,
+          serviceDefinition,
+        },
+      };
+      
+      const existingDrafts = savedDrafts;
+      const updatedDrafts = [draft, ...existingDrafts].slice(0, 10); // Keep last 10 drafts
+      setSavedDrafts(updatedDrafts);
+      localStorage.setItem(draftsKey, JSON.stringify(updatedDrafts));
+      alert(`Draft "${draftName}" saved successfully!`);
+    } catch (error) {
+      alert('Failed to save draft');
+    }
+  };
+  
+  // Load draft
+  const handleLoadDraft = (draft: any) => {
+    if (confirm(`Load draft "${draft.name}"? This will replace your current work.`)) {
+      try {
+        if (draft.data.title) setTitle(draft.data.title);
+        if (draft.data.description) setDescription(draft.data.description);
+        if (Array.isArray(draft.data.features)) setFeatures(draft.data.features);
+        if (Array.isArray(draft.data.benefits)) setBenefits(draft.data.benefits);
+        if (Array.isArray(draft.data.serviceDefinition)) {
+          const serviceDef = draft.data.serviceDefinition.map((b: any) => ({
+            id: generateId(),
+            subtitle: b.subtitle || '',
+            content: b.content || '',
+          }));
+          setServiceDefinition(serviceDef.length ? serviceDef : [{ id: generateId(), subtitle: '', content: '' }]);
+        }
+        setDraftsMenuAnchor(null);
+      } catch (error) {
+        alert('Failed to load draft');
+      }
+    }
+  };
+  
+  // Delete draft
+  const handleDeleteDraft = (draftId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Delete this draft?')) {
+      try {
+        const updatedDrafts = savedDrafts.filter((d: any) => d.id !== draftId);
+        setSavedDrafts(updatedDrafts);
+        localStorage.setItem(draftsKey, JSON.stringify(updatedDrafts));
+      } catch (error) {
+        alert('Failed to delete draft');
+      }
+    }
+  };
+  
   const addFeature = () => {
     if (features.length < 10) {
       setFeatures([...features, '']);
@@ -294,7 +374,11 @@ export default function ServiceDescriptionForm() {
     setSubmitting(true);
 
     try {
-      const response = await apiService.post('/templates/service-description/generate', {
+      // Check if we're updating an existing document
+      const updateMetadata = sessionStorage.getItem('updateMetadata');
+      const updateMeta = updateMetadata ? JSON.parse(updateMetadata) : null;
+      
+      const requestBody: any = {
         title: title.trim(),
         description: description.trim(),
         features: features.filter(f => f.trim().length > 0),
@@ -303,7 +387,20 @@ export default function ServiceDescriptionForm() {
           subtitle: b.subtitle.trim(),
           content: b.content,
         })),
-      });
+      };
+      
+      // Add update metadata if available
+      if (updateMeta) {
+        requestBody.update_metadata = {
+          service_name: updateMeta.service_name || title.trim(),
+          lot: updateMeta.lot,
+          doc_type: updateMeta.doc_type,
+          gcloud_version: updateMeta.gcloud_version,
+          folder_path: updateMeta.folder_path,
+        };
+      }
+      
+      const response = await apiService.post('/templates/service-description/generate', requestBody);
 
       setGeneratedFiles(response);
       setSuccessDialog(true);

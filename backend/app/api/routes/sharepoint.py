@@ -4,7 +4,7 @@ SharePoint API routes for document management.
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 import logging
 
 from sharepoint_service.mock_sharepoint import (
