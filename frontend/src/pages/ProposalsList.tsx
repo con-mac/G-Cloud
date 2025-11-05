@@ -29,6 +29,7 @@ import { proposalsService } from '../services/proposals';
 export default function ProposalsList() {
   const [proposals, setProposals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,10 +38,21 @@ export default function ProposalsList() {
 
   const loadProposals = async () => {
     try {
-      const data = await proposalsService.getAllProposals();
+      // Get user email from sessionStorage
+      const userEmail = sessionStorage.getItem('userEmail');
+      
+      if (!userEmail) {
+        setError('Please log in to view your proposals');
+        setLoading(false);
+        return;
+      }
+      
+      const data = await proposalsService.getAllProposals(userEmail);
       setProposals(data);
-    } catch (error) {
+      setError(null);
+    } catch (error: any) {
       console.error('Failed to load proposals:', error);
+      setError(error.message || 'Failed to load proposals. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -49,6 +61,8 @@ export default function ProposalsList() {
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       draft: 'default',
+      incomplete: 'warning',
+      complete: 'success',
       in_review: 'primary',
       ready_for_submission: 'success',
       submitted: 'info',
@@ -56,6 +70,22 @@ export default function ProposalsList() {
       rejected: 'error',
     };
     return colors[status] || 'default';
+  };
+  
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'Not updated';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-GB', { 
+        day: 'numeric', 
+        month: 'short', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Not updated';
+    }
   };
 
   const getValidationIcon = (validSections: number, totalSections: number) => {
@@ -112,19 +142,34 @@ export default function ProposalsList() {
                   <Typography variant="h5" component="h2" sx={{ flexGrow: 1, pr: 1 }}>
                     {proposal.title}
                   </Typography>
-                  {getValidationIcon(proposal.valid_sections, proposal.section_count)}
+                  {proposal.status === 'complete' ? (
+                    <CheckIcon color="success" />
+                  ) : proposal.status === 'incomplete' ? (
+                    <WarningIcon color="warning" />
+                  ) : (
+                    <ErrorIcon color="error" />
+                  )}
                 </Box>
 
-                <Chip
-                  label={proposal.status.replace(/_/g, ' ').toUpperCase()}
-                  color={getStatusColor(proposal.status) as any}
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  {proposal.framework_version}
-                </Typography>
+                <Box display="flex" gap={1} mb={2} flexWrap="wrap">
+                  <Chip
+                    label={proposal.status === 'complete' ? 'Complete' : proposal.status === 'incomplete' ? 'Incomplete' : 'Draft'}
+                    color={getStatusColor(proposal.status) as any}
+                    size="small"
+                  />
+                  <Chip
+                    label={`G-Cloud ${proposal.gcloud_version || proposal.framework_version?.replace('G-Cloud ', '') || '14'}`}
+                    color="primary"
+                    size="small"
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`LOT ${proposal.lot || '2'}`}
+                    color="secondary"
+                    size="small"
+                    variant="outlined"
+                  />
+                </Box>
 
                 <Box mt={2} mb={1}>
                   <Box display="flex" justifyContent="space-between" mb={0.5}>
@@ -132,12 +177,12 @@ export default function ProposalsList() {
                       Completion
                     </Typography>
                     <Typography variant="caption" fontWeight="bold">
-                      {proposal.completion_percentage}%
+                      {Math.round(proposal.completion_percentage || 0)}%
                     </Typography>
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={proposal.completion_percentage}
+                    value={proposal.completion_percentage || 0}
                     sx={{ height: 8, borderRadius: 4 }}
                   />
                 </Box>
@@ -145,22 +190,25 @@ export default function ProposalsList() {
                 <Box display="flex" alignItems="center" gap={1} mt={2}>
                   <ScheduleIcon fontSize="small" color="action" />
                   <Typography variant="caption" color="text.secondary">
-                    Deadline: {proposal.deadline ? new Date(proposal.deadline).toLocaleDateString() : 'Not set'}
+                    Last updated: {formatDate(proposal.last_update || proposal.updated_at)}
                   </Typography>
                 </Box>
 
-                <Typography variant="caption" color="text.secondary" display="block" mt={1}>
-                  Sections: {proposal.valid_sections}/{proposal.section_count} valid
-                </Typography>
+                <Box mt={1.5}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Documents: {proposal.service_desc_exists ? '✓' : '✗'} Service Description{' '}
+                    {proposal.pricing_doc_exists ? '✓' : '✗'} Pricing Document
+                  </Typography>
+                </Box>
               </CardContent>
 
               <CardActions sx={{ p: 2, pt: 0 }}>
                 <Button
                   fullWidth
                   variant="contained"
-                  onClick={() => navigate(`/proposals/${proposal.id}`)}
+                  onClick={() => navigate('/proposals/flow')}
                 >
-                  Edit Proposal
+                  {proposal.status === 'complete' ? 'Update Proposal' : 'Continue Proposal'}
                 </Button>
               </CardActions>
             </Card>
@@ -168,7 +216,15 @@ export default function ProposalsList() {
         ))}
       </Grid>
 
-      {proposals.length === 0 && (
+      {error && (
+        <Box textAlign="center" py={8}>
+          <Typography variant="h5" color="error" gutterBottom>
+            {error}
+          </Typography>
+        </Box>
+      )}
+
+      {!error && proposals.length === 0 && (
         <Box textAlign="center" py={8}>
           <Typography variant="h5" color="text.secondary" gutterBottom>
             No proposals found

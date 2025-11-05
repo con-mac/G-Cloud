@@ -5,8 +5,9 @@
 import apiService from './api';
 
 export const proposalsService = {
-  async getAllProposals(): Promise<any[]> {
-    return apiService.get<any[]>('/proposals/');
+  async getAllProposals(ownerEmail?: string): Promise<any[]> {
+    const params = ownerEmail ? { owner_email: ownerEmail } : undefined;
+    return apiService.get<any[]>('/proposals/', params);
   },
 
   async getProposalById(id: string): Promise<any> {
