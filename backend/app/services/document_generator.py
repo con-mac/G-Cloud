@@ -626,7 +626,7 @@ class DocumentGenerator:
         """Insert Service Definition content: subsections with optional images and tables.
 
         Expected block format examples:
-        {"subtitle": "AI Security advisory", "content": "Paragraph text...", "images": ["http://..."], "table": [["H1","H2"],["R1C1","R1C2"]] }
+        {"subtitle": "Service Definition Subsection", "content": "Paragraph text...", "images": ["http://..."], "table": [["H1","H2"],["R1C1","R1C2"]] }
         """
         # Find the 'Service Definition' heading
         heading_idx = None
