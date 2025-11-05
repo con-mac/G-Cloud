@@ -59,8 +59,8 @@ def regenerate_seeded_documents():
             ],
             "service_definition": [
                 {
-                    "subtitle": "Service Subsection 1",
-                    "content": "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore."
+                    "subtitle": "Lorem ipsum dolor sit amet",
+                    "content": "Consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
                 }
             ]
         },
