@@ -47,7 +47,7 @@ class SharePointApiService {
   async searchDocuments(request: SearchRequest): Promise<SearchResult[]> {
     try {
       const response = await apiService.post<SearchResult[]>('/sharepoint/search', request);
-      return response.data;
+      return response;
     } catch (error: any) {
       console.error('Error searching documents:', error);
       throw error;
@@ -69,7 +69,7 @@ class SharePointApiService {
           params: { lot, gcloud_version: gcloudVersion },
         }
       );
-      return response.data;
+      return response;
     } catch (error: any) {
       console.error('Error getting metadata:', error);
       throw error;
@@ -84,12 +84,15 @@ class SharePointApiService {
     docType: 'SERVICE DESC' | 'Pricing Doc',
     lot: '2' | '3',
     gcloudVersion: '14' | '15' = '14'
-  ): Promise<any> {
+  ): Promise<{ service_name: string; doc_type: string; lot: string; gcloud_version: string; file_path: string; exists: boolean }> {
     try {
-      const response = await apiService.get(`/sharepoint/document/${encodeURIComponent(serviceName)}`, {
-        params: { doc_type: docType, lot, gcloud_version: gcloudVersion },
-      });
-      return response.data;
+      const response = await apiService.get<{ service_name: string; doc_type: string; lot: string; gcloud_version: string; file_path: string; exists: boolean }>(
+        `/sharepoint/document/${encodeURIComponent(serviceName)}`,
+        {
+          params: { doc_type: docType, lot, gcloud_version: gcloudVersion },
+        }
+      );
+      return response;
     } catch (error: any) {
       console.error('Error getting document:', error);
       throw error;
@@ -99,10 +102,10 @@ class SharePointApiService {
   /**
    * Create folder structure
    */
-  async createFolder(request: CreateFolderRequest): Promise<any> {
+  async createFolder(request: CreateFolderRequest): Promise<{ success: boolean; folder_path: string; service_name: string; lot: string; gcloud_version: string }> {
     try {
-      const response = await apiService.post('/sharepoint/create-folder', request);
-      return response.data;
+      const response = await apiService.post<{ success: boolean; folder_path: string; service_name: string; lot: string; gcloud_version: string }>('/sharepoint/create-folder', request);
+      return response;
     } catch (error: any) {
       console.error('Error creating folder:', error);
       throw error;
@@ -112,10 +115,10 @@ class SharePointApiService {
   /**
    * Create metadata file
    */
-  async createMetadata(request: CreateMetadataRequest): Promise<any> {
+  async createMetadata(request: CreateMetadataRequest): Promise<{ success: boolean; folder_path: string; service_name: string; owner: string; sponsor: string }> {
     try {
-      const response = await apiService.post('/sharepoint/create-metadata', request);
-      return response.data;
+      const response = await apiService.post<{ success: boolean; folder_path: string; service_name: string; owner: string; sponsor: string }>('/sharepoint/create-metadata', request);
+      return response;
     } catch (error: any) {
       console.error('Error creating metadata:', error);
       throw error;

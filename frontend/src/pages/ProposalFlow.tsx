@@ -18,7 +18,6 @@ import {
   FormControl,
   FormLabel,
   TextField,
-  MenuItem,
   Alert,
   Stepper,
   Step,
@@ -33,8 +32,8 @@ import {
   Description,
   AttachMoney,
 } from '@mui/icons-material';
-import SharePointSearch, { SearchResult } from '../components/SharePointSearch';
-import sharepointApi from '../services/sharepointApi';
+import SharePointSearch from '../components/SharePointSearch';
+import sharepointApi, { SearchResult } from '../services/sharepointApi';
 
 type FlowType = 'update' | 'create' | null;
 type DocType = 'SERVICE DESC' | 'Pricing Doc' | null;
@@ -110,13 +109,13 @@ export default function ProposalFlow() {
         navigate(`/proposals/create/service-description`);
       } else if (flowType === 'create') {
         // Create folder and metadata
-        const folderResult = await sharepointApi.createFolder({
+        await sharepointApi.createFolder({
           service_name: createData.service,
           lot: createData.lot!,
           gcloud_version: '15',
         });
 
-        const metadataResult = await sharepointApi.createMetadata({
+        await sharepointApi.createMetadata({
           service_name: createData.service,
           owner: createData.owner,
           sponsor: createData.sponsor,
