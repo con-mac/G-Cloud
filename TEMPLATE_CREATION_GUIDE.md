@@ -32,7 +32,7 @@ http://localhost:3000/proposals/create
 - **Placeholder**: "ENTER TITLE HERE"
 - **Rules**: Just the service name, no extra keywords
 - **Validation**: Max 10 words
-- **Example**: "AI Security", "Cloud Storage Pro", "Data Analytics Platform"
+- **Example**: "Cloud Infrastructure Management", "Cloud Storage Pro", "Data Analytics Platform"
 
 #### **2️⃣ Short Service Description**
 - **Editable Section Title**: NO (fixed as "Short Service Description")
@@ -153,9 +153,9 @@ GET    /api/v1/templates
 ## 💡 Tips for Best Results
 
 ### **Title Tips:**
-- ✅ "AI Security Consulting"
 - ✅ "Cloud Infrastructure Management"
-- ❌ "AI Security Consulting for Government and Enterprise with 24/7 Support" (too long, includes keywords)
+- ✅ "Data Analytics Platform"
+- ❌ "Cloud Infrastructure Management for Government and Enterprise with 24/7 Support" (too long, includes keywords)
 
 ### **Description Tips:**
 - Start with what the service does
@@ -184,66 +184,66 @@ GET    /api/v1/templates
 
 ---
 
-## 🎯 Example: Creating "AI Security" Proposal
+## 🎯 Example: Creating "Cloud Infrastructure Management" Proposal
 
 ### **Step 1: Enter Title**
 ```
-AI Security
+Cloud Infrastructure Management
 ```
-*Validation: ✅ Valid (2/10 words)*
+*Validation: ✅ Valid (3/10 words)*
 
 ### **Step 2: Write Description** (200 words)
 ```
-Our AI Security service provides comprehensive protection for artificial 
-intelligence systems and machine learning infrastructure. We help 
-organisations secure their AI/ML pipelines, protect training data, and 
-ensure model integrity throughout the development lifecycle.
+Our Cloud Infrastructure Management service provides comprehensive support for 
+organisations migrating to and operating cloud environments. We help 
+organisations design, deploy, and manage cloud infrastructure, ensuring 
+optimal performance, security, and cost efficiency.
 
-The service includes threat detection specifically designed for AI systems,
-vulnerability assessment of machine learning models, and secure deployment 
-frameworks. We address unique challenges such as adversarial attacks, data 
-poisoning, and model extraction attempts.
+The service includes infrastructure design and architecture, cloud migration 
+planning and execution, and ongoing operational support. We address unique 
+challenges such as legacy system integration, multi-cloud deployments, and 
+cost optimisation.
 
-Our team of AI security specialists combines deep expertise in both 
-cybersecurity and artificial intelligence. We provide 24/7 monitoring, 
-incident response, and continuous improvement of your AI security posture.
+Our team of cloud specialists combines deep expertise in both cloud 
+technologies and enterprise IT. We provide 24/7 monitoring, incident response, 
+and continuous improvement of your cloud infrastructure.
 
-The service is designed for organisations deploying AI systems in sensitive 
-environments, including government agencies, financial services, healthcare, 
-and critical infrastructure. We ensure compliance with relevant security 
-standards and regulatory requirements.
+The service is designed for organisations deploying cloud solutions in 
+production environments, including government agencies, financial services, 
+healthcare, and critical infrastructure. We ensure compliance with relevant 
+security standards and regulatory requirements.
 
 We offer flexible engagement models including advisory services, managed 
-security operations, and hands-on implementation support. Our approach 
-integrates seamlessly with existing DevSecOps practices and security tools.
+operations, and hands-on implementation support. Our approach integrates 
+seamlessly with existing DevOps practices and IT tools.
 ```
 *Validation: ✅ Valid (200/500 words)*
 
 ### **Step 3: List Features** (10 features, 8-10 words each)
-1. "AI threat detection and real-time security monitoring"
-2. "Machine learning model vulnerability assessment and testing"
-3. "Secure AI development lifecycle implementation and support"
-4. "Data privacy protection for training datasets"
-5. "Adversarial attack prevention and model hardening"
-6. "Automated security scanning of AI infrastructure"
-7. "Compliance monitoring for AI regulatory requirements"
-8. "Security incident response for AI systems"
-9. "Model integrity verification and validation processes"
-10. "Integration with existing DevSecOps and security tools"
+1. "Cloud infrastructure design and architecture planning"
+2. "Multi-cloud deployment and management capabilities"
+3. "Secure cloud migration planning and execution support"
+4. "Cost optimisation and resource management"
+5. "Automated infrastructure provisioning and scaling"
+6. "Security monitoring and compliance management"
+7. "Disaster recovery and business continuity planning"
+8. "Performance monitoring and optimisation services"
+9. "Integration with existing IT systems and tools"
+10. "24/7 operational support and incident response"
 
 *Validation: ✅ Valid (10/10 features)*
 
 ### **Step 4: List Benefits** (10 benefits, 7-10 words each)
-1. "Reduces AI security incidents by 85 percent"
-2. "Protects intellectual property in machine learning models"
-3. "Ensures regulatory compliance for AI deployments"
-4. "Accelerates secure AI development and deployment timelines"
-5. "Minimises risk of data breaches in training"
-6. "Increases stakeholder confidence in AI system security"
-7. "Lowers costs through automated security monitoring"
-8. "Provides peace of mind with 24/7 expert support"
-9. "Improves AI system resilience against cyber attacks"
-10. "Enables faster adoption of AI technologies securely"
+1. "Reduces cloud infrastructure costs by up to 30 percent"
+2. "Improves system reliability and uptime"
+3. "Ensures regulatory compliance for cloud deployments"
+4. "Accelerates cloud migration and deployment timelines"
+5. "Minimises risk of service outages and downtime"
+6. "Increases stakeholder confidence in cloud infrastructure"
+7. "Lowers operational costs through automation"
+8. "Provides peace of mind with expert support"
+9. "Improves system scalability and flexibility"
+10. "Enables faster adoption of new cloud technologies"
 
 *Validation: ✅ Valid (10/10 benefits)*
 
@@ -258,7 +258,7 @@ Click **"Generate Documents"** → Success modal appears → Download Word docum
 2. **Validation** → Server validates all rules again
 3. **Template Cloning** → Copies PA Consulting Word template
 4. **Content Replacement**:
-   - Title replaces "AI Security" in Heading 1
+   - Title replaces "ENTER SERVICE NAME HERE" in Heading 1
    - Description replaces text after "Short Service Description"
    - Features become bullet list under "Key Service Features"
    - Benefits become bullet list under "Key Service Benefits"

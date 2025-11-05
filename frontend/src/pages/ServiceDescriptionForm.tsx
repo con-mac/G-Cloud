@@ -701,7 +701,7 @@ export default function ServiceDescriptionForm() {
                 fullWidth
                 size="small"
                 label="Subtitle (Heading 3)"
-                placeholder="e.g., AI Security advisory"
+                placeholder="e.g., Service Subsection Name"
                 value={block.subtitle}
                 onChange={(e) => updateServiceDefBlock(block.id, 'subtitle', e.target.value)}
                 sx={{ mb: 2 }}

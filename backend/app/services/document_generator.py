@@ -189,7 +189,9 @@ class DocumentGenerator:
 
         # Replace placeholders across all text nodes (including inside shapes/textboxes)
         self._replace_text_in_all_wt(doc, {
-            'AI Security': title,
+            'ENTER SERVICE NAME HERE': title,
+            'Enter Service Name Here': title,
+            'enter service name here': title,
             'Add Title': title,
             '{{SERVICE_NAME}}': title,
         })
@@ -227,7 +229,9 @@ class DocumentGenerator:
 
         # Final safeguard: replace placeholders directly in the saved XML parts
         self._replace_in_saved_docx(str(word_path), {
-            'AI Security': title,
+            'ENTER SERVICE NAME HERE': title,
+            'Enter Service Name Here': title,
+            'enter service name here': title,
             'Add Title': title,
             '{{SERVICE_NAME}}': title,
         })
@@ -299,12 +303,20 @@ class DocumentGenerator:
                 replaced = True
                 break
 
-        # Fallback: replace literal occurrences of common sample title text in runs
+        # Fallback: replace literal occurrences of common placeholder text in runs
         if not replaced:
+            placeholders = ['ENTER SERVICE NAME HERE', 'Enter Service Name Here', 'enter service name here', 'Add Title', '{{SERVICE_NAME}}']
             for p in doc.paragraphs:
                 for r in p.runs:
-                    if r.text and 'AI Security' in r.text:
-                        r.text = r.text.replace('AI Security', new_title)
+                    for placeholder in placeholders:
+                        if placeholder in r.text:
+                            r.text = r.text.replace(placeholder, new_title)
+                            replaced = True
+                            break
+                    if replaced:
+                        break
+                if replaced:
+                    break
     
     def _replace_content_sections(
         self,
