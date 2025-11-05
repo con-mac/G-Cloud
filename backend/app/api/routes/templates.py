@@ -176,20 +176,28 @@ async def download_document(filename: str):
             # Also check mock_sharepoint folders (for updated documents)
             if not file_path.exists():
                 # Try to find the file in mock_sharepoint structure
+                # Path structure: mock_sharepoint/GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/{filename}
                 mock_base = Path(__file__).parent.parent.parent.parent / "mock_sharepoint"
                 if mock_base.exists():
-                    for gcloud_dir in mock_base.glob("GCloud *"):
-                        for lot_dir in gcloud_dir.glob("**/Cloud Support Services LOT *"):
-                            if lot_dir.is_dir():
-                                for service_dir in lot_dir.iterdir():
-                                    if service_dir.is_dir():
-                                        potential_file = service_dir / filename
-                                        if potential_file.exists():
-                                            file_path = potential_file
-                                            break
-                                    if file_path and file_path.exists():
-                                        break
-                                if file_path and file_path.exists():
+                    # Search more thoroughly - check all service folders
+                    for gcloud_dir in sorted(mock_base.glob("GCloud *")):
+                        if not gcloud_dir.is_dir():
+                            continue
+                        pa_services = gcloud_dir / "PA Services"
+                        if not pa_services.exists():
+                            continue
+                        # Search in both LOT 2 and LOT 3 folders
+                        for lot_num in ["2", "3"]:
+                            lot_folder = pa_services / f"Cloud Support Services LOT {lot_num}"
+                            if not lot_folder.exists() or not lot_folder.is_dir():
+                                continue
+                            # Check each service folder
+                            for service_dir in lot_folder.iterdir():
+                                if not service_dir.is_dir():
+                                    continue
+                                potential_file = service_dir / filename
+                                if potential_file.exists():
+                                    file_path = potential_file
                                     break
                             if file_path and file_path.exists():
                                 break
