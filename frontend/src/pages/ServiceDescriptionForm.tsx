@@ -352,6 +352,8 @@ export default function ServiceDescriptionForm() {
       await apiService.post('/templates/service-description/generate', requestBody);
       
       alert('Draft saved successfully! The document has been saved to your proposal folder.');
+      // Redirect to dashboard after saving draft
+      navigate('/proposals');
     } catch (error: any) {
       console.error('Error saving draft:', error);
       alert(`Error: ${error.response?.data?.detail || 'Failed to save draft'}`);

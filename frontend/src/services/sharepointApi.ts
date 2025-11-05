@@ -8,6 +8,7 @@ export interface SearchRequest {
   query: string;
   doc_type?: 'SERVICE DESC' | 'Pricing Doc';
   gcloud_version?: '14' | '15';
+  search_all_versions?: boolean; // Search both GCloud 14 and 15
 }
 
 export interface SearchResult {

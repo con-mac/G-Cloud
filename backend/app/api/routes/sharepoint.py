@@ -27,6 +27,7 @@ class SearchRequest(BaseModel):
     query: str
     doc_type: Optional[str] = None  # "SERVICE DESC" or "Pricing Doc"
     gcloud_version: str = "14"
+    search_all_versions: bool = False  # Search both GCloud 14 and 15
 
 
 class SearchResult(BaseModel):
@@ -74,7 +75,8 @@ async def search_sharepoint_documents(request: SearchRequest):
         results = search_documents(
             query=request.query,
             doc_type=request.doc_type,
-            gcloud_version=request.gcloud_version
+            gcloud_version=request.gcloud_version,
+            search_all_versions=request.search_all_versions
         )
         return [SearchResult(**r) for r in results]
     except Exception as e:

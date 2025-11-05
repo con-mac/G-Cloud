@@ -68,6 +68,7 @@ export default function SharePointSearch({
           query: query.trim(),
           doc_type: docType,
           gcloud_version: gcloudVersion,
+          search_all_versions: true, // Search both GCloud 14 and 15
         });
         setResults(searchResults);
       } catch (error) {

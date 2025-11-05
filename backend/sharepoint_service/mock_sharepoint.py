@@ -86,15 +86,17 @@ def read_metadata_file(folder_path: Path) -> Optional[Dict[str, str]]:
         return None
 
 
-def search_documents(query: str, doc_type: Optional[str] = None, gcloud_version: str = "14") -> List[Dict]:
+def search_documents(query: str, doc_type: Optional[str] = None, gcloud_version: str = "14", search_all_versions: bool = False) -> List[Dict]:
     """
     Search documents in mock SharePoint structure.
     Searches both LOT 2 and LOT 3 folders.
+    Optionally searches all GCloud versions (14 and 15).
     
     Args:
         query: Search query (fuzzy matching)
         doc_type: Optional document type filter ("SERVICE DESC" or "Pricing Doc")
-        gcloud_version: GCloud version ("14" or "15")
+        gcloud_version: GCloud version ("14" or "15") - used if search_all_versions is False
+        search_all_versions: If True, search both GCloud 14 and 15
         
     Returns:
         List of matching documents with metadata:
@@ -112,61 +114,70 @@ def search_documents(query: str, doc_type: Optional[str] = None, gcloud_version:
         return []
     
     results = []
-    base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
     
-    # Search both LOT 2 and LOT 3
-    for lot in ["2", "3"]:
-        lot_folder = base_path / f"Cloud Support Services LOT {lot}"
+    # Determine which versions to search
+    versions_to_search = ["14", "15"] if search_all_versions else [gcloud_version]
+    
+    for version in versions_to_search:
+        base_path = MOCK_BASE_PATH / f"GCloud {version}" / "PA Services"
         
-        if not lot_folder.exists():
-            continue
-        
-        # Iterate through service folders
-        for service_folder in lot_folder.iterdir():
-            if not service_folder.is_dir():
+        # Search both LOT 2 and LOT 3
+        for lot in ["2", "3"]:
+            lot_folder = base_path / f"Cloud Support Services LOT {lot}"
+            
+            if not lot_folder.exists():
                 continue
             
-            service_name = service_folder.name
-            
-            # Read metadata
-            metadata = read_metadata_file(service_folder)
-            if not metadata:
-                continue
-            
-            # Fuzzy match against service name
-            if not fuzzy_match(query, service_name):
-                continue
-            
-            # Check for document types (for mock, assume both exist if metadata exists)
-            # In real SharePoint, we'd check if documents exist
-            doc_types = []
-            
-            # Check if documents exist, otherwise assume both types are available
-            service_desc_path = service_folder / f"PA GC{gcloud_version} SERVICE DESC {service_folder.name}.docx"
-            pricing_doc_path = service_folder / f"PA GC{gcloud_version} Pricing Doc {service_folder.name}.docx"
-            
-            if service_desc_path.exists() or not doc_type or doc_type == "SERVICE DESC":
-                doc_types.append("SERVICE DESC")
-            if pricing_doc_path.exists() or not doc_type or doc_type == "Pricing Doc":
-                doc_types.append("Pricing Doc")
-            
-            # Filter by doc_type if specified
-            if doc_type:
-                if doc_type not in doc_types:
-                    # For mock, still return if metadata exists
-                    doc_types = [doc_type]
-            
-            # Add results for each document type
-            for dt in doc_types:
-                results.append({
-                    "service_name": metadata.get('service', service_name),
-                    "owner": metadata.get('owner', ''),
-                    "sponsor": metadata.get('sponsor', ''),
-                    "folder_path": str(service_folder),
-                    "doc_type": dt,
-                    "lot": lot,
-                    "gcloud_version": gcloud_version
-                })
+            # Iterate through service folders
+            for service_folder in lot_folder.iterdir():
+                if not service_folder.is_dir():
+                    continue
+                
+                service_name = service_folder.name
+                
+                # Read metadata
+                metadata = read_metadata_file(service_folder)
+                if not metadata:
+                    continue
+                
+                # Fuzzy match against service name
+                if not fuzzy_match(query, service_name):
+                    continue
+                
+                # Check for document types (for mock, assume both exist if metadata exists)
+                # In real SharePoint, we'd check if documents exist
+                doc_types = []
+                
+                # Check if documents exist, otherwise assume both types are available
+                service_desc_path = service_folder / f"PA GC{version} SERVICE DESC {service_folder.name}.docx"
+                pricing_doc_path = service_folder / f"PA GC{version} Pricing Doc {service_folder.name}.docx"
+                
+                # Also check for draft files
+                service_desc_draft_path = service_folder / f"PA GC{version} SERVICE DESC {service_folder.name}_draft.docx"
+                pricing_doc_draft_path = service_folder / f"PA GC{version} Pricing Doc {service_folder.name}_draft.docx"
+                
+                if service_desc_path.exists() or service_desc_draft_path.exists() or not doc_type or doc_type == "SERVICE DESC":
+                    doc_types.append("SERVICE DESC")
+                if pricing_doc_path.exists() or pricing_doc_draft_path.exists() or not doc_type or doc_type == "Pricing Doc":
+                    doc_types.append("Pricing Doc")
+                
+                # Filter by doc_type if specified
+                if doc_type:
+                    if doc_type not in doc_types:
+                        # For mock, still return if metadata exists
+                        doc_types = [doc_type]
+                
+                # Add results for each document type
+                for dt in doc_types:
+                    results.append({
+                        "service_name": metadata.get('service', service_name),
+                        "owner": metadata.get('owner', ''),
+                        "sponsor": metadata.get('sponsor', ''),
+                        "folder_path": str(service_folder),
+                        "doc_type": dt,
+                        "lot": lot,
+                        "gcloud_version": version
+                    })
     
     return results
 

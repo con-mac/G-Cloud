@@ -16,6 +16,11 @@ import {
   LinearProgress,
   Box,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   CheckCircle as CheckIcon,
@@ -25,11 +30,15 @@ import {
   Add as AddIcon,
 } from '@mui/icons-material';
 import { proposalsService } from '../services/proposals';
+import sharepointApi from '../services/sharepointApi';
 
 export default function ProposalsList() {
   const [proposals, setProposals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [selectedProposal, setSelectedProposal] = useState<any>(null);
+  const [loadingDocument, setLoadingDocument] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -85,6 +94,63 @@ export default function ProposalsList() {
       });
     } catch {
       return 'Not updated';
+    }
+  };
+
+  const handleOpenProposal = async (proposal: any) => {
+    // Show confirmation for completed proposals
+    if (proposal.status === 'complete') {
+      setSelectedProposal(proposal);
+      setConfirmDialogOpen(true);
+      return;
+    }
+    
+    // For incomplete proposals, load directly
+    await loadAndOpenProposal(proposal);
+  };
+
+  const loadAndOpenProposal = async (proposal: any) => {
+    try {
+      setLoadingDocument(true);
+      
+      // Load document content
+      const documentContent = await sharepointApi.getDocumentContent(
+        proposal.title,
+        'SERVICE DESC',
+        proposal.lot as '2' | '3',
+        proposal.gcloud_version as '14' | '15'
+      );
+
+      // Store in sessionStorage for template to load
+      const updateMetadata = {
+        service_name: proposal.title,
+        lot: proposal.lot,
+        doc_type: 'SERVICE DESC',
+        gcloud_version: proposal.gcloud_version,
+        folder_path: '', // Will be resolved by backend
+      };
+
+      sessionStorage.setItem('updateDocument', JSON.stringify({
+        ...updateMetadata,
+        content: documentContent,
+      }));
+
+      sessionStorage.setItem('updateMetadata', JSON.stringify(updateMetadata));
+
+      // Navigate to template
+      navigate('/proposals/create/service-description');
+    } catch (error: any) {
+      console.error('Error loading proposal:', error);
+      alert(`Failed to load proposal: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setLoadingDocument(false);
+    }
+  };
+
+  const handleConfirmOpen = () => {
+    setConfirmDialogOpen(false);
+    if (selectedProposal) {
+      loadAndOpenProposal(selectedProposal);
     }
   };
 
@@ -206,9 +272,10 @@ export default function ProposalsList() {
                 <Button
                   fullWidth
                   variant="contained"
-                  onClick={() => navigate('/proposals/flow')}
+                  onClick={() => handleOpenProposal(proposal)}
+                  disabled={loadingDocument}
                 >
-                  {proposal.status === 'complete' ? 'Update Proposal' : 'Continue Proposal'}
+                  {loadingDocument ? 'Loading...' : proposal.status === 'complete' ? 'Update Proposal' : 'Continue Proposal'}
                 </Button>
               </CardActions>
             </Card>
@@ -234,6 +301,31 @@ export default function ProposalsList() {
           </Typography>
         </Box>
       )}
+
+      {/* Confirmation Dialog for Completed Proposals */}
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+        aria-labelledby="confirm-dialog-title"
+        aria-describedby="confirm-dialog-description"
+      >
+        <DialogTitle id="confirm-dialog-title">
+          Edit Completed Proposal?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="confirm-dialog-description">
+            Are you sure you want to edit this previously completed proposal? This will allow you to make changes to the document.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialogOpen(false)} color="secondary">
+            No
+          </Button>
+          <Button onClick={handleConfirmOpen} color="primary" variant="contained" autoFocus>
+            Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
