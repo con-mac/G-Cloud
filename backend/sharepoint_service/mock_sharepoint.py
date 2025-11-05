@@ -208,16 +208,27 @@ def get_document_path(service_name: str, doc_type: str, lot: str, gcloud_version
     if not service_folder:
         return None
     
-    # Determine filename
+    # Determine filename - try regular file first, then draft file
     if doc_type == "SERVICE DESC":
         filename = f"PA GC{gcloud_version} SERVICE DESC {service_folder.name}.docx"
+        draft_filename = f"PA GC{gcloud_version} SERVICE DESC {service_folder.name}_draft.docx"
     elif doc_type == "Pricing Doc":
         filename = f"PA GC{gcloud_version} Pricing Doc {service_folder.name}.docx"
+        draft_filename = f"PA GC{gcloud_version} Pricing Doc {service_folder.name}_draft.docx"
     else:
         return None
     
+    # Try regular file first
     doc_path = service_folder / filename
-    return doc_path if doc_path.exists() else None
+    if doc_path.exists():
+        return doc_path
+    
+    # If regular file doesn't exist, try draft file
+    draft_path = service_folder / draft_filename
+    if draft_path.exists():
+        return draft_path
+    
+    return None
 
 
 def create_folder(service_name: str, lot: str, gcloud_version: str = "15") -> Tuple[bool, str]:
