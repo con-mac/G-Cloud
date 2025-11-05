@@ -53,6 +53,7 @@ def fix_template():
         'Understand IT platforms hosting AI capabilities, enumerate systems at risk': 'Benefit placeholder 1',
         'Identify shadow AI and third-party risk. Assess mitigation best practice': 'Benefit placeholder 2',
         'Build security teams AI literacy to enshrine AI security governance': 'Benefit placeholder 3',
+        'AI literacy': '[service area] literacy',
         'Implement AI-aware data governance and protection': 'Benefit placeholder 4',
         'Use cutting edge approaches/technology reducing compromise/breach likelihood.': 'Benefit placeholder 5',
         'Reduce employee burden/workload with automation, orchestration and AI': 'Benefit placeholder 6',
