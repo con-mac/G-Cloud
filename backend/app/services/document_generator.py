@@ -92,15 +92,44 @@ class DocumentGenerator:
                 env_path = Path(template_env)
                 if env_path.exists():
                     template_path = env_path
+            
             if template_path is None:
-                # Prefer a .docx in /app/docs if available, otherwise fallback to /app/templates
-                docs_dir = Path("/app/docs")
-                candidate = None
-                if docs_dir.exists():
-                    for p in docs_dir.glob("*.docx"):
-                        candidate = p
-                        break
-                template_path = candidate or (self.templates_dir / "service_description_template.docx")
+                # Check if we're running in Docker (/app exists) or locally
+                is_docker = Path("/app").exists()
+                
+                if is_docker:
+                    # Docker environment: use /app paths
+                    docs_dir = Path("/app/docs")
+                    candidate = None
+                    if docs_dir.exists():
+                        for p in docs_dir.glob("*.docx"):
+                            candidate = p
+                            break
+                    template_path = candidate or (self.templates_dir / "service_description_template.docx")
+                else:
+                    # Local development: use relative paths from backend directory
+                    # Get the backend directory (parent of app directory)
+                    backend_dir = Path(__file__).parent.parent.parent
+                    templates_dir = backend_dir / "templates"
+                    docs_dir = backend_dir / "docs"
+                    
+                    # Check docs first, then templates
+                    candidate = None
+                    if docs_dir.exists():
+                        for p in docs_dir.glob("*.docx"):
+                            candidate = p
+                            break
+                    if candidate is None and templates_dir.exists():
+                        for p in templates_dir.glob("*.docx"):
+                            candidate = p
+                            break
+                    
+                    if candidate is None:
+                        # Fallback to templates directory
+                        template_path = templates_dir / "service_description_template.docx"
+                    else:
+                        template_path = candidate
+            
             if not Path(template_path).exists():
                 raise FileNotFoundError(f"Template not found: {template_path}")
         
