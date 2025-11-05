@@ -43,6 +43,10 @@ def completely_fix_template():
         # Remove ALL AI Security context from Service Definition content
         '[Generic service description text], often in unplanned and ungoverned ways, for example the huge uptake of [Generic service description text]': '[Generic service description placeholder text for service definition subsection]',
         'We can help security leaders understand and secure their [Generic service description text] – including identifying \'shadow\' AI use': '[Generic service description placeholder text for service definition subsection]',
+        'We can help security leaders understand and secure their': '[Generic service description placeholder text]',
+        'security leaders understand and secure': '[Generic service description placeholder text]',
+        'identifying \'shadow\'': '[Generic service description text]',
+        'identifying shadow': '[Generic service description text]',
         'to address the unique challenges and threats associated with AI': '[Generic service description placeholder text]',
         'Secure Design and Development for AI systems': 'Service Definition Subsection 2',
         'We will work with you to develop innovative AI systems': '[Generic service description placeholder text]',
