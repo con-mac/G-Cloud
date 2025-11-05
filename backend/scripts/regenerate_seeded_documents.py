@@ -39,8 +39,8 @@ def regenerate_seeded_documents():
             ],
             "service_definition": [
                 {
-                    "subtitle": "Service Subsection 1",
-                    "content": "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur."
+                    "subtitle": "Lorem ipsum dolor sit amet",
+                    "content": "Consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
                 }
             ]
         },
@@ -81,8 +81,8 @@ def regenerate_seeded_documents():
             ],
             "service_definition": [
                 {
-                    "subtitle": "Service Subsection 1",
-                    "content": "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur."
+                    "subtitle": "Lorem ipsum dolor sit amet",
+                    "content": "Consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
                 }
             ]
         }
@@ -115,8 +115,8 @@ def regenerate_seeded_documents():
                     "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
                     "service_definition": [
                         {
-                            "subtitle": "Service Subsection 1",
-                            "content": f"Sample content for {service_name}."
+                            "subtitle": "Lorem ipsum dolor sit amet",
+                            "content": f"Consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
                         }
                     ]
                 })
