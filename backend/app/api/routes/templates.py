@@ -110,12 +110,13 @@ async def generate_service_description(request: ServiceDescriptionRequest):
                     pass
         
         # Convert local file paths to download URLs for frontend
+        # Always provide download URL even if file is in folder (for local download)
         word_path = result.get('word_path', '')
         if word_path and not word_path.startswith('http'):
             # Extract filename from path
             from pathlib import Path
             word_filename_for_url = Path(word_path).name if word_path else f"{result['filename']}.docx"
-            # Convert to download URL
+            # Convert to download URL (works for both /tmp/generated_documents and folder paths)
             word_path = f"/api/v1/templates/service-description/download/{word_filename_for_url}"
         
         # Convert PDF path to download URL if it's a local path
