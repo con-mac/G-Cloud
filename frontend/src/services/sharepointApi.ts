@@ -124,6 +124,29 @@ class SharePointApiService {
       throw error;
     }
   }
+
+  /**
+   * Get document content (parsed from Word document)
+   */
+  async getDocumentContent(
+    serviceName: string,
+    docType: 'SERVICE DESC' | 'Pricing Doc',
+    lot: '2' | '3',
+    gcloudVersion: '14' | '15' = '14'
+  ): Promise<{ title: string; description: string; features: string[]; benefits: string[]; service_definition: Array<{ subtitle: string; content: string }> }> {
+    try {
+      const response = await apiService.get<{ title: string; description: string; features: string[]; benefits: string[]; service_definition: Array<{ subtitle: string; content: string }> }>(
+        `/sharepoint/document-content/${encodeURIComponent(serviceName)}`,
+        {
+          params: { doc_type: docType, lot, gcloud_version: gcloudVersion },
+        }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Error getting document content:', error);
+      throw error;
+    }
+  }
 }
 
 const sharepointApi = new SharePointApiService();

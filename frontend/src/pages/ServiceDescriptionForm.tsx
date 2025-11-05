@@ -182,6 +182,38 @@ export default function ServiceDescriptionForm() {
   // Draft persistence: load on mount
   useEffect(() => {
     try {
+      // First, check if we're updating an existing document
+      const updateDoc = sessionStorage.getItem('updateDocument');
+      if (updateDoc) {
+        try {
+          const updateData = JSON.parse(updateDoc);
+          if (updateData.content) {
+            const content = updateData.content;
+            // Pre-populate form with document content
+            if (content.title) setTitle(content.title);
+            if (content.description) setDescription(content.description);
+            if (Array.isArray(content.features)) setFeatures(content.features);
+            if (Array.isArray(content.benefits)) setBenefits(content.benefits);
+            if (Array.isArray(content.service_definition)) {
+              const serviceDef = content.service_definition.map((b: any) => ({
+                id: generateId(),
+                subtitle: b.subtitle || '',
+                content: b.content || '',
+              }));
+              setServiceDefinition(serviceDef.length ? serviceDef : [{ id: generateId(), subtitle: '', content: '' }]);
+            }
+            // Store update metadata for document replacement
+            sessionStorage.setItem('updateMetadata', JSON.stringify(updateData));
+            // Clear updateDocument to avoid reloading
+            sessionStorage.removeItem('updateDocument');
+            return;
+          }
+        } catch (e) {
+          console.error('Error parsing update document:', e);
+        }
+      }
+      
+      // Otherwise, load draft from localStorage
       const raw = localStorage.getItem(draftKey);
       if (raw) {
         const data = JSON.parse(raw);

@@ -104,9 +104,27 @@ export default function ProposalFlow() {
 
     try {
       if (flowType === 'update' && selectedResult) {
-        // For updates, redirect to appropriate form
-        // TODO: Load document and redirect to editor
-        navigate(`/proposals/create/service-description`);
+        // Load document content and redirect to editor with pre-populated data
+        try {
+          const documentContent = await sharepointApi.getDocumentContent(
+            selectedResult.service_name,
+            selectedResult.doc_type as 'SERVICE DESC' | 'Pricing Doc',
+            selectedResult.lot as '2' | '3',
+            selectedResult.gcloud_version as '14' | '15'
+          );
+          
+          // Store document content and metadata for the form
+          sessionStorage.setItem('updateDocument', JSON.stringify({
+            ...selectedResult,
+            content: documentContent,
+          }));
+          
+          navigate(`/proposals/create/service-description`);
+        } catch (err: any) {
+          setError(`Failed to load document: ${err.response?.data?.detail || err.message}`);
+          setLoading(false);
+          return;
+        }
       } else if (flowType === 'create') {
         // Create folder and metadata
         await sharepointApi.createFolder({

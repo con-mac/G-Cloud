@@ -15,6 +15,7 @@ from sharepoint_service.mock_sharepoint import (
     create_metadata_file,
     list_all_folders,
 )
+from sharepoint_service.document_parser import read_document_content
 
 logger = logging.getLogger(__name__)
 
@@ -272,4 +273,48 @@ async def list_folders(gcloud_version: str = Query("14", description="GCloud ver
     except Exception as e:
         logger.error(f"Error listing folders: {e}")
         raise HTTPException(status_code=500, detail=f"Error listing folders: {str(e)}")
+
+
+class DocumentContentResponse(BaseModel):
+    title: str
+    description: str
+    features: List[str]
+    benefits: List[str]
+    service_definition: List[Dict[str, str]]
+
+
+@router.get("/document-content/{service_name}", response_model=DocumentContentResponse)
+async def get_document_content(
+    service_name: str,
+    doc_type: str = Query(..., description="Document type (SERVICE DESC or Pricing Doc)"),
+    lot: str = Query(..., description="LOT number (2 or 3)"),
+    gcloud_version: str = Query("14", description="GCloud version (14 or 15)")
+):
+    """
+    Get parsed content from an existing document.
+    
+    Args:
+        service_name: Service name
+        doc_type: Document type ("SERVICE DESC" or "Pricing Doc")
+        lot: LOT number (2 or 3)
+        gcloud_version: GCloud version (14 or 15)
+        
+    Returns:
+        Parsed document content
+    """
+    try:
+        content = read_document_content(service_name, doc_type, lot, gcloud_version)
+        
+        if not content:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Document not found or could not be parsed: {service_name} ({doc_type})"
+            )
+        
+        return DocumentContentResponse(**content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting document content: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting document content: {str(e)}")
 
