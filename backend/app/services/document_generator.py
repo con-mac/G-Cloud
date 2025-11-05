@@ -62,7 +62,8 @@ class DocumentGenerator:
         description: str,
         features: List[str],
         benefits: List[str],
-        service_definition: List[dict] | None = None
+        service_definition: List[dict] | None = None,
+        update_metadata: Dict | None = None
     ) -> Dict[str, str]:
         """
         Generate Service Description document from template
@@ -164,13 +165,35 @@ class DocumentGenerator:
             '{{SERVICE_NAME}}': title,
         })
         
-        # Generate unique filename
-        doc_id = str(uuid.uuid4())[:8]
-        safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_'))[:50]
-        filename_base = f"{safe_title}_{doc_id}"
+        # Determine output location and filename
+        if update_metadata:
+            # Update existing document - save to SharePoint folder
+            folder_path = Path(update_metadata.get('folder_path', ''))
+            gcloud_version = update_metadata.get('gcloud_version', '14')
+            doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
+            service_name = update_metadata.get('service_name', title)
+            
+            # Use exact filename format: PA GC14 SERVICE DESC [Service Name].docx
+            if doc_type == 'SERVICE DESC':
+                word_filename = f"PA GC{gcloud_version} SERVICE DESC {service_name}.docx"
+            else:
+                word_filename = f"PA GC{gcloud_version} Pricing Doc {service_name}.docx"
+            
+            word_path = folder_path / word_filename
+            filename_base = service_name
+            output_dir = folder_path
+        else:
+            # Create new document - save to generated_documents
+            doc_id = str(uuid.uuid4())[:8]
+            safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_'))[:50]
+            filename_base = f"{safe_title}_{doc_id}"
+            word_path = self.output_dir / f"{filename_base}.docx"
+            output_dir = self.output_dir
         
-        # Save Word document locally first
-        word_path = self.output_dir / f"{filename_base}.docx"
+        # Ensure output directory exists
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save Word document
         doc.save(str(word_path))
 
         # Final safeguard: replace placeholders directly in the saved XML parts
@@ -221,7 +244,11 @@ class DocumentGenerator:
             }
         else:
             # Docker/local: return local paths
-            pdf_path = self.output_dir / f"{filename_base}.pdf"
+            if update_metadata:
+                # For updates, PDF path should be in same folder
+                pdf_path = output_dir / f"PA GC{update_metadata.get('gcloud_version', '14')} SERVICE DESC {update_metadata.get('service_name', title)}.pdf"
+            else:
+                pdf_path = self.output_dir / f"{filename_base}.pdf"
             
             return {
                 "word_path": str(word_path),

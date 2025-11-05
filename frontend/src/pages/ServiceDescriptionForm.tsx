@@ -332,13 +332,62 @@ export default function ServiceDescriptionForm() {
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
       <Box mb={4}>
-        <Button
-          startIcon={<ArrowBack />}
-          onClick={() => navigate('/proposals/create')}
-          sx={{ mb: 2 }}
-        >
-          Back to Templates
-        </Button>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Button
+            startIcon={<ArrowBack />}
+            onClick={() => navigate('/proposals/create')}
+          >
+            Back to Templates
+          </Button>
+          <Box display="flex" gap={1}>
+            <Button
+              startIcon={<Save />}
+              variant="outlined"
+              size="small"
+              onClick={handleSaveDraft}
+            >
+              Save Draft
+            </Button>
+            <Button
+              startIcon={<FolderOpen />}
+              variant="outlined"
+              size="small"
+              onClick={(e) => setDraftsMenuAnchor(e.currentTarget)}
+              disabled={savedDrafts.length === 0}
+            >
+              Load Draft ({savedDrafts.length})
+            </Button>
+            <Menu
+              anchorEl={draftsMenuAnchor}
+              open={Boolean(draftsMenuAnchor)}
+              onClose={() => setDraftsMenuAnchor(null)}
+            >
+              {savedDrafts.map((draft) => (
+                <MenuItem
+                  key={draft.id}
+                  onClick={() => handleLoadDraft(draft)}
+                  sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}
+                >
+                  <Box>
+                    <Typography variant="body2" fontWeight={500}>
+                      {draft.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(draft.timestamp).toLocaleString()}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => handleDeleteDraft(draft.id, e)}
+                    sx={{ ml: 1 }}
+                  >
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </MenuItem>
+              ))}
+            </Menu>
+          </Box>
+        </Box>
 
         <Typography variant="h3" gutterBottom sx={{ fontWeight: 700 }}>
           G-Cloud Service Description

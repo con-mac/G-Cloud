@@ -34,6 +34,8 @@ class ServiceDescriptionRequest(BaseModel):
     # New: service definition subsections (no constraints)
     # Each block: { subtitle: str, content: str(HTML), images?: [url], table?: [][] }
     service_definition: Optional[List[dict]] = Field(default_factory=list, description="Service Definition subsections (rich HTML content)")
+    # Update metadata (optional - for replacing existing documents)
+    update_metadata: Optional[Dict] = Field(default=None, description="Metadata for updating existing document (service_name, lot, doc_type, gcloud_version, folder_path)")
     
     @validator('title')
     def validate_title(cls, v):
@@ -78,6 +80,8 @@ async def generate_service_description(request: ServiceDescriptionRequest):
     
     Creates both Word (.docx) and PDF versions following the official
     G-Cloud v15 template format with PA Consulting branding.
+    
+    If update_metadata is provided, replaces existing documents instead of creating new ones.
     """
     try:
         result = document_generator.generate_service_description(
@@ -85,7 +89,8 @@ async def generate_service_description(request: ServiceDescriptionRequest):
             description=request.description,
             features=request.features,
             benefits=request.benefits,
-            service_definition=request.service_definition or []
+            service_definition=request.service_definition or [],
+            update_metadata=request.update_metadata
         )
         
         # Handle PDF path - may be None in Lambda if PDF generation not implemented
