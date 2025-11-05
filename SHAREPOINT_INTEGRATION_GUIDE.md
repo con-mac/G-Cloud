@@ -481,6 +481,28 @@ frontend/
 
 ## Testing
 
+### Starting Development Servers
+
+**IMPORTANT**: Both frontend and backend servers must be running before accessing the application.
+
+#### Start Backend Server
+```bash
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+The backend will be available at: `http://localhost:8000`
+
+#### Start Frontend Server
+```bash
+cd frontend
+npm run dev
+```
+
+The frontend will be available at: `http://localhost:3000`
+
+**Note**: The frontend dev server will automatically reload when you make changes.
+
 ### Backend Testing
 
 #### Test Mock SharePoint Service
@@ -495,10 +517,7 @@ print(f'Found {len(results)} results')
 
 #### Test API Endpoints (with FastAPI running)
 ```bash
-# Start FastAPI server
-cd backend
-uvicorn app.main:app --reload
-
+# Make sure backend is running first
 # Test search endpoint
 curl -X POST http://localhost:8000/api/v1/sharepoint/search \
   -H "Content-Type: application/json" \
@@ -513,23 +532,18 @@ cd frontend
 npm run build
 ```
 
-#### Run Development Server
-```bash
-cd frontend
-npm run dev
-```
-
 #### Test Workflow
-1. Navigate to `http://localhost:3000/login`
-2. Enter email ending with `@paconsulting.com`
-3. Click "Sign In"
-4. Navigate to `/proposals/flow`
-5. Test Update flow:
+1. **Start both servers** (see above)
+2. Navigate to `http://localhost:3000/login`
+3. Enter email ending with `@paconsulting.com`
+4. Click "Sign In"
+5. Navigate to `/proposals/flow`
+6. Test Update flow:
    - Select "Updating"
    - Select document type
    - Search for service
    - Select result
-6. Test Create flow:
+7. Test Create flow:
    - Select "Creating New"
    - Fill in SERVICE, OWNER, SPONSOR
    - Select LOT
@@ -542,8 +556,10 @@ npm run dev
 ### 1. Start Backend
 ```bash
 cd backend
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+**Important**: The backend must be running before starting the frontend.
 
 ### 2. Start Frontend
 ```bash
@@ -551,10 +567,17 @@ cd frontend
 npm run dev
 ```
 
+**Important**: The frontend will try to connect to the backend API. Make sure the backend is running first.
+
 ### 3. Access Application
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
+
+**Troubleshooting**:
+- If you see "ERR_CONNECTION_REFUSED", make sure both servers are running
+- Check that ports 3000 (frontend) and 8000 (backend) are not in use
+- Verify the backend is running by checking `http://localhost:8000/health`
 
 ### 4. Test Authentication
 1. Go to http://localhost:3000/login
