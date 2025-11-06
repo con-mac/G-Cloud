@@ -217,66 +217,66 @@ export default function ServiceDescriptionForm() {
               
               // Use fresh parsed data (parser should have stripped numbers)
               const content = freshContent;
-            const content = updateData.content;
-            
-            // Sanitize service_definition subtitles - replace AI Security advisory
-            if (Array.isArray(content.service_definition)) {
-              content.service_definition = content.service_definition.map((b: any) => {
-                let subtitle = b.subtitle || '';
-                // Replace AI Security advisory with Lorem Ipsum
-                if (subtitle.includes('AI Security') || subtitle.toLowerCase().includes('advisory')) {
-                  subtitle = 'Lorem ipsum dolor sit amet';
-                }
-                return {
-                  ...b,
-                  subtitle: subtitle,
-                };
-              });
-            }
-            
-            // Pre-populate form with document content
-            // Strip numbered prefixes from features/benefits (defensive: in case parser didn't catch them)
-            const stripNumberPrefix = (text: string): string => {
-              if (!text || typeof text !== 'string') return text;
-              const stripped = text.replace(/^\s*\d+[\.\)]?\s*/, '');
-              if (text !== stripped) {
-                console.log(`[ServiceDescriptionForm] Stripped number: "${text}" -> "${stripped}"`);
+              
+              // Sanitize service_definition subtitles - replace AI Security advisory
+              if (Array.isArray(content.service_definition)) {
+                content.service_definition = content.service_definition.map((b: any) => {
+                  let subtitle = b.subtitle || '';
+                  // Replace AI Security advisory with Lorem Ipsum
+                  if (subtitle.includes('AI Security') || subtitle.toLowerCase().includes('advisory')) {
+                    subtitle = 'Lorem ipsum dolor sit amet';
+                  }
+                  return {
+                    ...b,
+                    subtitle: subtitle,
+                  };
+                });
               }
-              return stripped;
-            };
-            
-            console.log('[ServiceDescriptionForm] Loading from updateDocument cache:', {
-              features: content.features,
-              benefits: content.benefits
-            });
-            
-            if (content.title) setTitle(content.title);
-            if (content.description) setDescription(content.description);
-            if (Array.isArray(content.features)) {
-              const cleanedFeatures = content.features.map((f: string) => stripNumberPrefix(f));
-              console.log('[ServiceDescriptionForm] Cleaned features:', cleanedFeatures);
-              setFeatures(cleanedFeatures);
+              
+              // Pre-populate form with document content
+              // Strip numbered prefixes from features/benefits (defensive: in case parser didn't catch them)
+              const stripNumberPrefix = (text: string): string => {
+                if (!text || typeof text !== 'string') return text;
+                const stripped = text.replace(/^\s*\d+[\.\)]?\s*/, '');
+                if (text !== stripped) {
+                  console.log(`[ServiceDescriptionForm] Stripped number: "${text}" -> "${stripped}"`);
+                }
+                return stripped;
+              };
+              
+              if (content.title) setTitle(content.title);
+              if (content.description) setDescription(content.description);
+              if (Array.isArray(content.features)) {
+                const cleanedFeatures = content.features.map((f: string) => stripNumberPrefix(f));
+                console.log('[ServiceDescriptionForm] Cleaned features:', cleanedFeatures);
+                setFeatures(cleanedFeatures);
+              }
+              if (Array.isArray(content.benefits)) {
+                const cleanedBenefits = content.benefits.map((b: string) => stripNumberPrefix(b));
+                console.log('[ServiceDescriptionForm] Cleaned benefits:', cleanedBenefits);
+                setBenefits(cleanedBenefits);
+              }
+              if (Array.isArray(content.service_definition)) {
+                const serviceDef = content.service_definition.map((b: any) => ({
+                  id: generateId(),
+                  subtitle: b.subtitle || '',
+                  content: b.content || '',
+                }));
+                setServiceDefinition(serviceDef.length ? serviceDef : [{ id: generateId(), subtitle: '', content: '' }]);
+              }
+              // Store update metadata for document replacement
+              sessionStorage.setItem('updateMetadata', JSON.stringify(updateData));
+              // Clear updateDocument to avoid reloading
+              sessionStorage.removeItem('updateDocument');
+              // Clear newProposal if it exists (opening existing document, not creating new)
+              sessionStorage.removeItem('newProposal');
+              return;
+            } catch (fetchError) {
+              console.error('[ServiceDescriptionForm] Error fetching fresh data:', fetchError);
+              // If fetch fails, we can't load the document - user will need to try again
+              alert('Failed to load document. Please try opening it again from the dashboard.');
+              return;
             }
-            if (Array.isArray(content.benefits)) {
-              const cleanedBenefits = content.benefits.map((b: string) => stripNumberPrefix(b));
-              console.log('[ServiceDescriptionForm] Cleaned benefits:', cleanedBenefits);
-              setBenefits(cleanedBenefits);
-            }
-            if (Array.isArray(content.service_definition)) {
-              const serviceDef = content.service_definition.map((b: any) => ({
-                id: generateId(),
-                subtitle: b.subtitle || '',
-                content: b.content || '',
-              }));
-              setServiceDefinition(serviceDef.length ? serviceDef : [{ id: generateId(), subtitle: '', content: '' }]);
-            }
-            // Store update metadata for document replacement
-            sessionStorage.setItem('updateMetadata', JSON.stringify(updateData));
-            // Clear updateDocument to avoid reloading
-            sessionStorage.removeItem('updateDocument');
-            // Clear newProposal if it exists (opening existing document, not creating new)
-            sessionStorage.removeItem('newProposal');
-            return;
           }
         } catch (e) {
           console.error('Error parsing update document:', e);
