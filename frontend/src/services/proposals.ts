@@ -31,5 +31,9 @@ export const proposalsService = {
       gcloud_version: gcloudVersion,
     });
   },
+
+  async getAllProposalsAdmin(): Promise<any[]> {
+    return apiService.get<any[]>('/proposals/admin/all');
+  },
 };
 

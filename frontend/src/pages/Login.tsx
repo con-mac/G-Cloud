@@ -14,12 +14,19 @@ import {
   Button,
   Typography,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { Login as LoginIcon } from '@mui/icons-material';
+
+type LoginType = 'employee' | 'admin';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [loginType, setLoginType] = useState<LoginType>('employee');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -51,9 +58,14 @@ export default function Login() {
       // Store email in sessionStorage for authenticated session
       sessionStorage.setItem('userEmail', email);
       sessionStorage.setItem('isAuthenticated', 'true');
+      sessionStorage.setItem('loginType', loginType);
 
-      // Navigate to questionnaire flow
-      navigate('/proposals/flow');
+      // Navigate based on login type
+      if (loginType === 'admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/proposals/flow');
+      }
     } catch (err) {
       setError('An error occurred. Please try again.');
       setLoading(false);
@@ -69,12 +81,23 @@ export default function Login() {
             <Typography variant="h4" component="h1" gutterBottom>
               G-Cloud Proposal System
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              PA Consulting Employee Login
-            </Typography>
           </Box>
 
           <form onSubmit={handleSubmit}>
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel id="login-type-label">Login Type</InputLabel>
+              <Select
+                labelId="login-type-label"
+                id="login-type"
+                value={loginType}
+                label="Login Type"
+                onChange={(e) => setLoginType(e.target.value as LoginType)}
+                disabled={loading}
+              >
+                <MenuItem value="employee">PA Consulting Employee Login</MenuItem>
+                <MenuItem value="admin">PA Consulting Admin Login</MenuItem>
+              </Select>
+            </FormControl>
             <TextField
               fullWidth
               label="Email Address"

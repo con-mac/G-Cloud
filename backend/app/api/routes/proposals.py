@@ -256,6 +256,120 @@ async def get_proposal(proposal_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/admin/all")
+async def get_all_proposals_admin():
+    """
+    Get all proposals (admin endpoint - no owner filtering).
+    
+    Returns:
+        List of all proposals across all owners
+    """
+    try:
+        if not MOCK_BASE_PATH or not MOCK_BASE_PATH.exists():
+            return []
+        
+        proposals = []
+        
+        # Iterate through all GCloud versions
+        for gcloud_dir in sorted(MOCK_BASE_PATH.glob("GCloud *")):
+            if not gcloud_dir.is_dir():
+                continue
+            
+            gcloud_version = gcloud_dir.name.replace("GCloud ", "")
+            
+            pa_services = gcloud_dir / "PA Services"
+            if not pa_services.exists():
+                continue
+            
+            # Check both LOT 2 and LOT 3
+            for lot_num in ["2", "3"]:
+                lot_folder = pa_services / f"Cloud Support Services LOT {lot_num}"
+                if not lot_folder.exists() or not lot_folder.is_dir():
+                    continue
+                
+                # Check each service folder
+                for service_dir in lot_folder.iterdir():
+                    if not service_dir.is_dir():
+                        continue
+                    
+                    # Read metadata file
+                    if read_metadata_file:
+                        metadata = read_metadata_file(service_dir)
+                        if not metadata:
+                            continue
+                        
+                        service_name = metadata.get('service', service_dir.name)
+                        folder_owner = metadata.get('owner', '').strip()
+                        
+                        # Check if both SERVICE DESC and Pricing Doc exist
+                        service_desc_exists = False
+                        pricing_doc_exists = False
+                        last_update = None
+                        
+                        if get_document_path:
+                            # Check SERVICE DESC
+                            service_desc_path = get_document_path(service_name, "SERVICE DESC", lot_num, gcloud_version)
+                            if service_desc_path and service_desc_path.exists():
+                                service_desc_exists = True
+                                mtime = service_desc_path.stat().st_mtime
+                                if last_update is None or mtime > last_update:
+                                    last_update = mtime
+                            
+                            # Check Pricing Doc
+                            pricing_doc_path = get_document_path(service_name, "Pricing Doc", lot_num, gcloud_version)
+                            if pricing_doc_path and pricing_doc_path.exists():
+                                pricing_doc_exists = True
+                                mtime = pricing_doc_path.stat().st_mtime
+                                if last_update is None or mtime > last_update:
+                                    last_update = mtime
+                        
+                        # Determine status
+                        if service_desc_exists and pricing_doc_exists:
+                            status = "complete"
+                            completion_percentage = 100.0
+                        elif service_desc_exists or pricing_doc_exists:
+                            status = "incomplete"
+                            completion_percentage = 50.0
+                        else:
+                            status = "draft"
+                            completion_percentage = 0.0
+                        
+                        # Format last update
+                        last_update_str = None
+                        if last_update:
+                            last_update_str = datetime.fromtimestamp(last_update).isoformat()
+                        
+                        # Create proposal ID from service name and gcloud version
+                        proposal_id = f"{service_name}_{gcloud_version}_{lot_num}".replace(" ", "_").lower()
+                        
+                        proposals.append({
+                            "id": proposal_id,
+                            "title": service_name,
+                            "framework_version": f"G-Cloud {gcloud_version}",
+                            "gcloud_version": gcloud_version,
+                            "lot": lot_num,
+                            "status": status,
+                            "completion_percentage": completion_percentage,
+                            "section_count": 2,
+                            "valid_sections": 2 if status == "complete" else 1 if status == "incomplete" else 0,
+                            "created_at": last_update_str or datetime.now().isoformat(),
+                            "updated_at": last_update_str or datetime.now().isoformat(),
+                            "last_update": last_update_str,
+                            "service_desc_exists": service_desc_exists,
+                            "pricing_doc_exists": pricing_doc_exists,
+                            "owner": folder_owner,
+                            "sponsor": metadata.get('sponsor', ''),
+                        })
+        
+        # Sort by last update (most recent first)
+        proposals.sort(key=lambda x: x.get("last_update") or "", reverse=True)
+        
+        return proposals
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting all proposals: {str(e)}")
+
+
 @router.delete("/{service_name}")
 async def delete_proposal(
     service_name: str,

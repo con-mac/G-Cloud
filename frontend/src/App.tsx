@@ -5,6 +5,7 @@ import ProposalsList from './pages/ProposalsList';
 import ProposalEditor from './pages/ProposalEditor';
 import CreateProposal from './pages/CreateProposal';
 import ServiceDescriptionForm from './pages/ServiceDescriptionForm';
+import AdminDashboard from './pages/AdminDashboard';
 
 // Protected route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
@@ -54,6 +55,14 @@ function App() {
         element={
           <ProtectedRoute>
             <ProposalEditor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute>
+            <AdminDashboard />
           </ProtectedRoute>
         }
       />
