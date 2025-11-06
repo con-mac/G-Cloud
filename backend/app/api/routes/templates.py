@@ -179,14 +179,63 @@ async def download_document(filename: str):
     filename = unquote(filename)
     
     if _use_s3 and s3_service:
-        # AWS Lambda: generate presigned URL for S3 file
-        s3_key = f"generated/{filename}"
+        # AWS Lambda: search for file in S3 SharePoint bucket
+        import boto3
+        import os
+        from urllib.parse import unquote
+        
+        bucket_name = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
+        if not bucket_name:
+            raise HTTPException(status_code=500, detail="SHAREPOINT_BUCKET_NAME not set")
+        
+        s3_client = boto3.client('s3')
+        s3_key = None
+        
+        # First, try the generated/ prefix (for old files)
         try:
-            presigned_url = s3_service.get_presigned_url(s3_key, expiration=3600)
+            s3_client.head_object(Bucket=bucket_name, Key=f"generated/{filename}")
+            s3_key = f"generated/{filename}"
+        except:
+            # If not in generated/, search in SharePoint folder structure
+            # Search pattern: GCloud */PA Services/Cloud Support Services LOT */*/{filename}
+            try:
+                # Search both GCloud 14 and 15
+                for gcloud_version in ["14", "15"]:
+                    for lot in ["2", "3"]:
+                        base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/"
+                        paginator = s3_client.get_paginator('list_objects_v2')
+                        pages = paginator.paginate(Bucket=bucket_name, Prefix=base_prefix)
+                        
+                        for page in pages:
+                            if 'Contents' not in page:
+                                continue
+                            for obj in page['Contents']:
+                                if obj['Key'].endswith(filename):
+                                    s3_key = obj['Key']
+                                    break
+                            if s3_key:
+                                break
+                        if s3_key:
+                            break
+                    if s3_key:
+                        break
+            except Exception as e:
+                logger.error(f"Error searching for file in S3: {e}")
+        
+        if not s3_key:
+            raise HTTPException(status_code=404, detail=f"File not found in S3: {filename}")
+        
+        try:
+            # Generate presigned URL using the correct bucket
+            presigned_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': s3_key},
+                ExpiresIn=3600
+            )
             from fastapi.responses import RedirectResponse
             return RedirectResponse(url=presigned_url)
         except Exception as e:
-            raise HTTPException(status_code=404, detail=f"File not found in S3: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error generating presigned URL: {str(e)}")
     else:
         # Docker/local: serve from filesystem
         # Check if we're running in Docker (/app exists) or locally
