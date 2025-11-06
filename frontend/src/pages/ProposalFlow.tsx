@@ -547,6 +547,57 @@ export default function ProposalFlow() {
           </Box>
         </CardContent>
       </Card>
+
+      {/* Change Metadata Dialog */}
+      <Dialog
+        open={changeMetadataDialogOpen}
+        onClose={() => setChangeMetadataDialogOpen(false)}
+        aria-labelledby="change-metadata-dialog-title"
+        aria-describedby="change-metadata-dialog-description"
+      >
+        <DialogTitle id="change-metadata-dialog-title">
+          Change Proposal Metadata?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="change-metadata-dialog-description">
+            This proposal belongs to another owner ({pendingUpdateContent?.metadata?.owner}). 
+            Would you like to change the SERVICE, OWNER, or SPONSOR? 
+            This will create a new proposal with the existing content, and you can update the metadata.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            // User chose to continue as update - proceed with normal update flow
+            if (pendingUpdateContent) {
+              const updateMetadata = pendingUpdateContent.metadata;
+              sessionStorage.setItem('updateDocument', JSON.stringify({
+                ...updateMetadata,
+                content: pendingUpdateContent.content,
+                _timestamp: Date.now(),
+              }));
+              sessionStorage.setItem('updateMetadata', JSON.stringify(updateMetadata));
+              setChangeMetadataDialogOpen(false);
+              navigate('/proposals/create/service-description');
+            }
+          }} color="secondary">
+            No, Continue as Update
+          </Button>
+          <Button 
+            onClick={() => {
+              // Store existing content for create flow
+              sessionStorage.setItem('existingProposalContent', JSON.stringify(pendingUpdateContent));
+              setChangeMetadataDialogOpen(false);
+              // Navigate to create flow with existing content
+              navigate('/proposals/flow?type=create');
+            }} 
+            color="primary" 
+            variant="contained" 
+            autoFocus
+          >
+            Yes, Change Metadata
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
