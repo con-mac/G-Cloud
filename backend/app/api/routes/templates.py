@@ -214,6 +214,13 @@ async def download_document(filename: str):
                                 if potential_file.exists():
                                     file_path = potential_file
                                     break
+                                # Also check for draft file if regular file doesn't exist
+                                if '_draft' not in filename:
+                                    draft_filename = filename.replace('.docx', '_draft.docx').replace('.pdf', '_draft.pdf')
+                                    draft_file = service_dir / draft_filename
+                                    if draft_file.exists():
+                                        file_path = draft_file
+                                        break
                             if file_path and file_path.exists():
                                 break
                         if file_path and file_path.exists():
