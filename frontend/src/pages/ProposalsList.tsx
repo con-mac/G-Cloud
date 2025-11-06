@@ -198,14 +198,6 @@ export default function ProposalsList() {
     setProposalToDelete(null);
   };
 
-  const getValidationIcon = (validSections: number, totalSections: number) => {
-    if (validSections === totalSections) {
-      return <CheckIcon color="success" />;
-    } else if (validSections > 0) {
-      return <WarningIcon color="warning" />;
-    }
-    return <ErrorIcon color="error" />;
-  };
 
   if (loading) {
     return (

@@ -31,7 +31,6 @@ import {
   TextField,
 } from '@mui/material';
 import {
-  Dashboard as DashboardIcon,
   Visibility as ViewIcon,
   Download as DownloadIcon,
   Email as EmailIcon,
@@ -41,7 +40,6 @@ import {
 } from '@mui/icons-material';
 import { proposalsService } from '../services/proposals';
 import sharepointApi from '../services/sharepointApi';
-import apiService from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -189,7 +187,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string): React.ReactElement | undefined => {
     switch (status) {
       case 'complete':
         return <CheckIcon color="success" />;
@@ -198,15 +196,14 @@ export default function AdminDashboard() {
       case 'draft':
         return <ErrorIcon color="error" />;
       default:
-        return null;
+        return undefined;
     }
   };
 
   // Calculate metrics
   const totalProposals = proposals.length;
   const completedProposals = proposals.filter(p => p.status === 'complete').length;
-  const incompleteProposals = proposals.filter(p => p.status === 'incomplete').length;
-  const draftProposals = proposals.filter(p => p.status === 'draft').length;
+  const incompleteProposals = proposals.filter(p => p.status === 'incomplete' || p.status === 'draft').length;
   const completionRate = totalProposals > 0 ? (completedProposals / totalProposals) * 100 : 0;
 
   if (loading) {
@@ -325,7 +322,7 @@ export default function AdminDashboard() {
                         label={proposal.status === 'complete' ? 'Complete' : proposal.status === 'incomplete' ? 'Incomplete' : 'Draft'}
                         color={getStatusColor(proposal.status) as any}
                         size="small"
-                        icon={getStatusIcon(proposal.status)}
+                        icon={getStatusIcon(proposal.status) || undefined}
                       />
                     </TableCell>
                     <TableCell>G-Cloud {proposal.gcloud_version}</TableCell>
