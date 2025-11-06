@@ -184,106 +184,107 @@ export default function ServiceDescriptionForm() {
 
   // Draft persistence: load on mount
   useEffect(() => {
-    try {
-      const newProposal = sessionStorage.getItem('newProposal');
-      const updateDoc = sessionStorage.getItem('updateDocument');
-      
-      // FIRST: Check if we're updating an existing document (from dashboard)
-      // This takes priority over newProposal to ensure drafts load correctly
-      if (updateDoc) {
-        try {
-          const updateData = JSON.parse(updateDoc);
-          
-          // ALWAYS fetch fresh from backend to ensure parser strips numbers correctly
-          // Don't trust cached data - it might have numbers from before the fix
-          console.log('[ServiceDescriptionForm] Clearing cached updateDocument to force fresh parse');
-          sessionStorage.removeItem('updateDocument');
-          
-          // Fetch fresh data from backend
-          if (updateData.service_name && updateData.lot && updateData.doc_type && updateData.gcloud_version) {
-            try {
-              const sharepointApi = (await import('../services/sharepointApi')).default;
-              const freshContent = await sharepointApi.getDocumentContent(
-                updateData.service_name,
-                updateData.doc_type,
-                updateData.lot,
-                updateData.gcloud_version
-              );
-              
-              console.log('[ServiceDescriptionForm] Fresh data from backend:', {
-                features: freshContent.features,
-                benefits: freshContent.benefits
-              });
-              
-              // Use fresh parsed data (parser should have stripped numbers)
-              const content = freshContent;
-              
-              // Sanitize service_definition subtitles - replace AI Security advisory
-              if (Array.isArray(content.service_definition)) {
-                content.service_definition = content.service_definition.map((b: any) => {
-                  let subtitle = b.subtitle || '';
-                  // Replace AI Security advisory with Lorem Ipsum
-                  if (subtitle.includes('AI Security') || subtitle.toLowerCase().includes('advisory')) {
-                    subtitle = 'Lorem ipsum dolor sit amet';
-                  }
-                  return {
-                    ...b,
-                    subtitle: subtitle,
-                  };
+    const loadData = async () => {
+      try {
+        const newProposal = sessionStorage.getItem('newProposal');
+        const updateDoc = sessionStorage.getItem('updateDocument');
+        
+        // FIRST: Check if we're updating an existing document (from dashboard)
+        // This takes priority over newProposal to ensure drafts load correctly
+        if (updateDoc) {
+          try {
+            const updateData = JSON.parse(updateDoc);
+            
+            // ALWAYS fetch fresh from backend to ensure parser strips numbers correctly
+            // Don't trust cached data - it might have numbers from before the fix
+            console.log('[ServiceDescriptionForm] Clearing cached updateDocument to force fresh parse');
+            sessionStorage.removeItem('updateDocument');
+            
+            // Fetch fresh data from backend
+            if (updateData.service_name && updateData.lot && updateData.doc_type && updateData.gcloud_version) {
+              try {
+                const sharepointApi = (await import('../services/sharepointApi')).default;
+                const freshContent = await sharepointApi.getDocumentContent(
+                  updateData.service_name,
+                  updateData.doc_type,
+                  updateData.lot,
+                  updateData.gcloud_version
+                );
+                
+                console.log('[ServiceDescriptionForm] Fresh data from backend:', {
+                  features: freshContent.features,
+                  benefits: freshContent.benefits
                 });
-              }
-              
-              // Pre-populate form with document content
-              // Strip numbered prefixes from features/benefits (defensive: in case parser didn't catch them)
-              const stripNumberPrefix = (text: string): string => {
-                if (!text || typeof text !== 'string') return text;
-                const stripped = text.replace(/^\s*\d+[\.\)]?\s*/, '');
-                if (text !== stripped) {
-                  console.log(`[ServiceDescriptionForm] Stripped number: "${text}" -> "${stripped}"`);
+                
+                // Use fresh parsed data (parser should have stripped numbers)
+                const content = freshContent;
+                
+                // Sanitize service_definition subtitles - replace AI Security advisory
+                if (Array.isArray(content.service_definition)) {
+                  content.service_definition = content.service_definition.map((b: any) => {
+                    let subtitle = b.subtitle || '';
+                    // Replace AI Security advisory with Lorem Ipsum
+                    if (subtitle.includes('AI Security') || subtitle.toLowerCase().includes('advisory')) {
+                      subtitle = 'Lorem ipsum dolor sit amet';
+                    }
+                    return {
+                      ...b,
+                      subtitle: subtitle,
+                    };
+                  });
                 }
-                return stripped;
-              };
-              
-              if (content.title) setTitle(content.title);
-              if (content.description) setDescription(content.description);
-              if (Array.isArray(content.features)) {
-                const cleanedFeatures = content.features.map((f: string) => stripNumberPrefix(f));
-                console.log('[ServiceDescriptionForm] Cleaned features:', cleanedFeatures);
-                setFeatures(cleanedFeatures);
+                
+                // Pre-populate form with document content
+                // Strip numbered prefixes from features/benefits (defensive: in case parser didn't catch them)
+                const stripNumberPrefix = (text: string): string => {
+                  if (!text || typeof text !== 'string') return text;
+                  const stripped = text.replace(/^\s*\d+[\.\)]?\s*/, '');
+                  if (text !== stripped) {
+                    console.log(`[ServiceDescriptionForm] Stripped number: "${text}" -> "${stripped}"`);
+                  }
+                  return stripped;
+                };
+                
+                if (content.title) setTitle(content.title);
+                if (content.description) setDescription(content.description);
+                if (Array.isArray(content.features)) {
+                  const cleanedFeatures = content.features.map((f: string) => stripNumberPrefix(f));
+                  console.log('[ServiceDescriptionForm] Cleaned features:', cleanedFeatures);
+                  setFeatures(cleanedFeatures);
+                }
+                if (Array.isArray(content.benefits)) {
+                  const cleanedBenefits = content.benefits.map((b: string) => stripNumberPrefix(b));
+                  console.log('[ServiceDescriptionForm] Cleaned benefits:', cleanedBenefits);
+                  setBenefits(cleanedBenefits);
+                }
+                if (Array.isArray(content.service_definition)) {
+                  const serviceDef = content.service_definition.map((b: any) => ({
+                    id: generateId(),
+                    subtitle: b.subtitle || '',
+                    content: b.content || '',
+                  }));
+                  setServiceDefinition(serviceDef.length ? serviceDef : [{ id: generateId(), subtitle: '', content: '' }]);
+                }
+                // Store update metadata for document replacement
+                sessionStorage.setItem('updateMetadata', JSON.stringify(updateData));
+                // Clear updateDocument to avoid reloading
+                sessionStorage.removeItem('updateDocument');
+                // Clear newProposal if it exists (opening existing document, not creating new)
+                sessionStorage.removeItem('newProposal');
+                return;
+              } catch (fetchError) {
+                console.error('[ServiceDescriptionForm] Error fetching fresh data:', fetchError);
+                // If fetch fails, we can't load the document - user will need to try again
+                alert('Failed to load document. Please try opening it again from the dashboard.');
+                return;
               }
-              if (Array.isArray(content.benefits)) {
-                const cleanedBenefits = content.benefits.map((b: string) => stripNumberPrefix(b));
-                console.log('[ServiceDescriptionForm] Cleaned benefits:', cleanedBenefits);
-                setBenefits(cleanedBenefits);
-              }
-              if (Array.isArray(content.service_definition)) {
-                const serviceDef = content.service_definition.map((b: any) => ({
-                  id: generateId(),
-                  subtitle: b.subtitle || '',
-                  content: b.content || '',
-                }));
-                setServiceDefinition(serviceDef.length ? serviceDef : [{ id: generateId(), subtitle: '', content: '' }]);
-              }
-              // Store update metadata for document replacement
-              sessionStorage.setItem('updateMetadata', JSON.stringify(updateData));
-              // Clear updateDocument to avoid reloading
-              sessionStorage.removeItem('updateDocument');
-              // Clear newProposal if it exists (opening existing document, not creating new)
-              sessionStorage.removeItem('newProposal');
-              return;
-            } catch (fetchError) {
-              console.error('[ServiceDescriptionForm] Error fetching fresh data:', fetchError);
-              // If fetch fails, we can't load the document - user will need to try again
-              alert('Failed to load document. Please try opening it again from the dashboard.');
-              return;
             }
+          } catch (e) {
+            console.error('Error parsing update document:', e);
+            // Clear invalid cache
+            sessionStorage.removeItem('updateDocument');
           }
-        } catch (e) {
-          console.error('Error parsing update document:', e);
-          // Clear invalid cache
-          sessionStorage.removeItem('updateDocument');
         }
-      }
       
       // SECOND: Check if this is a new proposal (has newProposal but no updateDocument)
       // If creating new proposal, clear any stale cache and don't load drafts
