@@ -54,10 +54,12 @@ terraform output sharepoint_bucket
 
 ### 7. Upload Your Local SharePoint Data to S3
 ```bash
-# Get the bucket name from Terraform output
+# IMPORTANT: Make sure you're in the terraform directory first!
+# Get the bucket name from Terraform output (must be run from terraform directory)
+cd /home/con-mac/dev/projects/gcloud_automate/infrastructure/terraform/aws
 SHAREPOINT_BUCKET=$(terraform output -raw sharepoint_bucket)
 
-# Upload your local mock_sharepoint folder to S3
+# Now navigate to project root and upload
 cd /home/con-mac/dev/projects/gcloud_automate
 aws s3 sync mock_sharepoint/ s3://$SHAREPOINT_BUCKET/ --exclude "*.git/*"
 ```
