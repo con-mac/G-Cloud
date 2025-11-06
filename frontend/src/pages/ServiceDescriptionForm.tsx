@@ -86,6 +86,13 @@ export default function ServiceDescriptionForm() {
     return true;
   };
 
+  // Strip numbered prefixes for word counting (numbers are for Word formatting only)
+  const stripNumberPrefix = (text: string): string => {
+    if (!text || typeof text !== 'string') return text;
+    // Strip numbered prefixes like "1. ", "2. ", "10. ", "1) ", etc.
+    return text.replace(/^\s*\d+[\.\)]?\s*/, '');
+  };
+
   const validateListItems = (items: string[], type: 'features' | 'benefits') => {
     const validItems = items.filter(item => item.trim().length > 0);
     
@@ -101,9 +108,11 @@ export default function ServiceDescriptionForm() {
       return false;
     }
     
-    // Check each item is max 10 words
+    // Check each item is max 10 words - STRIP NUMBERS FIRST (they're for Word formatting only)
     for (const item of validItems) {
-      const words = countWords(item);
+      // Strip numbered prefix before counting words
+      const strippedItem = stripNumberPrefix(item);
+      const words = countWords(strippedItem);
       if (words > 10) {
         const setState = type === 'features' ? setFeaturesValid : setBenefitsValid;
         setState({ isValid: false, message: `Each ${type.slice(0, -1)} must be max 10 words (found ${words} words in one item)` });
