@@ -110,16 +110,18 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                     result['description'] = text
             
             elif in_features:
-                # Always strip numbered prefixes (1., 2., etc.) from features
+                # Always strip numbered prefixes (1., 2., 1), etc.) from features
                 # The Word generator adds numbers as text runs, so para.text includes them
-                stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
+                # Match: optional whitespace, digits, optional period/parenthesis, optional whitespace
+                stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', text.strip())
                 if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
                     result['features'].append(stripped_text)
             
             elif in_benefits:
-                # Always strip numbered prefixes (1., 2., etc.) from benefits
+                # Always strip numbered prefixes (1., 2., 1), etc.) from benefits
                 # The Word generator adds numbers as text runs, so para.text includes them
-                stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
+                # Match: optional whitespace, digits, optional period/parenthesis, optional whitespace
+                stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', text.strip())
                 if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
                     result['benefits'].append(stripped_text)
             

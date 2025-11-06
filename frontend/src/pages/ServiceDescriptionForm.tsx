@@ -221,10 +221,19 @@ export default function ServiceDescriptionForm() {
             }
             
             // Pre-populate form with document content
+            // Strip numbered prefixes from features/benefits (defensive: in case parser didn't catch them)
+            const stripNumberPrefix = (text: string): string => {
+              return text.replace(/^\s*\d+[\.\)]?\s*/, '');
+            };
+            
             if (content.title) setTitle(content.title);
             if (content.description) setDescription(content.description);
-            if (Array.isArray(content.features)) setFeatures(content.features);
-            if (Array.isArray(content.benefits)) setBenefits(content.benefits);
+            if (Array.isArray(content.features)) {
+              setFeatures(content.features.map((f: string) => stripNumberPrefix(f)));
+            }
+            if (Array.isArray(content.benefits)) {
+              setBenefits(content.benefits.map((b: string) => stripNumberPrefix(b)));
+            }
             if (Array.isArray(content.service_definition)) {
               const serviceDef = content.service_definition.map((b: any) => ({
                 id: generateId(),
