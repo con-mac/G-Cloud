@@ -47,3 +47,8 @@ output "pdf_converter_ecr_repository" {
   value       = aws_ecr_repository.pdf_converter.repository_url
 }
 
+output "sharepoint_bucket" {
+  description = "S3 bucket name for SharePoint documents"
+  value       = aws_s3_bucket.sharepoint.id
+}
+
