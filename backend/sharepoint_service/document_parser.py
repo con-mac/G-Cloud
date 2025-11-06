@@ -117,9 +117,11 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                 original_text = text.strip()
                 stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', original_text)
                 if original_text != stripped_text:
-                    logger.debug(f"Stripped number from feature: '{original_text}' -> '{stripped_text}'")
+                    logger.info(f"[PARSER] Stripped number from feature: '{original_text}' -> '{stripped_text}'")
                 if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
                     result['features'].append(stripped_text)
+                else:
+                    logger.warning(f"[PARSER] Skipped feature (empty or keyword): '{original_text}' -> '{stripped_text}'")
             
             elif in_benefits:
                 # Skip "Service Definition" heading if it appears in benefits section
@@ -136,9 +138,11 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                 original_text = text.strip()
                 stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', original_text)
                 if original_text != stripped_text:
-                    logger.debug(f"Stripped number from benefit: '{original_text}' -> '{stripped_text}'")
+                    logger.info(f"[PARSER] Stripped number from benefit: '{original_text}' -> '{stripped_text}'")
                 if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service', 'service definition']):
                     result['benefits'].append(stripped_text)
+                else:
+                    logger.warning(f"[PARSER] Skipped benefit (empty or keyword): '{original_text}' -> '{stripped_text}'")
             
             elif in_service_def and current_subsection:
                 # For service definition, preserve HTML format if possible

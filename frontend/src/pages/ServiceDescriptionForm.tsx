@@ -87,10 +87,16 @@ export default function ServiceDescriptionForm() {
   };
 
   // Strip numbered prefixes for word counting (numbers are for Word formatting only)
+  // CRITICAL: This must be called whenever data enters the form, regardless of source
   const stripNumberPrefix = (text: string): string => {
     if (!text || typeof text !== 'string') return text;
     // Strip numbered prefixes like "1. ", "2. ", "10. ", "1) ", etc.
-    return text.replace(/^\s*\d+[\.\)]?\s*/, '');
+    const original = text;
+    const stripped = text.replace(/^\s*\d+[\.\)]?\s*/, '');
+    if (original !== stripped) {
+      console.log(`[FRONTEND] Stripped number prefix: "${original}" -> "${stripped}"`);
+    }
+    return stripped;
   };
 
   const validateListItems = (items: string[], type: 'features' | 'benefits') => {
@@ -220,13 +226,27 @@ export default function ServiceDescriptionForm() {
                   updateData.gcloud_version
                 );
                 
-                console.log('[ServiceDescriptionForm] Fresh data from backend:', {
+                console.log('[ServiceDescriptionForm] Fresh data from backend (BEFORE stripping):', {
                   features: freshContent.features,
                   benefits: freshContent.benefits
                 });
                 
-                // Use fresh parsed data (parser should have stripped numbers)
-                const content = freshContent;
+                // CRITICAL: Strip numbers defensively even though parser should have done it
+                // This ensures numbers are removed regardless of parser state
+                const content = {
+                  ...freshContent,
+                  features: Array.isArray(freshContent.features) 
+                    ? freshContent.features.map((f: string) => stripNumberPrefix(f))
+                    : freshContent.features,
+                  benefits: Array.isArray(freshContent.benefits)
+                    ? freshContent.benefits.map((b: string) => stripNumberPrefix(b))
+                    : freshContent.benefits,
+                };
+                
+                console.log('[ServiceDescriptionForm] Fresh data from backend (AFTER stripping):', {
+                  features: content.features,
+                  benefits: content.benefits
+                });
                 
                 // Sanitize service_definition subtitles - replace AI Security advisory
                 if (Array.isArray(content.service_definition)) {
