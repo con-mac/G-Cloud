@@ -1,117 +1,109 @@
-# Deployment Status & Next Steps
+# Deployment Status
 
-## Current Status ✅
+## ✅ Infrastructure Deployed
 
-**Good news:** Your infrastructure is **90% deployed!**
+### Frontend
+- **URL**: https://d26fp71s00gmkk.cloudfront.net
+- **Login Page**: https://d26fp71s00gmkk.cloudfront.net/login
+- **Hosting**: CloudFront CDN + S3
+- **Status**: ✅ Deployed
 
-### ✅ What's Already Created:
+### Backend API
+- **API Gateway URL**: https://jqms1xopz9.execute-api.eu-west-2.amazonaws.com
+- **Lambda Function**: `gcloud-automation-dev-api`
+- **Status**: ✅ Deployed
 
-1. **All S3 Buckets** ✅
-   - `gcloud-automation-dev-frontend`
-   - `gcloud-automation-dev-templates`
-   - `gcloud-automation-dev-output`
-   - `gcloud-automation-dev-uploads`
-   - `gcloud-automation-dev-lambda-deploy`
+### Storage
+- **SharePoint S3 Bucket**: `gcloud-automation-dev-sharepoint`
+- **Templates Bucket**: `gcloud-automation-dev-templates`
+- **Output Bucket**: `gcloud-automation-dev-output`
+- **Uploads Bucket**: `gcloud-automation-dev-uploads`
+- **Status**: ✅ Deployed
 
-2. **API Gateway** ✅
-   - URL: `https://jqms1xopz9.execute-api.eu-west-2.amazonaws.com`
+### PDF Converter
+- **Lambda Function**: `gcloud-automation-dev-pdf-converter`
+- **ECR Repository**: Configured
+- **Status**: ✅ Deployed
 
-3. **CloudFront Distribution** ✅
-   - URL: `d26fp71s00gmkk.cloudfront.net`
+## 🔗 Quick Links
 
-4. **IAM Roles & Policies** ✅
+### Access the Application
+- **Login Page**: https://d26fp71s00gmkk.cloudfront.net/login
+- **Dashboard** (after login): https://d26fp71s00gmkk.cloudfront.net/proposals
+- **Admin Dashboard** (after admin login): https://d26fp71s00gmkk.cloudfront.net/admin/dashboard
 
-### ❌ What's Missing:
+### API Endpoints
+- **Base URL**: https://jqms1xopz9.execute-api.eu-west-2.amazonaws.com
+- **API Docs**: https://jqms1xopz9.execute-api.eu-west-2.amazonaws.com/docs
 
-- **Lambda Function** - Not created yet (needs `app_secret_key`)
-- **Lambda Package** - Not uploaded yet
-- **Frontend** - Not deployed yet
-- **Template** - Not uploaded to S3 yet
+## ✅ What's Working
 
-## The Problem 🔍
+1. ✅ **Infrastructure**: All AWS resources created
+2. ✅ **SharePoint Data**: Uploaded to S3
+3. ✅ **Frontend**: Deployed to CloudFront
+4. ✅ **Backend**: Lambda functions deployed
+5. ✅ **Storage**: S3 buckets configured
 
-**Error:** `app_secret_key` variable is required but not set
+## 🔍 Verification Steps
 
-**Cause:** Missing `terraform.tfvars` file
-
-## Solution: Continue Deployment 🚀
-
-You have **two options:**
-
-### Option 1: Continue (Recommended) ✅
-
-Finish the deployment by creating the missing configuration file.
-
-### Option 2: Start Fresh (If you want to reset)
-
-Destroy everything and start over (not recommended since most resources are already created).
-
-## Next Steps - Continue Deployment
-
-### Step 1: Create terraform.tfvars
-
+### Check Lambda Environment Variables
 ```bash
-cd infrastructure/terraform/aws
-cp terraform.tfvars.example terraform.tfvars
+aws lambda get-function-configuration \
+  --function-name gcloud-automation-dev-api \
+  --region eu-west-2 \
+  --query 'Environment.Variables.{USE_S3:USE_S3,SHAREPOINT_BUCKET_NAME:SHAREPOINT_BUCKET_NAME}'
 ```
 
-### Step 2: Edit terraform.tfvars
-
-Add your `app_secret_key` (generate one if you don't have it):
-
+### Check SharePoint Data in S3
 ```bash
-# Generate secret key:
-openssl rand -base64 32
-
-# Then edit terraform.tfvars and add:
-app_secret_key = "your-generated-key-here"
+aws s3 ls s3://gcloud-automation-dev-sharepoint/ --recursive | head -10
 ```
 
-### Step 3: Finish Infrastructure Deployment
+### Test Frontend
+1. Open: https://d26fp71s00gmkk.cloudfront.net/login
+2. Login with: `your.name@paconsulting.com`
+3. Select: "PA Consulting Employee Login" or "PA Consulting Admin Login"
 
-```bash
-cd infrastructure/terraform/aws
-terraform plan  # Review changes
-terraform apply  # Create Lambda function
-```
+## 📝 Next Steps
 
-### Step 4: Deploy Lambda Package
+1. **Test the Application**:
+   - Access login page
+   - Create a new proposal
+   - Update an existing proposal
+   - Generate documents
 
-```bash
-cd ../..  # Back to project root
-./scripts/deploy-lambda.sh dev
-```
+2. **Verify S3 Integration**:
+   - Check that proposals are saved to S3
+   - Verify documents are generated correctly
+   - Test document downloads
 
-### Step 5: Upload Template to S3
+3. **Monitor Costs**:
+   - Check AWS Cost Explorer
+   - Monitor Lambda invocations
+   - Track S3 storage usage
 
-```bash
-aws s3 cp docs/service_description_template.docx \
-  s3://gcloud-automation-dev-templates/templates/service_description_template.docx
-```
+## 🐛 Troubleshooting
 
-### Step 6: Deploy Frontend
+### If login page doesn't load:
+- Check CloudFront distribution status
+- Verify S3 bucket is public (for frontend)
+- Check browser console for errors
 
-```bash
-./scripts/deploy-frontend.sh dev https://jqms1xopz9.execute-api.eu-west-2.amazonaws.com
-```
+### If API calls fail:
+- Verify API Gateway URL is correct
+- Check Lambda function logs
+- Verify CORS settings
 
-## Quick Command to Continue
+### If SharePoint data not found:
+- Verify data uploaded to S3: `aws s3 ls s3://gcloud-automation-dev-sharepoint/`
+- Check Lambda environment variable `SHAREPOINT_BUCKET_NAME`
+- Verify `USE_S3=true` is set in Lambda
 
-Or run the all-in-one script (it will detect existing infrastructure):
+## 📊 Current Configuration
 
-```bash
-./scripts/deploy-all.sh dev
-```
-
----
-
-## Current URLs (Already Available)
-
-- **API Gateway:** https://jqms1xopz9.execute-api.eu-west-2.amazonaws.com
-- **CloudFront:** https://d26fp71s00gmkk.cloudfront.net (frontend will be here after Step 6)
-- **S3 Frontend:** http://gcloud-automation-dev-frontend.s3-website-eu-west-2.amazonaws.com
-
----
-
-**You're almost there!** Just need to create the configuration file and finish the Lambda deployment.
-
+- **Environment**: dev
+- **Region**: eu-west-2 (London)
+- **Project**: gcloud-automation
+- **Storage**: S3 (USE_S3=true)
+- **Frontend**: CloudFront CDN
+- **Backend**: Lambda + API Gateway
