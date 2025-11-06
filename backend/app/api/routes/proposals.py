@@ -111,9 +111,13 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
     
     # Import SharePoint service functions (switches between local and S3)
     try:
-        from sharepoint_service.sharepoint_service import list_all_folders, read_metadata_file, get_document_path
-    except ImportError:
-        logger.error("Failed to import SharePoint service functions")
+        # Try both import paths (local and Lambda)
+        try:
+            from sharepoint_service.sharepoint_service import list_all_folders, read_metadata_file, get_document_path
+        except ImportError:
+            from app.sharepoint_service.sharepoint_service import list_all_folders, read_metadata_file, get_document_path
+    except ImportError as e:
+        logger.error(f"Failed to import SharePoint service functions: {e}")
         return []
     
     # If using S3, use list_all_folders
@@ -380,7 +384,10 @@ async def get_all_proposals_admin():
     try:
         if USE_S3:
             # For S3, we need to use list_all_folders and search_documents
-            from sharepoint_service.sharepoint_service import list_all_folders, search_documents
+            try:
+                from sharepoint_service.sharepoint_service import list_all_folders, search_documents
+            except ImportError:
+                from app.sharepoint_service.sharepoint_service import list_all_folders, search_documents
             proposals = []
             
             # Get all proposals from both GCloud 14 and 15
