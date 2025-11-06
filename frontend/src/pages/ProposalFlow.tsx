@@ -71,6 +71,23 @@ export default function ProposalFlow() {
       // Skip step 0 (Select Flow Type) and go directly to step 1 (Enter Proposal Details)
       setFlowType('create');
       setActiveStep(1);
+      
+      // Check if we have existing content to load (from change metadata flow)
+      const existingContent = sessionStorage.getItem('existingProposalContent');
+      if (existingContent) {
+        try {
+          const contentData = JSON.parse(existingContent);
+          // Pre-populate createData with existing metadata
+          setCreateData({
+            service: contentData.metadata?.service_name || '',
+            owner: contentData.metadata?.owner || '',
+            sponsor: contentData.metadata?.sponsor || '',
+            lot: contentData.metadata?.lot || null,
+          });
+        } catch (e) {
+          console.error('Error parsing existing content:', e);
+        }
+      }
     }
   }, [searchParams]);
 
