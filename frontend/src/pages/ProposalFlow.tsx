@@ -218,6 +218,10 @@ export default function ProposalFlow() {
           return;
         }
       } else if (flowType === 'create') {
+        // Get user name for last_edited_by
+        const userEmail = sessionStorage.getItem('userEmail');
+        const userName = userEmail ? extractNameFromEmail(userEmail) : '';
+        
         // Create folder and metadata
         await sharepointApi.createFolder({
           service_name: createData.service,
@@ -231,11 +235,25 @@ export default function ProposalFlow() {
           sponsor: createData.sponsor,
           lot: createData.lot!,
           gcloud_version: '15',
+          last_edited_by: userName,
         });
 
-        // Clear any previous proposal data for security
-        sessionStorage.removeItem('updateDocument');
-        sessionStorage.removeItem('updateMetadata');
+        // Check if we have existing content to load (from change metadata flow)
+        const existingContent = sessionStorage.getItem('existingProposalContent');
+        if (existingContent) {
+          // Load existing content into updateDocument for the form
+          const contentData = JSON.parse(existingContent);
+          sessionStorage.setItem('updateDocument', JSON.stringify({
+            ...contentData.metadata,
+            content: contentData.content,
+            _timestamp: Date.now(),
+          }));
+          sessionStorage.removeItem('existingProposalContent');
+        } else {
+          // Clear any previous proposal data for security
+          sessionStorage.removeItem('updateDocument');
+          sessionStorage.removeItem('updateMetadata');
+        }
         
         // Store creation data for document generation
         sessionStorage.setItem('newProposal', JSON.stringify(createData));
