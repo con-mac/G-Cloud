@@ -202,33 +202,53 @@ class DocumentGenerator:
         if update_metadata or new_proposal_metadata:
             # Save to SharePoint folder (either update or new proposal)
             if update_metadata:
-                folder_path = Path(update_metadata.get('folder_path', ''))
+                folder_path = update_metadata.get('folder_path', '')
                 gcloud_version = update_metadata.get('gcloud_version', '14')
                 doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
                 service_name = update_metadata.get('service_name', title)
             else:  # new_proposal_metadata
-                # Get folder path from new proposal metadata
-                from sharepoint_service.mock_sharepoint import get_document_path
                 service_name = new_proposal_metadata.get('service', title)
                 lot = new_proposal_metadata.get('lot', '2')
                 gcloud_version = new_proposal_metadata.get('gcloud_version', '15')
                 doc_type = 'SERVICE DESC'  # Always SERVICE DESC for new proposals
                 
-                # Find folder path - construct directly since folder should exist (created in ProposalFlow)
-                from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
-                folder_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name
+                # Get folder path using SharePoint service abstraction
+                try:
+                    try:
+                        from sharepoint_service.sharepoint_service import get_document_path, USE_S3
+                    except ImportError:
+                        from app.sharepoint_service.sharepoint_service import get_document_path, USE_S3
+                except ImportError:
+                    USE_S3 = False
+                    get_document_path = None
                 
-                # Verify folder exists, if not try to find it with fuzzy match
-                if not folder_path.exists():
-                    # Try to find folder with fuzzy match
-                    base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
-                    lot_folder = base_path / f"Cloud Support Services LOT {lot}"
-                    if lot_folder.exists():
-                        from sharepoint_service.mock_sharepoint import fuzzy_match
-                        for folder in lot_folder.iterdir():
-                            if folder.is_dir() and fuzzy_match(service_name, folder.name):
-                                folder_path = folder
-                                break
+                if self.use_s3 or (get_document_path and USE_S3):
+                    # S3 environment: folder_path is an S3 prefix (string)
+                    # Construct S3 prefix: GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/
+                    folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/"
+                else:
+                    # Local environment: folder_path is a Path object
+                    try:
+                        try:
+                            from sharepoint_service.sharepoint_service import MOCK_BASE_PATH
+                        except ImportError:
+                            from app.sharepoint_service.sharepoint_service import MOCK_BASE_PATH
+                    except ImportError:
+                        from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
+                    
+                    folder_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name
+                    
+                    # Verify folder exists, if not try to find it with fuzzy match
+                    if not folder_path.exists():
+                        # Try to find folder with fuzzy match
+                        base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
+                        lot_folder = base_path / f"Cloud Support Services LOT {lot}"
+                        if lot_folder.exists():
+                            from sharepoint_service.mock_sharepoint import fuzzy_match
+                            for folder in lot_folder.iterdir():
+                                if folder.is_dir() and fuzzy_match(service_name, folder.name):
+                                    folder_path = folder
+                                    break
             
             # Use exact filename format: PA GC15 SERVICE DESC [Service Name].docx
             if doc_type == 'SERVICE DESC':
@@ -240,21 +260,33 @@ class DocumentGenerator:
             if save_as_draft:
                 word_filename = word_filename.replace('.docx', '_draft.docx')
             else:
-                # Remove any existing _draft files when completing
-                draft_filename = word_filename.replace('.docx', '_draft.docx')
-                draft_path = folder_path / draft_filename
-                if draft_path.exists():
-                    draft_path.unlink()
-                
-                # Remove any existing SERVICE DESC files (to replace them)
-                if 'SERVICE DESC' in word_filename:
-                    for existing_file in folder_path.glob(f"PA GC{gcloud_version} SERVICE DESC {service_name}*.docx"):
-                        if existing_file.name != word_filename:
-                            existing_file.unlink()
+                # Remove any existing _draft files when completing (only for local)
+                if not self.use_s3 and isinstance(folder_path, Path):
+                    draft_filename = word_filename.replace('.docx', '_draft.docx')
+                    draft_path = folder_path / draft_filename
+                    if draft_path.exists():
+                        draft_path.unlink()
+                    
+                    # Remove any existing SERVICE DESC files (to replace them)
+                    if 'SERVICE DESC' in word_filename:
+                        for existing_file in folder_path.glob(f"PA GC{gcloud_version} SERVICE DESC {service_name}*.docx"):
+                            if existing_file.name != word_filename:
+                                existing_file.unlink()
             
-            word_path = folder_path / word_filename
-            filename_base = service_name
-            output_dir = folder_path
+            # Determine where to save the document
+            if self.use_s3:
+                # S3 environment: save to /tmp first, then upload to S3
+                # folder_path is an S3 prefix (string), word_filename is the filename
+                word_path = self.output_dir / word_filename  # Save to /tmp first
+                filename_base = service_name
+                output_dir = self.output_dir
+                s3_key = f"{folder_path}{word_filename}"  # Full S3 key
+            else:
+                # Local environment: save directly to folder_path
+                word_path = folder_path / word_filename
+                filename_base = service_name
+                output_dir = folder_path
+                s3_key = None
         else:
             # Create new document - save to generated_documents (no folder metadata)
             doc_id = str(uuid.uuid4())[:8]
@@ -262,6 +294,7 @@ class DocumentGenerator:
             filename_base = f"{safe_title}_{doc_id}"
             word_path = self.output_dir / f"{filename_base}.docx"
             output_dir = self.output_dir
+            s3_key = None
         
         # Ensure output directory exists
         output_dir.mkdir(parents=True, exist_ok=True)
