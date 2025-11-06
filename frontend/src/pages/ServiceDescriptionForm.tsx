@@ -492,10 +492,8 @@ export default function ServiceDescriptionForm() {
   const handleLoadDraft = (draft: any) => {
     if (confirm(`Load draft "${draft.name}"? This will replace your current work.`)) {
       try {
-        // Strip numbered prefixes from features/benefits (defensive)
-        const stripNumberPrefix = (text: string): string => {
-          return text.replace(/^\s*\d+[\.\)]?\s*/, '');
-        };
+        // Strip numbered prefixes from features/benefits when loading draft
+        // Note: stripNumberPrefix is defined at component level above
         
         if (draft.data.title) setTitle(draft.data.title);
         if (draft.data.description) setDescription(draft.data.description);
