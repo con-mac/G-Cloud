@@ -126,6 +126,28 @@ export default function ProposalsList() {
         proposal.gcloud_version as '14' | '15'
       );
 
+      // CRITICAL: Strip numbers from features/benefits before storing in sessionStorage
+      // Numbers are for Word formatting only, not form display
+      const stripNumberPrefix = (text: string): string => {
+        if (!text || typeof text !== 'string') return text;
+        return text.replace(/^\s*\d+[\.\)]?\s*/, '');
+      };
+
+      const cleanedContent = {
+        ...documentContent,
+        features: Array.isArray(documentContent.features)
+          ? documentContent.features.map((f: string) => stripNumberPrefix(f))
+          : documentContent.features,
+        benefits: Array.isArray(documentContent.benefits)
+          ? documentContent.benefits.map((b: string) => stripNumberPrefix(b))
+          : documentContent.benefits,
+      };
+
+      console.log('[ProposalsList] Storing cleaned content in sessionStorage:', {
+        features: cleanedContent.features,
+        benefits: cleanedContent.benefits
+      });
+
       // Store in sessionStorage for template to load
       const updateMetadata = {
         service_name: proposal.title,
@@ -138,7 +160,7 @@ export default function ProposalsList() {
       // Add timestamp to prevent stale cache issues
       sessionStorage.setItem('updateDocument', JSON.stringify({
         ...updateMetadata,
-        content: documentContent,
+        content: cleanedContent,
         _timestamp: Date.now(),
       }));
 
