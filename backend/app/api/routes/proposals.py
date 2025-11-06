@@ -165,7 +165,6 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
                                             last_update = obj_response['LastModified'].isoformat()
                                     except Exception as e:
                                         logger.warning(f"Could not get S3 object timestamp: {e}")
-                                        from datetime import datetime
                                         last_update = datetime.now().isoformat()
                                 
                                 # Check Pricing Doc
