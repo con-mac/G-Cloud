@@ -245,14 +245,7 @@ export default function ServiceDescriptionForm() {
                 
                 // Pre-populate form with document content
                 // Strip numbered prefixes from features/benefits (defensive: in case parser didn't catch them)
-                const stripNumberPrefix = (text: string): string => {
-                  if (!text || typeof text !== 'string') return text;
-                  const stripped = text.replace(/^\s*\d+[\.\)]?\s*/, '');
-                  if (text !== stripped) {
-                    console.log(`[ServiceDescriptionForm] Stripped number: "${text}" -> "${stripped}"`);
-                  }
-                  return stripped;
-                };
+                // Note: stripNumberPrefix is defined at component level above
                 
                 if (content.title) setTitle(content.title);
                 if (content.description) setDescription(content.description);
@@ -311,10 +304,8 @@ export default function ServiceDescriptionForm() {
           const raw = localStorage.getItem(draftKey);
           if (raw) {
             const data = JSON.parse(raw);
-            // Strip numbered prefixes from features/benefits (defensive)
-            const stripNumberPrefix = (text: string): string => {
-              return text.replace(/^\s*\d+[\.\)]?\s*/, '');
-            };
+            // Strip numbered prefixes from features/benefits when loading from localStorage
+            // Note: stripNumberPrefix is defined at component level above
             
             if (typeof data.title === 'string') setTitle(data.title);
             if (typeof data.description === 'string') setDescription(data.description);
