@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from pathlib import Path
 from datetime import datetime
 import os
+import shutil
 
 # Lazy import for Lambda compatibility
 try:
@@ -253,4 +254,53 @@ async def get_proposal(proposal_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{service_name}")
+async def delete_proposal(
+    service_name: str,
+    lot: str = Query(..., description="LOT number (2 or 3)"),
+    gcloud_version: str = Query(..., description="G-Cloud version (14 or 15)")
+):
+    """
+    Delete a proposal folder and all its contents.
+    
+    Args:
+        service_name: Name of the service (URL encoded)
+        lot: LOT number (2 or 3)
+        gcloud_version: G-Cloud version (14 or 15)
+        
+    Returns:
+        Success message
+    """
+    try:
+        if not MOCK_BASE_PATH or not MOCK_BASE_PATH.exists():
+            raise HTTPException(status_code=404, detail="SharePoint mock path not found")
+        
+        # Decode service name
+        from urllib.parse import unquote
+        service_name = unquote(service_name)
+        
+        # Construct folder path
+        folder_path = (
+            MOCK_BASE_PATH 
+            / f"GCloud {gcloud_version}" 
+            / "PA Services" 
+            / f"Cloud Support Services LOT {lot}" 
+            / service_name
+        )
+        
+        # Check if folder exists
+        if not folder_path.exists() or not folder_path.is_dir():
+            raise HTTPException(status_code=404, detail=f"Proposal folder not found: {service_name}")
+        
+        # Delete the entire folder and all its contents
+        shutil.rmtree(folder_path)
+        
+        return {"message": f"Proposal '{service_name}' deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting proposal: {str(e)}")
 

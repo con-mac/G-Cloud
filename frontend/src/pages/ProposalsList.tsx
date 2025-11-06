@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  IconButton,
 } from '@mui/material';
 import {
   CheckCircle as CheckIcon,
@@ -28,6 +29,7 @@ import {
   Error as ErrorIcon,
   Schedule as ScheduleIcon,
   Add as AddIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { proposalsService } from '../services/proposals';
 import sharepointApi from '../services/sharepointApi';
@@ -39,6 +41,9 @@ export default function ProposalsList() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<any>(null);
   const [loadingDocument, setLoadingDocument] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [proposalToDelete, setProposalToDelete] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -159,6 +164,40 @@ export default function ProposalsList() {
     }
   };
 
+  const handleDeleteClick = (proposal: any) => {
+    setProposalToDelete(proposal);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!proposalToDelete) return;
+    
+    try {
+      setDeleting(true);
+      await proposalsService.deleteProposal(
+        proposalToDelete.title,
+        proposalToDelete.lot,
+        proposalToDelete.gcloud_version
+      );
+      
+      // Refresh proposals list
+      await loadProposals();
+      
+      setDeleteDialogOpen(false);
+      setProposalToDelete(null);
+    } catch (error: any) {
+      console.error('Failed to delete proposal:', error);
+      alert(`Failed to delete proposal: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setProposalToDelete(null);
+  };
+
   const getValidationIcon = (validSections: number, totalSections: number) => {
     if (validSections === totalSections) {
       return <CheckIcon color="success" />;
@@ -219,13 +258,23 @@ export default function ProposalsList() {
                   <Typography variant="h5" component="h2" sx={{ flexGrow: 1, pr: 1 }}>
                     {proposal.title}
                   </Typography>
-                  {proposal.status === 'complete' ? (
-                    <CheckIcon color="success" />
-                  ) : proposal.status === 'incomplete' ? (
-                    <WarningIcon color="warning" />
-                  ) : (
-                    <ErrorIcon color="error" />
-                  )}
+                  <Box display="flex" alignItems="center" gap={1}>
+                    {proposal.status === 'complete' ? (
+                      <CheckIcon color="success" />
+                    ) : proposal.status === 'incomplete' ? (
+                      <WarningIcon color="warning" />
+                    ) : (
+                      <ErrorIcon color="error" />
+                    )}
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => handleDeleteClick(proposal)}
+                      sx={{ ml: 1 }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
                 </Box>
 
                 <Box display="flex" gap={1} mb={2} flexWrap="wrap">
@@ -334,6 +383,37 @@ export default function ProposalsList() {
           </Button>
           <Button onClick={handleConfirmOpen} color="primary" variant="contained" autoFocus>
             Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Delete Proposal?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Are you sure you want to delete the proposal "{proposalToDelete?.title}"? This action cannot be undone and will permanently delete all associated documents.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel} color="secondary" disabled={deleting}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+            disabled={deleting}
+          >
+            {deleting ? <CircularProgress size={24} /> : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

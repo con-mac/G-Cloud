@@ -24,5 +24,12 @@ export const proposalsService = {
   async validateSection(sectionId: string): Promise<any> {
     return apiService.post(`/sections/${sectionId}/validate`, {});
   },
+
+  async deleteProposal(serviceName: string, lot: string, gcloudVersion: string): Promise<void> {
+    return apiService.delete(`/proposals/${encodeURIComponent(serviceName)}`, {
+      lot,
+      gcloud_version: gcloudVersion,
+    });
+  },
 };
 

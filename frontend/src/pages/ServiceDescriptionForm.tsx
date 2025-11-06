@@ -315,6 +315,46 @@ export default function ServiceDescriptionForm() {
     } catch {}
   }, []);
   
+  // Check if there's unsaved work
+  const hasUnsavedWork = (): boolean => {
+    if (title.trim()) return true;
+    if (description.trim()) return true;
+    if (features.some(f => f.trim().length > 0)) return true;
+    if (benefits.some(b => b.trim().length > 0)) return true;
+    if (serviceDefinition.some(b => b.subtitle.trim() || b.content.trim())) return true;
+    return false;
+  };
+
+  // Handle back to dashboard with save prompt
+  const handleBackToDashboard = async () => {
+    if (hasUnsavedWork()) {
+      const shouldSave = window.confirm(
+        'You have unsaved work. Would you like to save it as a draft before leaving?'
+      );
+      if (shouldSave) {
+        try {
+          await handleSaveDraft();
+          // Navigate after save completes
+          navigate('/proposals');
+        } catch (error) {
+          // If save fails, ask if user still wants to leave
+          const stillLeave = window.confirm(
+            'Failed to save draft. Do you still want to leave without saving?'
+          );
+          if (stillLeave) {
+            navigate('/proposals');
+          }
+        }
+      } else {
+        // User chose not to save, navigate anyway
+        navigate('/proposals');
+      }
+    } else {
+      // No unsaved work, navigate directly
+      navigate('/proposals');
+    }
+  };
+
   // Save draft as Word doc to folder
   const handleSaveDraft = async () => {
     try {
@@ -543,9 +583,9 @@ export default function ServiceDescriptionForm() {
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Button
             startIcon={<ArrowBack />}
-            onClick={() => navigate('/proposals/create')}
+            onClick={handleBackToDashboard}
           >
-            Back to Templates
+            Back to Dashboard
           </Button>
           <Box display="flex" gap={1}>
             <Button
@@ -984,9 +1024,9 @@ export default function ServiceDescriptionForm() {
       <Box display="flex" justifyContent="flex-end" gap={2}>
         <Button
           variant="outlined"
-          onClick={() => navigate('/proposals/create')}
+          onClick={handleBackToDashboard}
         >
-          Cancel
+          Back to Dashboard
         </Button>
         <Button
           variant="contained"
