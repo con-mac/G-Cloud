@@ -199,10 +199,15 @@ export default function ServiceDescriptionForm() {
 
   // Draft persistence: load on mount
   useEffect(() => {
+    console.log('🔍 [ServiceDescriptionForm] Component mounted - starting data load');
     const loadData = async () => {
       try {
         const newProposal = sessionStorage.getItem('newProposal');
         const updateDoc = sessionStorage.getItem('updateDocument');
+        console.log('🔍 [ServiceDescriptionForm] Checking sessionStorage:', {
+          hasNewProposal: !!newProposal,
+          hasUpdateDoc: !!updateDoc
+        });
         
         // FIRST: Check if we're updating an existing document (from dashboard)
         // This takes priority over newProposal to ensure drafts load correctly
