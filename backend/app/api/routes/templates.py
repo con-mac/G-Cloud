@@ -68,8 +68,13 @@ class ServiceDescriptionRequest(BaseModel):
     
     @validator('features', 'benefits', each_item=True)
     def validate_list_items(cls, v):
-        """Each feature/benefit should be max 10 words"""
-        word_count = len(re.findall(r'\b\w+\b', v))
+        """Each feature/benefit should be max 10 words (excluding numbered prefixes)"""
+        # Strip numbered prefixes (e.g., "1. ", "2. ", "10. ", etc.) before counting words
+        # Pattern matches: optional whitespace, one or more digits, optional period, optional whitespace
+        stripped = re.sub(r'^\s*\d+\.?\s*', '', v.strip())
+        
+        # Count words in the stripped content
+        word_count = len(re.findall(r'\b\w+\b', stripped))
         if word_count > 10:
             raise ValueError(f'Each item must be max 10 words (this item has {word_count})')
         if word_count < 1:
