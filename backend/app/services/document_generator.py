@@ -313,8 +313,23 @@ class DocumentGenerator:
         
         # Upload to S3 if in Lambda environment
         if self.use_s3:
-            word_s3_key = f"generated/{filename_base}.docx"
-            self.s3_service.upload_document(word_path, word_s3_key)
+            # Use the S3 key from folder_path if saving to SharePoint, otherwise use generated/
+            if s3_key:
+                word_s3_key = s3_key
+            else:
+                word_s3_key = f"generated/{filename_base}.docx"
+            
+            # Upload document to S3
+            import boto3
+            s3_client = boto3.client('s3')
+            bucket_name = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
+            
+            if not bucket_name:
+                raise ValueError("SHAREPOINT_BUCKET_NAME not set")
+            
+            with open(word_path, 'rb') as f:
+                s3_client.upload_fileobj(f, bucket_name, word_s3_key)
+            
             word_url = self.s3_service.get_presigned_url(word_s3_key)
             
             # Invoke PDF converter Lambda to generate PDF
