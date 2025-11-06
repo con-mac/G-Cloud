@@ -112,30 +112,37 @@ async def generate_service_description(request: ServiceDescriptionRequest):
         # Convert local file paths to download URLs for frontend
         # Always provide download URL even if file is in folder (for local download)
         word_path = result.get('word_path', '')
+        word_filename_for_url = None
         if word_path and not word_path.startswith('http'):
-            # Extract filename from path
+            # Extract filename from path (includes _draft if it's a draft)
             from pathlib import Path
-            word_filename_for_url = Path(word_path).name if word_path else f"{result['filename']}.docx"
-            # Convert to download URL (works for both /tmp/generated_documents and folder paths)
-            word_path = f"/api/v1/templates/service-description/download/{word_filename_for_url}"
+            word_filename_for_url = Path(word_path).name if word_path else None
+            if word_filename_for_url:
+                # Convert to download URL (works for both /tmp/generated_documents and folder paths)
+                word_path = f"/api/v1/templates/service-description/download/{word_filename_for_url}"
         
         # Convert PDF path to download URL if it's a local path
+        pdf_filename_for_url = None
         if pdf_path and not pdf_path.startswith('http'):
             from pathlib import Path
-            pdf_filename_for_url = Path(pdf_path).name if pdf_path else f"{result['filename']}.pdf"
+            pdf_filename_for_url = Path(pdf_path).name if pdf_path else None
             # Only convert if PDF file exists (for now, PDF generation may not be available locally)
             pdf_path_local = Path(pdf_path)
-            if pdf_path_local.exists():
+            if pdf_path_local.exists() and pdf_filename_for_url:
                 pdf_path = f"/api/v1/templates/service-description/download/{pdf_filename_for_url}"
             else:
                 # PDF doesn't exist yet, keep original path for "Coming Soon" message
                 pdf_path = pdf_path
         
+        # Use actual filename from path if available, otherwise fallback to filename_base
+        word_filename = word_filename_for_url if word_filename_for_url else f"{result['filename']}.docx"
+        pdf_filename = pdf_filename_for_url if pdf_filename_for_url else f"{result['filename']}.pdf"
+        
         return GenerateResponse(
             success=True,
             message="Documents generated successfully",
-            word_filename=f"{result['filename']}.docx",
-            pdf_filename=f"{result['filename']}.pdf",
+            word_filename=word_filename,
+            pdf_filename=pdf_filename,
             word_path=word_path,
             pdf_path=pdf_path or f"{result.get('filename', 'document')}.pdf"  # Fallback to filename if no path
         )
