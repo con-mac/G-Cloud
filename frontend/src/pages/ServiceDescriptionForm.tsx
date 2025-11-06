@@ -223,16 +223,30 @@ export default function ServiceDescriptionForm() {
             // Pre-populate form with document content
             // Strip numbered prefixes from features/benefits (defensive: in case parser didn't catch them)
             const stripNumberPrefix = (text: string): string => {
-              return text.replace(/^\s*\d+[\.\)]?\s*/, '');
+              if (!text || typeof text !== 'string') return text;
+              const stripped = text.replace(/^\s*\d+[\.\)]?\s*/, '');
+              if (text !== stripped) {
+                console.log(`[ServiceDescriptionForm] Stripped number: "${text}" -> "${stripped}"`);
+              }
+              return stripped;
             };
+            
+            console.log('[ServiceDescriptionForm] Loading from updateDocument cache:', {
+              features: content.features,
+              benefits: content.benefits
+            });
             
             if (content.title) setTitle(content.title);
             if (content.description) setDescription(content.description);
             if (Array.isArray(content.features)) {
-              setFeatures(content.features.map((f: string) => stripNumberPrefix(f)));
+              const cleanedFeatures = content.features.map((f: string) => stripNumberPrefix(f));
+              console.log('[ServiceDescriptionForm] Cleaned features:', cleanedFeatures);
+              setFeatures(cleanedFeatures);
             }
             if (Array.isArray(content.benefits)) {
-              setBenefits(content.benefits.map((b: string) => stripNumberPrefix(b)));
+              const cleanedBenefits = content.benefits.map((b: string) => stripNumberPrefix(b));
+              console.log('[ServiceDescriptionForm] Cleaned benefits:', cleanedBenefits);
+              setBenefits(cleanedBenefits);
             }
             if (Array.isArray(content.service_definition)) {
               const serviceDef = content.service_definition.map((b: any) => ({

@@ -114,7 +114,10 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                 # Numbers are for Word document formatting only - should not appear in form
                 # The Word generator creates: Run 1 = "1. " (red), Run 2 = "text" (black)
                 # When we read para.text, it combines both runs as "1. text"
-                stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', text.strip())
+                original_text = text.strip()
+                stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', original_text)
+                if original_text != stripped_text:
+                    logger.debug(f"Stripped number from feature: '{original_text}' -> '{stripped_text}'")
                 if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
                     result['features'].append(stripped_text)
             
@@ -123,7 +126,10 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                 # Numbers are for Word document formatting only - should not appear in form
                 # The Word generator creates: Run 1 = "1. " (red), Run 2 = "text" (black)
                 # When we read para.text, it combines both runs as "1. text"
-                stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', text.strip())
+                original_text = text.strip()
+                stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', original_text)
+                if original_text != stripped_text:
+                    logger.debug(f"Stripped number from benefit: '{original_text}' -> '{stripped_text}'")
                 if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
                     result['benefits'].append(stripped_text)
             
