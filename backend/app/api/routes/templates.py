@@ -5,7 +5,7 @@ Handles template-based proposal creation
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, model_validator
 from typing import List, Optional, Literal, Dict
 import os
 import uuid
@@ -29,8 +29,8 @@ class ServiceDescriptionRequest(BaseModel):
     """Request model for G-Cloud Service Description"""
     title: str = Field(..., min_length=1, max_length=100, description="Service name")
     description: str = Field(..., max_length=2000, description="Service description (max 50 words)")
-    features: List[str] = Field(..., min_items=1, max_items=10, description="Service features (max 10)")
-    benefits: List[str] = Field(..., min_items=1, max_items=10, description="Service benefits (max 10)")
+    features: List[str] = Field(..., min_items=0, max_items=10, description="Service features (max 10)")
+    benefits: List[str] = Field(..., min_items=0, max_items=10, description="Service benefits (max 10)")
     # New: service definition subsections (no constraints)
     # Each block: { subtitle: str, content: str(HTML), images?: [url], table?: [][] }
     service_definition: Optional[List[dict]] = Field(default_factory=list, description="Service Definition subsections (rich HTML content)")
@@ -55,6 +55,16 @@ class ServiceDescriptionRequest(BaseModel):
         if word_count > 50:
             raise ValueError(f'Description must not exceed 50 words (currently {word_count})')
         return v.strip()
+    
+    @model_validator(mode='after')
+    def validate_completed_documents(self):
+        """Validate that completed documents (not drafts) have at least 1 feature and 1 benefit"""
+        if not self.save_as_draft:
+            if len(self.features) < 1:
+                raise ValueError('Features must have at least 1 item for completed documents')
+            if len(self.benefits) < 1:
+                raise ValueError('Benefits must have at least 1 item for completed documents')
+        return self
     
     @validator('features', 'benefits', each_item=True)
     def validate_list_items(cls, v):
