@@ -7,6 +7,9 @@ from pathlib import Path
 from datetime import datetime
 import os
 import shutil
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Lazy import for Lambda compatibility
 try:
