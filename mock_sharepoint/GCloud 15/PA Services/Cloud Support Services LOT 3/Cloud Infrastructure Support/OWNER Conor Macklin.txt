@@ -1,3 +1,0 @@
-1. SERVICE: Cloud Infrastructure Support
-2. OWNER: Conor Macklin
-3. SPONSOR: Lee Howells

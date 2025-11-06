@@ -3,8 +3,8 @@
  * Handles Update vs Create workflow with SharePoint integration
  */
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Container,
   Box,
@@ -42,6 +42,7 @@ type LotType = '2' | '3' | null;
 
 export default function ProposalFlow() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeStep, setActiveStep] = useState(0);
   const [flowType, setFlowType] = useState<FlowType>(null);
   const [docType, setDocType] = useState<DocType>(null);
@@ -55,6 +56,16 @@ export default function ProposalFlow() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Check for URL parameter to skip step 1 (coming from dashboard)
+  useEffect(() => {
+    const type = searchParams.get('type');
+    if (type === 'create') {
+      // Skip step 0 (Select Flow Type) and go directly to step 1 (Enter Proposal Details)
+      setFlowType('create');
+      setActiveStep(1);
+    }
+  }, [searchParams]);
 
   const steps = [
     'Select Flow Type',

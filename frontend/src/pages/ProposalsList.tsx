@@ -235,7 +235,7 @@ export default function ProposalsList() {
             sessionStorage.removeItem('updateDocument');
             sessionStorage.removeItem('updateMetadata');
             sessionStorage.removeItem('newProposal');
-            navigate('/proposals/create');
+            navigate('/proposals/flow?type=create');
           }}
         >
           Create New Proposal
