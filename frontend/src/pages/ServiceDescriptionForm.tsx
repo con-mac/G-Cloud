@@ -24,6 +24,10 @@ interface ValidationState {
 }
 
 export default function ServiceDescriptionForm() {
+  // TEST: Log immediately when component renders
+  console.log('🚀 [ServiceDescriptionForm] Component rendering...');
+  console.warn('⚠️ TEST: Console logging test - if you see this, logging works!');
+  
   const navigate = useNavigate();
   
   // Form state
@@ -199,7 +203,10 @@ export default function ServiceDescriptionForm() {
 
   // Draft persistence: load on mount
   useEffect(() => {
-    console.log('🔍 [ServiceDescriptionForm] Component mounted - starting data load');
+    // TEST: This should always appear in console
+    console.log('🔍🔍🔍 [ServiceDescriptionForm] Component mounted - starting data load');
+    console.warn('⚠️ TEST: If you see this, console logging is working!');
+    console.error('❌ TEST: Error level logging test');
     const loadData = async () => {
       try {
         const newProposal = sessionStorage.getItem('newProposal');
