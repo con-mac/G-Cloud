@@ -38,10 +38,11 @@ export default function CreateProposal() {
 
   const handleSelectTemplate = (templateId: string) => {
     if (templateId === 'service-description') {
-      // Clear any previous proposal data for security
+      // Clear any previous update data for security (but keep newProposal if it exists)
       sessionStorage.removeItem('updateDocument');
       sessionStorage.removeItem('updateMetadata');
-      sessionStorage.removeItem('newProposal');
+      // Don't clear newProposal here - it might be set from ProposalFlow
+      // Only clear it when explicitly starting a new proposal
       
       navigate('/proposals/create/service-description');
     } else if (templateId === 'pricing-document') {
