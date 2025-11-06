@@ -110,33 +110,23 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                     result['description'] = text
             
             elif in_features:
-                # Check if it's a list item (bullet or numbered)
-                if para.style.name.startswith('List') or para.style.name.startswith('List Bullet'):
-                    # Strip numbered prefixes (1., 2., etc.) before adding
-                    stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
-                    if stripped_text:
-                        result['features'].append(stripped_text)
-                elif text and not any(keyword in text.lower() for keyword in ['key service', 'short service']):
-                    # Not a heading, could be a feature - strip numbered prefixes
-                    stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
-                    if stripped_text:
-                        result['features'].append(stripped_text)
+                # Always strip numbered prefixes (1., 2., etc.) from features
+                # The Word generator adds numbers as text runs, so para.text includes them
+                stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
+                if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
+                    result['features'].append(stripped_text)
             
             elif in_benefits:
-                # Check if it's a list item
-                if para.style.name.startswith('List') or para.style.name.startswith('List Bullet'):
-                    # Strip numbered prefixes (1., 2., etc.) before adding
-                    stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
-                    if stripped_text:
-                        result['benefits'].append(stripped_text)
-                elif text and not any(keyword in text.lower() for keyword in ['key service', 'short service']):
-                    # Not a heading, could be a benefit - strip numbered prefixes
-                    stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
-                    if stripped_text:
-                        result['benefits'].append(stripped_text)
+                # Always strip numbered prefixes (1., 2., etc.) from benefits
+                # The Word generator adds numbers as text runs, so para.text includes them
+                stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
+                if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
+                    result['benefits'].append(stripped_text)
             
             elif in_service_def and current_subsection:
-                # Add content to current subsection
+                # For service definition, preserve HTML format if possible
+                # Check if paragraph has inline shapes (images) - for now just preserve text
+                # Images will need more complex extraction logic
                 if current_subsection['content']:
                     current_subsection['content'] += ' ' + text
                 else:
