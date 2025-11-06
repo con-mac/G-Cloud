@@ -14,13 +14,14 @@ try:
 except ImportError:
     db_service = None
 
-# Import SharePoint mock service
+# Import SharePoint service (switches between local and S3)
 try:
-    from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH, read_metadata_file, get_document_path
+    from sharepoint_service.sharepoint_service import MOCK_BASE_PATH, read_metadata_file, get_document_path, USE_S3
 except ImportError:
     MOCK_BASE_PATH = None
     read_metadata_file = None
     get_document_path = None
+    USE_S3 = False
 
 router = APIRouter()
 
@@ -265,6 +266,85 @@ async def get_all_proposals_admin():
         List of all proposals across all owners
     """
     try:
+        if USE_S3:
+            # For S3, we need to use list_all_folders and search_documents
+            from sharepoint_service.sharepoint_service import list_all_folders, search_documents
+            proposals = []
+            
+            # Get all proposals from both GCloud 14 and 15
+            for version in ["14", "15"]:
+                folders = list_all_folders(version)
+                for folder in folders:
+                    service_name = folder.get('service_name', '')
+                    lot = folder.get('lot', '2')
+                    owner = folder.get('owner', '')
+                    
+                    # Check if both SERVICE DESC and Pricing Doc exist
+                    service_desc_exists = False
+                    pricing_doc_exists = False
+                    last_update = None
+                    
+                    if get_document_path:
+                        # Check SERVICE DESC
+                        service_desc_path = get_document_path(service_name, "SERVICE DESC", lot, version)
+                        if service_desc_path:
+                            service_desc_exists = True
+                            # For S3, we'd need to get object metadata for last_update
+                            # For now, we'll use current time as placeholder
+                            from datetime import datetime
+                            last_update = datetime.now().timestamp()
+                        
+                        # Check Pricing Doc
+                        pricing_doc_path = get_document_path(service_name, "Pricing Doc", lot, version)
+                        if pricing_doc_path:
+                            pricing_doc_exists = True
+                            from datetime import datetime
+                            if last_update is None:
+                                last_update = datetime.now().timestamp()
+                    
+                    # Determine status
+                    if service_desc_exists and pricing_doc_exists:
+                        status = "complete"
+                        completion_percentage = 100.0
+                    elif service_desc_exists or pricing_doc_exists:
+                        status = "incomplete"
+                        completion_percentage = 50.0
+                    else:
+                        status = "draft"
+                        completion_percentage = 0.0
+                    
+                    # Format last update
+                    last_update_str = None
+                    if last_update:
+                        last_update_str = datetime.fromtimestamp(last_update).isoformat()
+                    
+                    # Create proposal ID
+                    proposal_id = f"{service_name}_{version}_{lot}".replace(" ", "_").lower()
+                    
+                    proposals.append({
+                        "id": proposal_id,
+                        "title": service_name,
+                        "framework_version": f"G-Cloud {version}",
+                        "gcloud_version": version,
+                        "lot": lot,
+                        "status": status,
+                        "completion_percentage": completion_percentage,
+                        "section_count": 2,
+                        "valid_sections": 2 if status == "complete" else 1 if status == "incomplete" else 0,
+                        "created_at": last_update_str or datetime.now().isoformat(),
+                        "updated_at": last_update_str or datetime.now().isoformat(),
+                        "last_update": last_update_str,
+                        "service_desc_exists": service_desc_exists,
+                        "pricing_doc_exists": pricing_doc_exists,
+                        "owner": owner,
+                        "sponsor": folder.get('sponsor', ''),
+                    })
+            
+            # Sort by last update (most recent first)
+            proposals.sort(key=lambda x: x.get("last_update") or "", reverse=True)
+            return proposals
+        
+        # Local file system path
         if not MOCK_BASE_PATH or not MOCK_BASE_PATH.exists():
             return []
         

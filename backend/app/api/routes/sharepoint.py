@@ -7,13 +7,15 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict
 import logging
 
-from sharepoint_service.mock_sharepoint import (
+from sharepoint_service.sharepoint_service import (
     search_documents,
     read_metadata_file,
     get_document_path,
     create_folder,
     create_metadata_file,
     list_all_folders,
+    MOCK_BASE_PATH,
+    USE_S3,
 )
 from sharepoint_service.document_parser import read_document_content
 
@@ -105,19 +107,30 @@ async def get_metadata(
     """
     try:
         from pathlib import Path
-        from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
+        from sharepoint_service.sharepoint_service import MOCK_BASE_PATH, USE_S3
         
         base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
         lot_folder = base_path / f"Cloud Support Services LOT {lot}"
         
         # Find service folder (fuzzy match)
         service_folder = None
-        for folder in lot_folder.iterdir():
-            if folder.is_dir():
-                from sharepoint_service.mock_sharepoint import fuzzy_match
-                if fuzzy_match(service_name, folder.name):
-                    service_folder = folder
-                    break
+        if not USE_S3 and MOCK_BASE_PATH:
+            lot_folder = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}"
+            if lot_folder.exists():
+                for folder in lot_folder.iterdir():
+                    if folder.is_dir():
+                        from sharepoint_service.sharepoint_service import fuzzy_match
+                        if fuzzy_match(service_name, folder.name):
+                            service_folder = folder
+                            break
+        else:
+            # For S3, get_document_path returns the S3 key directly
+            # We'll use get_document_path to find the folder
+            from sharepoint_service.sharepoint_service import get_document_path
+            doc_path = get_document_path(service_name, "SERVICE DESC", lot, gcloud_version)
+            if doc_path:
+                # Extract folder path from S3 key
+                service_folder = Path(doc_path).parent if isinstance(doc_path, str) else doc_path.parent
         
         if not service_folder:
             raise HTTPException(status_code=404, detail=f"Service folder not found: {service_name}")

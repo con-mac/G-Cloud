@@ -116,6 +116,18 @@ resource "aws_s3_bucket" "uploads" {
   bucket = "${var.project_name}-${var.environment}-uploads"
 }
 
+# S3 Bucket for SharePoint Documents (Private)
+resource "aws_s3_bucket" "sharepoint" {
+  bucket = "${var.project_name}-${var.environment}-sharepoint"
+}
+
+resource "aws_s3_bucket_versioning" "sharepoint" {
+  bucket = aws_s3_bucket.sharepoint.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   bucket = aws_s3_bucket.uploads.id
 
@@ -173,7 +185,8 @@ resource "aws_iam_role_policy" "lambda_s3" {
         Resource = [
           "${aws_s3_bucket.templates.arn}/*",
           "${aws_s3_bucket.output.arn}/*",
-          "${aws_s3_bucket.uploads.arn}/*"
+          "${aws_s3_bucket.uploads.arn}/*",
+          "${aws_s3_bucket.sharepoint.arn}/*"
         ]
       },
       {
@@ -184,7 +197,8 @@ resource "aws_iam_role_policy" "lambda_s3" {
         Resource = [
           aws_s3_bucket.templates.arn,
           aws_s3_bucket.output.arn,
-          aws_s3_bucket.uploads.arn
+          aws_s3_bucket.uploads.arn,
+          aws_s3_bucket.sharepoint.arn
         ]
       },
       {
@@ -225,6 +239,7 @@ resource "aws_lambda_function" "api" {
       TEMPLATE_BUCKET_NAME        = aws_s3_bucket.templates.id
       OUTPUT_BUCKET_NAME          = aws_s3_bucket.output.id
       UPLOAD_BUCKET_NAME          = aws_s3_bucket.uploads.id
+      SHAREPOINT_BUCKET_NAME      = aws_s3_bucket.sharepoint.id
       TEMPLATE_S3_KEY             = "templates/service_description_template.docx"
       PDF_CONVERTER_FUNCTION_NAME = try(aws_lambda_function.pdf_converter.function_name, "")
       SECRET_KEY                  = var.app_secret_key
