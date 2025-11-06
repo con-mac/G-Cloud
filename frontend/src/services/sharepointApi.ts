@@ -39,6 +39,7 @@ export interface CreateMetadataRequest {
   sponsor: string;
   lot: '2' | '3';
   gcloud_version?: '14' | '15';
+  last_edited_by?: string;
 }
 
 class SharePointApiService {

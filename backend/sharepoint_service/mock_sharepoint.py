@@ -43,13 +43,13 @@ def fuzzy_match(query: str, service_name: str) -> bool:
 
 def read_metadata_file(folder_path: Path) -> Optional[Dict[str, str]]:
     """
-    Read metadata .txt file and parse SERVICE, OWNER, SPONSOR.
+    Read metadata .txt file and parse SERVICE, OWNER, SPONSOR, LAST EDITED BY.
     
     Args:
         folder_path: Path to service folder containing metadata file
         
     Returns:
-        Dict with 'service', 'owner', 'sponsor' or None if not found
+        Dict with 'service', 'owner', 'sponsor', 'last_edited_by' or None if not found
     """
     # Find .txt file starting with "OWNER"
     txt_files = list(folder_path.glob("OWNER*.txt"))
@@ -66,10 +66,12 @@ def read_metadata_file(folder_path: Path) -> Optional[Dict[str, str]]:
         # 1. SERVICE: [Service Name]
         # 2. OWNER: [First name] [Last name]
         # 3. SPONSOR: [First name] [Last name]
+        # 4. LAST EDITED BY: [First name] [Last name] (optional)
         
         service_match = re.search(r'1\.\s*SERVICE:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
         owner_match = re.search(r'2\.\s*OWNER:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
         sponsor_match = re.search(r'3\.\s*SPONSOR:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
+        last_edited_match = re.search(r'4\.\s*LAST EDITED BY:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
         
         metadata = {}
         if service_match:
@@ -78,6 +80,8 @@ def read_metadata_file(folder_path: Path) -> Optional[Dict[str, str]]:
             metadata['owner'] = owner_match.group(1).strip()
         if sponsor_match:
             metadata['sponsor'] = sponsor_match.group(1).strip()
+        if last_edited_match:
+            metadata['last_edited_by'] = last_edited_match.group(1).strip()
         
         return metadata if metadata else None
         
@@ -256,7 +260,7 @@ def create_folder(service_name: str, lot: str, gcloud_version: str = "15") -> Tu
     return True, str(service_folder)
 
 
-def create_metadata_file(folder_path: str, service: str, owner: str, sponsor: str) -> bool:
+def create_metadata_file(folder_path: str, service: str, owner: str, sponsor: str, last_edited_by: Optional[str] = None) -> bool:
     """
     Create metadata .txt file with exact format.
     
@@ -265,6 +269,7 @@ def create_metadata_file(folder_path: str, service: str, owner: str, sponsor: st
         service: Service name
         owner: Owner name (First name Last name)
         sponsor: Sponsor name (First name Last name)
+        last_edited_by: Last edited by name (First name Last name) - optional
         
     Returns:
         True if successful, False otherwise
@@ -283,6 +288,10 @@ def create_metadata_file(folder_path: str, service: str, owner: str, sponsor: st
 2. OWNER: {owner}
 3. SPONSOR: {sponsor}
 """
+        
+        # Add last edited by if provided
+        if last_edited_by:
+            content += f"4. LAST EDITED BY: {last_edited_by}\n"
         
         with open(metadata_path, 'w', encoding='utf-8') as f:
             f.write(content)

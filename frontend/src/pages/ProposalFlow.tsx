@@ -23,6 +23,11 @@ import {
   Step,
   StepLabel,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -56,6 +61,8 @@ export default function ProposalFlow() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [changeMetadataDialogOpen, setChangeMetadataDialogOpen] = useState(false);
+  const [pendingUpdateContent, setPendingUpdateContent] = useState<any>(null);
 
   // Check for URL parameter to skip step 1 (coming from dashboard)
   useEffect(() => {
@@ -110,13 +117,26 @@ export default function ProposalFlow() {
     setError('');
   };
 
+  // Extract name from email: Firstname.Lastname@paconsulting.com → "Firstname Lastname"
+  const extractNameFromEmail = (email: string): string => {
+    if (!email || !email.includes('@')) return '';
+    const localPart = email.split('@')[0];
+    const name = localPart.replace('.', ' ');
+    return name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
   const handleProceed = async () => {
     setLoading(true);
     setError('');
 
     try {
       if (flowType === 'update' && selectedResult) {
-        // Load document content and redirect to editor with pre-populated data
+        // Check if owner matches logged-in user
+        const userEmail = sessionStorage.getItem('userEmail');
+        const userName = userEmail ? extractNameFromEmail(userEmail) : '';
+        const proposalOwner = selectedResult.owner || '';
+        
+        // Load document content first
         try {
           // Use docType from state if selectedResult doesn't have it
           const docTypeToUse = (selectedResult.doc_type || docType) as 'SERVICE DESC' | 'Pricing Doc';
@@ -137,6 +157,27 @@ export default function ProposalFlow() {
             gcloudVersionToUse
           );
           
+          // Check if owner matches logged-in user (case-insensitive)
+          if (userName.toLowerCase() !== proposalOwner.toLowerCase()) {
+            // Owner doesn't match - ask if they want to change metadata
+            setPendingUpdateContent({
+              content: documentContent,
+              metadata: {
+                service_name: selectedResult.service_name,
+                owner: selectedResult.owner,
+                sponsor: selectedResult.sponsor,
+                lot: lotToUse,
+                doc_type: docTypeToUse,
+                gcloud_version: gcloudVersionToUse,
+                folder_path: selectedResult.folder_path || '',
+              }
+            });
+            setChangeMetadataDialogOpen(true);
+            setLoading(false);
+            return;
+          }
+          
+          // Owner matches - proceed with normal update flow
           // Store document content and metadata for the form
           const updateMetadata = {
             service_name: selectedResult.service_name,

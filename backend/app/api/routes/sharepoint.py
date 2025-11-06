@@ -52,6 +52,7 @@ class CreateMetadataRequest(BaseModel):
     sponsor: str
     lot: str
     gcloud_version: str = "15"
+    last_edited_by: Optional[str] = None
 
 
 class MetadataResponse(BaseModel):
@@ -245,7 +246,8 @@ async def create_metadata(request: CreateMetadataRequest):
             folder_path=folder_path,
             service=request.service_name,
             owner=request.owner,
-            sponsor=request.sponsor
+            sponsor=request.sponsor,
+            last_edited_by=request.last_edited_by
         )
         
         if not success:
