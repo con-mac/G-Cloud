@@ -19,8 +19,13 @@ except ImportError:
 
 # Import SharePoint service (switches between local and S3)
 try:
-    from sharepoint_service.sharepoint_service import MOCK_BASE_PATH, read_metadata_file, get_document_path, USE_S3
-except ImportError:
+    # Try both import paths (local and Lambda)
+    try:
+        from sharepoint_service.sharepoint_service import MOCK_BASE_PATH, read_metadata_file, get_document_path, USE_S3
+    except ImportError:
+        from app.sharepoint_service.sharepoint_service import MOCK_BASE_PATH, read_metadata_file, get_document_path, USE_S3
+except ImportError as e:
+    logger.warning(f"Failed to import SharePoint service: {e}")
     MOCK_BASE_PATH = None
     read_metadata_file = None
     get_document_path = None
