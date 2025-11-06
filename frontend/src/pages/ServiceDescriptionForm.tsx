@@ -194,15 +194,29 @@ export default function ServiceDescriptionForm() {
         try {
           const updateData = JSON.parse(updateDoc);
           
-          // Check if cache is stale (older than 5 minutes) - always fetch fresh
-          const cacheAge = updateData._timestamp ? Date.now() - updateData._timestamp : Infinity;
-          const CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
+          // ALWAYS fetch fresh from backend to ensure parser strips numbers correctly
+          // Don't trust cached data - it might have numbers from before the fix
+          console.log('[ServiceDescriptionForm] Clearing cached updateDocument to force fresh parse');
+          sessionStorage.removeItem('updateDocument');
           
-          if (cacheAge > CACHE_MAX_AGE) {
-            console.log('Cache is stale, clearing...');
-            sessionStorage.removeItem('updateDocument');
-            // Don't load from cache - will fetch fresh from backend
-          } else if (updateData.content) {
+          // Fetch fresh data from backend
+          if (updateData.service_name && updateData.lot && updateData.doc_type && updateData.gcloud_version) {
+            try {
+              const sharepointApi = (await import('../services/sharepointApi')).default;
+              const freshContent = await sharepointApi.getDocumentContent(
+                updateData.service_name,
+                updateData.doc_type,
+                updateData.lot,
+                updateData.gcloud_version
+              );
+              
+              console.log('[ServiceDescriptionForm] Fresh data from backend:', {
+                features: freshContent.features,
+                benefits: freshContent.benefits
+              });
+              
+              // Use fresh parsed data (parser should have stripped numbers)
+              const content = freshContent;
             const content = updateData.content;
             
             // Sanitize service_definition subtitles - replace AI Security advisory
