@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Union
 from docx import Document
 from io import BytesIO
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -111,18 +112,28 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
             elif in_features:
                 # Check if it's a list item (bullet or numbered)
                 if para.style.name.startswith('List') or para.style.name.startswith('List Bullet'):
-                    result['features'].append(text)
+                    # Strip numbered prefixes (1., 2., etc.) before adding
+                    stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
+                    if stripped_text:
+                        result['features'].append(stripped_text)
                 elif text and not any(keyword in text.lower() for keyword in ['key service', 'short service']):
-                    # Not a heading, could be a feature
-                    result['features'].append(text)
+                    # Not a heading, could be a feature - strip numbered prefixes
+                    stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
+                    if stripped_text:
+                        result['features'].append(stripped_text)
             
             elif in_benefits:
                 # Check if it's a list item
                 if para.style.name.startswith('List') or para.style.name.startswith('List Bullet'):
-                    result['benefits'].append(text)
+                    # Strip numbered prefixes (1., 2., etc.) before adding
+                    stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
+                    if stripped_text:
+                        result['benefits'].append(stripped_text)
                 elif text and not any(keyword in text.lower() for keyword in ['key service', 'short service']):
-                    # Not a heading, could be a benefit
-                    result['benefits'].append(text)
+                    # Not a heading, could be a benefit - strip numbered prefixes
+                    stripped_text = re.sub(r'^\s*\d+\.?\s*', '', text.strip())
+                    if stripped_text:
+                        result['benefits'].append(stripped_text)
             
             elif in_service_def and current_subsection:
                 # Add content to current subsection
