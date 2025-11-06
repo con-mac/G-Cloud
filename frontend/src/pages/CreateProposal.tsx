@@ -38,6 +38,11 @@ export default function CreateProposal() {
 
   const handleSelectTemplate = (templateId: string) => {
     if (templateId === 'service-description') {
+      // Clear any previous proposal data for security
+      sessionStorage.removeItem('updateDocument');
+      sessionStorage.removeItem('updateMetadata');
+      sessionStorage.removeItem('newProposal');
+      
       navigate('/proposals/create/service-description');
     } else if (templateId === 'pricing-document') {
       // Coming soon

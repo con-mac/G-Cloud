@@ -186,7 +186,13 @@ export default function ProposalsList() {
           variant="contained"
           size="large"
           startIcon={<AddIcon />}
-          onClick={() => navigate('/proposals/create')}
+          onClick={() => {
+            // Clear any previous proposal data for security
+            sessionStorage.removeItem('updateDocument');
+            sessionStorage.removeItem('updateMetadata');
+            sessionStorage.removeItem('newProposal');
+            navigate('/proposals/create');
+          }}
         >
           Create New Proposal
         </Button>

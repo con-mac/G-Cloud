@@ -180,6 +180,10 @@ export default function ProposalFlow() {
           gcloud_version: '15',
         });
 
+        // Clear any previous proposal data for security
+        sessionStorage.removeItem('updateDocument');
+        sessionStorage.removeItem('updateMetadata');
+        
         // Store creation data for document generation
         sessionStorage.setItem('newProposal', JSON.stringify(createData));
 
