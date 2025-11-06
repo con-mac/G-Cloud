@@ -45,6 +45,8 @@ fi
 # Copy application code
 echo "📋 Copying application code..."
 cp -r app /tmp/lambda-package/
+# Copy sharepoint_service (needed for S3/local switching)
+cp -r sharepoint_service /tmp/lambda-package/
 
 # Create zip package
 echo "📦 Creating deployment package..."
