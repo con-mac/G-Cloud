@@ -285,47 +285,50 @@ export default function ServiceDescriptionForm() {
             sessionStorage.removeItem('updateDocument');
           }
         }
-      
-      // SECOND: Check if this is a new proposal (has newProposal but no updateDocument)
-      // If creating new proposal, clear any stale cache and don't load drafts
-      if (newProposal && !updateDoc) {
-        // Clear any stale update data for security
-        sessionStorage.removeItem('updateDocument');
-        sessionStorage.removeItem('updateMetadata');
-        // Don't load draft from localStorage for new proposals (security)
-        return;
-      }
-      
-      // THIRD: Load draft from localStorage if NOT creating a new proposal
-      // (security: don't load other users' drafts)
-      if (!newProposal) {
-        const raw = localStorage.getItem(draftKey);
-        if (raw) {
-          const data = JSON.parse(raw);
-          // Strip numbered prefixes from features/benefits (defensive)
-          const stripNumberPrefix = (text: string): string => {
-            return text.replace(/^\s*\d+[\.\)]?\s*/, '');
-          };
-          
-          if (typeof data.title === 'string') setTitle(data.title);
-          if (typeof data.description === 'string') setDescription(data.description);
-          if (Array.isArray(data.features)) {
-            setFeatures(data.features.map((f: string) => stripNumberPrefix(f)));
-          }
-          if (Array.isArray(data.benefits)) {
-            setBenefits(data.benefits.map((b: string) => stripNumberPrefix(b)));
-          }
-          if (Array.isArray(data.serviceDefinition)) {
-            const restored = data.serviceDefinition.map((b: any) => ({
-              id: typeof b.id === 'string' ? b.id : generateId(),
-              subtitle: b.subtitle || '',
-              content: b.content || '',
-            }));
-            setServiceDefinition(restored.length ? restored : [{ id: generateId(), subtitle: '', content: '' }]);
+        
+        // SECOND: Check if this is a new proposal (has newProposal but no updateDocument)
+        // If creating new proposal, clear any stale cache and don't load drafts
+        if (newProposal && !updateDoc) {
+          // Clear any stale update data for security
+          sessionStorage.removeItem('updateDocument');
+          sessionStorage.removeItem('updateMetadata');
+          // Don't load draft from localStorage for new proposals (security)
+          return;
+        }
+        
+        // THIRD: Load draft from localStorage if NOT creating a new proposal
+        // (security: don't load other users' drafts)
+        if (!newProposal) {
+          const raw = localStorage.getItem(draftKey);
+          if (raw) {
+            const data = JSON.parse(raw);
+            // Strip numbered prefixes from features/benefits (defensive)
+            const stripNumberPrefix = (text: string): string => {
+              return text.replace(/^\s*\d+[\.\)]?\s*/, '');
+            };
+            
+            if (typeof data.title === 'string') setTitle(data.title);
+            if (typeof data.description === 'string') setDescription(data.description);
+            if (Array.isArray(data.features)) {
+              setFeatures(data.features.map((f: string) => stripNumberPrefix(f)));
+            }
+            if (Array.isArray(data.benefits)) {
+              setBenefits(data.benefits.map((b: string) => stripNumberPrefix(b)));
+            }
+            if (Array.isArray(data.serviceDefinition)) {
+              const restored = data.serviceDefinition.map((b: any) => ({
+                id: typeof b.id === 'string' ? b.id : generateId(),
+                subtitle: b.subtitle || '',
+                content: b.content || '',
+              }));
+              setServiceDefinition(restored.length ? restored : [{ id: generateId(), subtitle: '', content: '' }]);
+            }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    };
+    
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
