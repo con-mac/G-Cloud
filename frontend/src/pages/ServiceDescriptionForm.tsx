@@ -460,10 +460,19 @@ export default function ServiceDescriptionForm() {
   const handleLoadDraft = (draft: any) => {
     if (confirm(`Load draft "${draft.name}"? This will replace your current work.`)) {
       try {
+        // Strip numbered prefixes from features/benefits (defensive)
+        const stripNumberPrefix = (text: string): string => {
+          return text.replace(/^\s*\d+[\.\)]?\s*/, '');
+        };
+        
         if (draft.data.title) setTitle(draft.data.title);
         if (draft.data.description) setDescription(draft.data.description);
-        if (Array.isArray(draft.data.features)) setFeatures(draft.data.features);
-        if (Array.isArray(draft.data.benefits)) setBenefits(draft.data.benefits);
+        if (Array.isArray(draft.data.features)) {
+          setFeatures(draft.data.features.map((f: string) => stripNumberPrefix(f)));
+        }
+        if (Array.isArray(draft.data.benefits)) {
+          setBenefits(draft.data.benefits.map((b: string) => stripNumberPrefix(b)));
+        }
         if (Array.isArray(draft.data.serviceDefinition)) {
           const serviceDef = draft.data.serviceDefinition.map((b: any) => ({
             id: generateId(),
