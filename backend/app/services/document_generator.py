@@ -214,14 +214,21 @@ class DocumentGenerator:
                 gcloud_version = new_proposal_metadata.get('gcloud_version', '15')
                 doc_type = 'SERVICE DESC'  # Always SERVICE DESC for new proposals
                 
-                # Find folder path
-                doc_path = get_document_path(service_name, doc_type, lot, gcloud_version)
-                if doc_path:
-                    folder_path = doc_path.parent
-                else:
-                    # Fallback: construct path
-                    from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
-                    folder_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name
+                # Find folder path - construct directly since folder should exist (created in ProposalFlow)
+                from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
+                folder_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name
+                
+                # Verify folder exists, if not try to find it with fuzzy match
+                if not folder_path.exists():
+                    # Try to find folder with fuzzy match
+                    base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
+                    lot_folder = base_path / f"Cloud Support Services LOT {lot}"
+                    if lot_folder.exists():
+                        from sharepoint_service.mock_sharepoint import fuzzy_match
+                        for folder in lot_folder.iterdir():
+                            if folder.is_dir() and fuzzy_match(service_name, folder.name):
+                                folder_path = folder
+                                break
             
             # Use exact filename format: PA GC15 SERVICE DESC [Service Name].docx
             if doc_type == 'SERVICE DESC':
