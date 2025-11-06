@@ -17,16 +17,21 @@ try:
 except (ImportError, AttributeError, ModuleNotFoundError):
     sharepoint = None
 
+# Import proposals router (uses SharePoint service, not database)
+# Proposals router works with both local and S3 storage
+try:
+    from app.api.routes import proposals
+except (ImportError, AttributeError, ModuleNotFoundError):
+    proposals = None
+
 # Only import database-dependent routes if not in Lambda
 if not _use_s3:
     try:
-        from app.api.routes import proposals, sections
+        from app.api.routes import sections
     except (ImportError, AttributeError, ModuleNotFoundError):
-        proposals = None
         sections = None
 else:
-    # In Lambda, don't even try to import database-dependent routes
-    proposals = None
+    # In Lambda, don't import database-dependent routes
     sections = None
 
 api_router = APIRouter()
