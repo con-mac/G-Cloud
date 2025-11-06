@@ -371,7 +371,25 @@ export default function ServiceDescriptionForm() {
       navigate('/proposals');
     } catch (error: any) {
       console.error('Error saving draft:', error);
-      alert(`Error: ${error.response?.data?.detail || 'Failed to save draft'}`);
+      
+      // Extract error message properly
+      let errorMessage = 'Failed to save draft';
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        if (typeof detail === 'string') {
+          errorMessage = detail;
+        } else if (Array.isArray(detail)) {
+          errorMessage = detail.map((d: any) => typeof d === 'string' ? d : JSON.stringify(d)).join(', ');
+        } else {
+          errorMessage = JSON.stringify(detail);
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(`Error: ${errorMessage}`);
     } finally {
       setSubmitting(false);
     }
