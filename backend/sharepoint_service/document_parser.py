@@ -86,8 +86,8 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                 in_service_def = False
                 continue
             
-            # Service Definition (Heading 3)
-            if style.startswith('Heading 3'):
+            # Service Definition (Heading 3) - also check for "Service Definition" heading
+            if style.startswith('Heading 3') or text == 'Service Definition':
                 # Save previous subsection if exists
                 if current_subsection:
                     result['service_definition'].append(current_subsection)
@@ -122,6 +122,13 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                     result['features'].append(stripped_text)
             
             elif in_benefits:
+                # Skip "Service Definition" heading if it appears in benefits section
+                if text == 'Service Definition' or style.startswith('Heading'):
+                    in_benefits = False
+                    in_service_def = True
+                    # Start new subsection
+                    current_subsection = {'subtitle': 'Service Definition', 'content': ''}
+                    continue
                 # Strip numbered prefixes (1., 2., etc.) from benefits
                 # Numbers are for Word document formatting only - should not appear in form
                 # The Word generator creates: Run 1 = "1. " (red), Run 2 = "text" (black)
@@ -130,7 +137,7 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                 stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', original_text)
                 if original_text != stripped_text:
                     logger.debug(f"Stripped number from benefit: '{original_text}' -> '{stripped_text}'")
-                if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
+                if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service', 'service definition']):
                     result['benefits'].append(stripped_text)
             
             elif in_service_def and current_subsection:
