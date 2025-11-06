@@ -330,7 +330,12 @@ class DocumentGenerator:
             with open(word_path, 'rb') as f:
                 s3_client.upload_fileobj(f, bucket_name, word_s3_key)
             
-            word_url = self.s3_service.get_presigned_url(word_s3_key)
+            # Generate presigned URL for the uploaded document
+            word_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': word_s3_key},
+                ExpiresIn=3600  # 1 hour
+            )
             
             # Invoke PDF converter Lambda to generate PDF
             pdf_s3_key = f"generated/{filename_base}.pdf"
