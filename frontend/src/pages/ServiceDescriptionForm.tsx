@@ -273,10 +273,19 @@ export default function ServiceDescriptionForm() {
         const raw = localStorage.getItem(draftKey);
         if (raw) {
           const data = JSON.parse(raw);
+          // Strip numbered prefixes from features/benefits (defensive)
+          const stripNumberPrefix = (text: string): string => {
+            return text.replace(/^\s*\d+[\.\)]?\s*/, '');
+          };
+          
           if (typeof data.title === 'string') setTitle(data.title);
           if (typeof data.description === 'string') setDescription(data.description);
-          if (Array.isArray(data.features)) setFeatures(data.features);
-          if (Array.isArray(data.benefits)) setBenefits(data.benefits);
+          if (Array.isArray(data.features)) {
+            setFeatures(data.features.map((f: string) => stripNumberPrefix(f)));
+          }
+          if (Array.isArray(data.benefits)) {
+            setBenefits(data.benefits.map((b: string) => stripNumberPrefix(b)));
+          }
           if (Array.isArray(data.serviceDefinition)) {
             const restored = data.serviceDefinition.map((b: any) => ({
               id: typeof b.id === 'string' ? b.id : generateId(),
