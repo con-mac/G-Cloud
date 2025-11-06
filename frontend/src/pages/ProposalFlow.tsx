@@ -31,6 +31,7 @@ import {
   Add,
   Description,
   AttachMoney,
+  Dashboard,
 } from '@mui/icons-material';
 import SharePointSearch from '../components/SharePointSearch';
 import sharepointApi, { SearchResult } from '../services/sharepointApi';
@@ -415,6 +416,13 @@ export default function ProposalFlow() {
             <Typography variant="h5" component="h1" sx={{ flex: 1 }}>
               Proposal Workflow
             </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<Dashboard />}
+              onClick={() => navigate('/proposals')}
+            >
+              Visit your dashboard
+            </Button>
           </Box>
 
           <Stepper activeStep={activeStep} sx={{ mb: 4 }}>

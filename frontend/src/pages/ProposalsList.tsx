@@ -130,12 +130,17 @@ export default function ProposalsList() {
         folder_path: '', // Will be resolved by backend
       };
 
+      // Add timestamp to prevent stale cache issues
       sessionStorage.setItem('updateDocument', JSON.stringify({
         ...updateMetadata,
         content: documentContent,
+        _timestamp: Date.now(),
       }));
 
       sessionStorage.setItem('updateMetadata', JSON.stringify(updateMetadata));
+      
+      // Clear newProposal when opening existing proposal (not creating new)
+      sessionStorage.removeItem('newProposal');
 
       // Navigate to template
       navigate('/proposals/create/service-description');

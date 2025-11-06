@@ -185,20 +185,11 @@ export default function ServiceDescriptionForm() {
   // Draft persistence: load on mount
   useEffect(() => {
     try {
-      // Check if this is a new proposal (has newProposal but no updateDocument)
       const newProposal = sessionStorage.getItem('newProposal');
       const updateDoc = sessionStorage.getItem('updateDocument');
       
-      // If creating new proposal, clear any stale cache and don't load drafts
-      if (newProposal && !updateDoc) {
-        // Clear any stale update data for security
-        sessionStorage.removeItem('updateDocument');
-        sessionStorage.removeItem('updateMetadata');
-        // Don't load draft from localStorage for new proposals (security)
-        return;
-      }
-      
-      // First, check if we're updating an existing document
+      // FIRST: Check if we're updating an existing document (from dashboard)
+      // This takes priority over newProposal to ensure drafts load correctly
       if (updateDoc) {
         try {
           const updateData = JSON.parse(updateDoc);
@@ -246,6 +237,8 @@ export default function ServiceDescriptionForm() {
             sessionStorage.setItem('updateMetadata', JSON.stringify(updateData));
             // Clear updateDocument to avoid reloading
             sessionStorage.removeItem('updateDocument');
+            // Clear newProposal if it exists (opening existing document, not creating new)
+            sessionStorage.removeItem('newProposal');
             return;
           }
         } catch (e) {
@@ -255,7 +248,17 @@ export default function ServiceDescriptionForm() {
         }
       }
       
-      // Only load draft from localStorage if NOT creating a new proposal
+      // SECOND: Check if this is a new proposal (has newProposal but no updateDocument)
+      // If creating new proposal, clear any stale cache and don't load drafts
+      if (newProposal && !updateDoc) {
+        // Clear any stale update data for security
+        sessionStorage.removeItem('updateDocument');
+        sessionStorage.removeItem('updateMetadata');
+        // Don't load draft from localStorage for new proposals (security)
+        return;
+      }
+      
+      // THIRD: Load draft from localStorage if NOT creating a new proposal
       // (security: don't load other users' drafts)
       if (!newProposal) {
         const raw = localStorage.getItem(draftKey);
