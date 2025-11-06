@@ -3,14 +3,15 @@ Word document parser for extracting content from existing documents
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from docx import Document
+from io import BytesIO
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def parse_service_description_document(doc_path: Path) -> Dict:
+def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> Dict:
     """
     Parse a Service Description Word document and extract content.
     
@@ -28,7 +29,11 @@ def parse_service_description_document(doc_path: Path) -> Dict:
         }
     """
     try:
-        doc = Document(str(doc_path))
+        # Handle both Path objects and BytesIO (for S3)
+        if isinstance(doc_path, BytesIO):
+            doc = Document(doc_path)
+        else:
+            doc = Document(str(doc_path))
         
         result = {
             'title': '',
@@ -137,13 +142,27 @@ def parse_service_description_document(doc_path: Path) -> Dict:
         return result
         
     except Exception as e:
-        logger.error(f"Error parsing document {doc_path}: {e}")
+        logger.error(f"Error parsing document: {e}")
         raise
+
+
+def parse_service_description_document_from_bytes(doc_bytes: BytesIO) -> Dict:
+    """
+    Parse a Service Description Word document from bytes (for S3).
+    
+    Args:
+        doc_bytes: BytesIO object containing Word document
+        
+    Returns:
+        Dict with extracted content (same format as parse_service_description_document)
+    """
+    return parse_service_description_document(doc_bytes)
 
 
 def read_document_content(service_name: str, doc_type: str, lot: str, gcloud_version: str = "14") -> Optional[Dict]:
     """
-    Read and parse a document from mock SharePoint.
+    Read and parse a document from SharePoint (local or S3).
+    Works with both local (mock_sharepoint) and S3 storage.
     
     Args:
         service_name: Service name
@@ -154,11 +173,54 @@ def read_document_content(service_name: str, doc_type: str, lot: str, gcloud_ver
     Returns:
         Parsed document content or None if not found
     """
-    from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH, get_document_path
+    import os
+    from io import BytesIO
+    
+    # Import SharePoint service abstraction (switches between local and S3)
+    try:
+        try:
+            from sharepoint_service.sharepoint_service import get_document_path, USE_S3
+        except ImportError:
+            from app.sharepoint_service.sharepoint_service import get_document_path, USE_S3
+    except ImportError as e:
+        logger.error(f"Failed to import SharePoint service: {e}")
+        return None
     
     doc_path = get_document_path(service_name, doc_type, lot, gcloud_version)
     
-    if not doc_path or not doc_path.exists():
+    if not doc_path:
+        return None
+    
+    # Handle S3 storage
+    if USE_S3:
+        # doc_path is an S3 key (string)
+        try:
+            import boto3
+            s3_client = boto3.client('s3')
+            bucket_name = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
+            
+            if not bucket_name:
+                logger.error("SHAREPOINT_BUCKET_NAME not set")
+                return None
+            
+            # Download document from S3 to memory
+            response = s3_client.get_object(Bucket=bucket_name, Key=doc_path)
+            doc_bytes = response['Body'].read()
+            
+            # Parse from bytes
+            if doc_type == "SERVICE DESC":
+                # Create a temporary file-like object from bytes
+                doc_file = BytesIO(doc_bytes)
+                return parse_service_description_document_from_bytes(doc_file)
+            
+            return None
+        except Exception as e:
+            logger.error(f"Error reading document from S3: {e}")
+            return None
+    
+    # Handle local storage
+    # doc_path is a Path object
+    if not doc_path.exists():
         return None
     
     if doc_type == "SERVICE DESC":
