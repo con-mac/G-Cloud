@@ -99,6 +99,7 @@ def extract_name_from_email(email: str) -> str:
 def get_proposals_by_owner(owner_name: str) -> List[dict]:
     """
     Get all proposals where OWNER matches the given owner name.
+    Works with both local (mock_sharepoint) and S3 storage.
     
     Args:
         owner_name: Owner name to match (e.g., "Firstname Lastname")
@@ -108,6 +109,114 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
     """
     proposals = []
     
+    # Import SharePoint service functions (switches between local and S3)
+    try:
+        from sharepoint_service.sharepoint_service import list_all_folders, read_metadata_file, get_document_path
+    except ImportError:
+        logger.error("Failed to import SharePoint service functions")
+        return []
+    
+    # If using S3, use list_all_folders
+    if USE_S3:
+        # Search through both GCloud 14 and 15
+        for gcloud_version in ["14", "15"]:
+            try:
+                folders = list_all_folders(gcloud_version)
+                
+                for folder in folders:
+                    service_name = folder.get('service_name', '')
+                    lot = folder.get('lot', '2')
+                    folder_owner = folder.get('owner', '')
+                    
+                    # Check if owner matches (case-insensitive)
+                    if folder_owner.lower() != owner_name.lower():
+                        continue
+                    
+                    folder_path = folder.get('folder_path', '')
+                    if folder_path:
+                        metadata = read_metadata_file(folder_path)
+                        if metadata and metadata.get('owner', '').lower() == owner_name.lower():
+                            # Check if documents exist
+                            service_desc_exists = False
+                            pricing_doc_exists = False
+                            last_update = None
+                            
+                            if get_document_path:
+                                # Check SERVICE DESC
+                                service_desc_path = get_document_path(service_name, "SERVICE DESC", lot, gcloud_version)
+                                if service_desc_path:
+                                    service_desc_exists = True
+                                    # Get S3 object last modified time
+                                    try:
+                                        import boto3
+                                        s3_client = boto3.client('s3')
+                                        bucket_name = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
+                                        if bucket_name:
+                                            obj_response = s3_client.head_object(Bucket=bucket_name, Key=service_desc_path)
+                                            last_update = obj_response['LastModified'].isoformat()
+                                    except Exception as e:
+                                        logger.warning(f"Could not get S3 object timestamp: {e}")
+                                        from datetime import datetime
+                                        last_update = datetime.now().isoformat()
+                                
+                                # Check Pricing Doc
+                                pricing_doc_path = get_document_path(service_name, "Pricing Doc", lot, gcloud_version)
+                                if pricing_doc_path:
+                                    pricing_doc_exists = True
+                                    # Update last_update if pricing doc is newer
+                                    try:
+                                        import boto3
+                                        s3_client = boto3.client('s3')
+                                        bucket_name = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
+                                        if bucket_name:
+                                            obj_response = s3_client.head_object(Bucket=bucket_name, Key=pricing_doc_path)
+                                            pricing_update = obj_response['LastModified'].isoformat()
+                                            if not last_update or pricing_update > last_update:
+                                                last_update = pricing_update
+                                    except Exception:
+                                        pass
+                            
+                            # Determine status
+                            if service_desc_exists and pricing_doc_exists:
+                                status = "complete"
+                                completion_percentage = 100.0
+                            elif service_desc_exists or pricing_doc_exists:
+                                status = "incomplete"
+                                completion_percentage = 50.0
+                            else:
+                                status = "draft"
+                                completion_percentage = 0.0
+                            
+                            # Create proposal ID
+                            proposal_id = f"{service_name}_{gcloud_version}_{lot}".replace(" ", "_").lower()
+                            
+                            proposals.append({
+                                "id": proposal_id,
+                                "title": service_name,
+                                "framework_version": f"G-Cloud {gcloud_version}",
+                                "gcloud_version": gcloud_version,
+                                "lot": lot,
+                                "status": status,
+                                "completion_percentage": completion_percentage,
+                                "section_count": 2,
+                                "valid_sections": 2 if status == "complete" else 1 if status == "incomplete" else 0,
+                                "created_at": last_update or datetime.now().isoformat(),
+                                "updated_at": last_update or datetime.now().isoformat(),
+                                "last_update": last_update,
+                                "service_desc_exists": service_desc_exists,
+                                "pricing_doc_exists": pricing_doc_exists,
+                                "owner": folder_owner,
+                                "sponsor": metadata.get('sponsor', '') if metadata else '',
+                            })
+            except Exception as e:
+                logger.error(f"Error getting proposals for GCloud {gcloud_version}: {e}")
+                continue
+        
+        # Sort by last update (most recent first)
+        proposals.sort(key=lambda x: x.get("last_update") or "", reverse=True)
+        return proposals
+    
+    # Local filesystem path
     if not MOCK_BASE_PATH or not MOCK_BASE_PATH.exists():
         return proposals
     
