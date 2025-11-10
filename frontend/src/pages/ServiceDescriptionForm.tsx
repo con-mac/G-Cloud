@@ -92,11 +92,14 @@ export default function ServiceDescriptionForm() {
 
   // Strip numbered prefixes for word counting (numbers are for Word formatting only)
   // CRITICAL: This must be called whenever data enters the form, regardless of source
+  const NUMBER_PREFIX_REGEX = /^[\s\u00A0]*\d+[\s\u00A0]*[\.\)]*[\s\u00A0]*/;
+
   const stripNumberPrefix = (text: string): string => {
     if (!text || typeof text !== 'string') return text;
-    // Strip numbered prefixes like "1. ", "2. ", "10. ", "1) ", etc.
+    // Normalize non-breaking spaces and thin spaces
     const original = text;
-    const stripped = text.replace(/^\s*\d+[\.\)]?\s*/, '');
+    const normalized = text.replace(/\u00A0/g, ' ').replace(/\u202f/g, ' ');
+    const stripped = normalized.replace(NUMBER_PREFIX_REGEX, '');
     if (original !== stripped) {
       console.log(`[FRONTEND] Stripped number prefix: "${original}" -> "${stripped}"`);
     }

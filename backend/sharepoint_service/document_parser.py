@@ -9,6 +9,19 @@ from io import BytesIO
 import logging
 import re
 
+
+
+NUMBER_PREFIX_PATTERN = re.compile(r"^[\s\u00A0]*\d+[\s\u00A0]*[\.\)]*[\s\u00A0]*")
+
+
+def strip_number_prefix(text: str) -> str:
+    if not text:
+        return text
+    normalized = text.replace('\u00A0', ' ').replace('\u202f', ' ')
+    stripped = NUMBER_PREFIX_PATTERN.sub('', normalized)
+    return stripped
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -114,8 +127,8 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                 # Numbers are for Word document formatting only - should not appear in form
                 # The Word generator creates: Run 1 = "1. " (red), Run 2 = "text" (black)
                 # When we read para.text, it combines both runs as "1. text"
-                original_text = text.strip()
-                stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', original_text)
+                original_text = text.replace(' ', ' ').replace(' ', ' ').strip()
+                stripped_text = strip_number_prefix(original_text)
                 if original_text != stripped_text:
                     logger.info(f"[PARSER] Stripped number from feature: '{original_text}' -> '{stripped_text}'")
                 if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service']):
@@ -135,8 +148,8 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
                 # Numbers are for Word document formatting only - should not appear in form
                 # The Word generator creates: Run 1 = "1. " (red), Run 2 = "text" (black)
                 # When we read para.text, it combines both runs as "1. text"
-                original_text = text.strip()
-                stripped_text = re.sub(r'^\s*\d+[\.\)]?\s*', '', original_text)
+                original_text = text.replace(' ', ' ').replace(' ', ' ').strip()
+                stripped_text = strip_number_prefix(original_text)
                 if original_text != stripped_text:
                     logger.info(f"[PARSER] Stripped number from benefit: '{original_text}' -> '{stripped_text}'")
                 if stripped_text and not any(keyword in stripped_text.lower() for keyword in ['key service', 'short service', 'service definition']):
@@ -157,9 +170,11 @@ def parse_service_description_document(doc_path: Union[Path, BytesIO, str]) -> D
         if current_subsection:
             result['service_definition'].append(current_subsection)
         
-        # Clean up empty strings
-        result['features'] = [f for f in result['features'] if f.strip()]
-        result['benefits'] = [b for b in result['benefits'] if b.strip()]
+        # Final cleanup to ensure no numbered prefixes or empty entries remain
+        result['features'] = [strip_number_prefix(f).strip() for f in result['features'] if f and strip_number_prefix(f).strip()]
+        result['benefits'] = [strip_number_prefix(b).strip() for b in result['benefits'] if b and strip_number_prefix(b).strip()]
+        if result['description']:
+            result['description'] = strip_number_prefix(result['description']).strip()
         
         return result
         

@@ -114,6 +114,14 @@ export default function ProposalsList() {
     await loadAndOpenProposal(proposal);
   };
 
+  const NUMBER_PREFIX_REGEX = /^[\s\u00A0]*\d+[\s\u00A0]*[\.\)]*[\s\u00A0]*/;
+
+  const stripNumberPrefix = (text: string): string => {
+    if (!text || typeof text !== "string") return text;
+    const normalized = text.replace(/\u00A0/g, " " ).replace(/\u202f/g, " " );
+    return normalized.replace(NUMBER_PREFIX_REGEX, "");
+  };
+
   const loadAndOpenProposal = async (proposal: any) => {
     try {
       setLoadingDocument(true);
@@ -128,11 +136,6 @@ export default function ProposalsList() {
 
       // CRITICAL: Strip numbers from features/benefits before storing in sessionStorage
       // Numbers are for Word formatting only, not form display
-      const stripNumberPrefix = (text: string): string => {
-        if (!text || typeof text !== 'string') return text;
-        return text.replace(/^\s*\d+[\.\)]?\s*/, '');
-      };
-
       const cleanedContent = {
         ...documentContent,
         features: Array.isArray(documentContent.features)
