@@ -184,43 +184,77 @@ async def download_document(filename: str):
         import os
         from urllib.parse import unquote
         
-        bucket_name = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
-        if not bucket_name:
+        sharepoint_bucket = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
+        output_bucket = os.environ.get('OUTPUT_BUCKET_NAME', '')
+        if not sharepoint_bucket:
             raise HTTPException(status_code=500, detail="SHAREPOINT_BUCKET_NAME not set")
         
         s3_client = boto3.client('s3')
         s3_key = None
-        
-        # First, try the generated/ prefix (for old files)
-        try:
-            s3_client.head_object(Bucket=bucket_name, Key=f"generated/{filename}")
-            s3_key = f"generated/{filename}"
-        except:
-            # If not in generated/, search in SharePoint folder structure
-            # Search pattern: GCloud */PA Services/Cloud Support Services LOT */*/{filename}
+        target_bucket = output_bucket or sharepoint_bucket
+
+        def head_exists(bucket: str, key: str) -> bool:
+            if not bucket:
+                return False
             try:
-                # Search both GCloud 14 and 15
-                for gcloud_version in ["14", "15"]:
-                    for lot in ["2", "3"]:
-                        base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/"
-                        paginator = s3_client.get_paginator('list_objects_v2')
-                        pages = paginator.paginate(Bucket=bucket_name, Prefix=base_prefix)
-                        
-                        for page in pages:
-                            if 'Contents' not in page:
-                                continue
-                            for obj in page['Contents']:
-                                if obj['Key'].endswith(filename):
-                                    s3_key = obj['Key']
+                s3_client.head_object(Bucket=bucket, Key=key)
+                return True
+            except Exception:
+                return False
+
+        candidate_keys = []
+        # First, prefer generated/ locations in the output bucket (PDF converter target)
+        candidate_keys.append(f"generated/{filename}")
+        if filename.lower().startswith("pa gc"):
+            try:
+                service_part = filename.split("SERVICE DESC", 1)[1].strip()
+                if service_part.lower().endswith(".pdf") or service_part.lower().endswith(".docx"):
+                    service_part = service_part[:-4]
+                candidate_keys.append(f"generated/{service_part}.pdf")
+            except Exception:
+                pass
+
+        for key in candidate_keys:
+            if head_exists(output_bucket, key):
+                s3_key = key
+                target_bucket = output_bucket
+                break
+
+        # Fall back to SharePoint hierarchy
+        if not s3_key:
+            if head_exists(sharepoint_bucket, f"generated/{filename}"):
+                s3_key = f"generated/{filename}"
+                target_bucket = sharepoint_bucket
+            else:
+                try:
+                    # Search structured folders
+                    for gcloud_version in ["14", "15"]:
+                        for lot in ["2", "3"]:
+                            base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/"
+                            paginator = s3_client.get_paginator('list_objects_v2')
+                            pages = paginator.paginate(Bucket=sharepoint_bucket, Prefix=base_prefix)
+
+                            for page in pages:
+                                if 'Contents' not in page:
+                                    continue
+                                for obj in page['Contents']:
+                                    if obj['Key'].endswith(filename):
+                                        s3_key = obj['Key']
+                                        target_bucket = sharepoint_bucket
+                                        break
+                                if s3_key:
                                     break
                             if s3_key:
                                 break
                         if s3_key:
                             break
-                    if s3_key:
-                        break
-            except Exception as e:
-                logger.error(f"Error searching for file in S3: {e}")
+                except Exception as e:
+                    logger.error(f"Error searching for file in S3: {e}")
+
+        # Final attempt: direct object with exact filename in output bucket
+        if not s3_key and head_exists(output_bucket, filename):
+            s3_key = filename
+            target_bucket = output_bucket
         
         if not s3_key:
             raise HTTPException(status_code=404, detail=f"File not found in S3: {filename}")
@@ -229,7 +263,7 @@ async def download_document(filename: str):
             # Generate presigned URL using the correct bucket
             presigned_url = s3_client.generate_presigned_url(
                 'get_object',
-                Params={'Bucket': bucket_name, 'Key': s3_key},
+                Params={'Bucket': target_bucket, 'Key': s3_key},
                 ExpiresIn=3600
             )
             from fastapi.responses import RedirectResponse

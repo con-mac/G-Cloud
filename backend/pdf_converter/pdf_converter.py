@@ -39,12 +39,17 @@ def handler(event, context):
         
         word_s3_key = event.get('word_s3_key')
         word_bucket = event.get('word_bucket', OUTPUT_BUCKET)
+        output_bucket = event.get('output_bucket', word_bucket or OUTPUT_BUCKET)
+        override_pdf_key = event.get('pdf_s3_key')
         
         if not word_s3_key:
             raise ValueError("word_s3_key is required")
         
         if not word_bucket:
             raise ValueError("word_bucket is required")
+        
+        if not output_bucket:
+            raise ValueError("output_bucket is required")
         
         # Create temp directories
         input_dir = Path('/tmp/input')
@@ -147,10 +152,10 @@ def handler(event, context):
                 raise FileNotFoundError(f"PDF not generated: {expected_pdf}")
         
         # Upload PDF to S3
-        pdf_s3_key = word_s3_key.replace('.docx', '.pdf')
+        pdf_s3_key = override_pdf_key or word_s3_key.replace('.docx', '.pdf')
         s3_client.upload_file(
             str(expected_pdf),
-            word_bucket,
+            output_bucket,
             pdf_s3_key,
             ExtraArgs={'ContentType': 'application/pdf'}
         )
@@ -158,7 +163,7 @@ def handler(event, context):
         # Generate presigned URL for PDF
         presigned_url = s3_client.generate_presigned_url(
             'get_object',
-            Params={'Bucket': word_bucket, 'Key': pdf_s3_key},
+            Params={'Bucket': output_bucket, 'Key': pdf_s3_key},
             ExpiresIn=3600
         )
         

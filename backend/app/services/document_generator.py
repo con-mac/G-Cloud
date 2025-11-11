@@ -314,31 +314,53 @@ class DocumentGenerator:
         # Upload to S3 if in Lambda environment
         if self.use_s3:
             # Use the S3 key from folder_path if saving to SharePoint, otherwise use generated/
+            bucket_sharepoint = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
+            bucket_output = os.environ.get('OUTPUT_BUCKET_NAME', '')
+
+            pdf_filename = None
+            conversion_bucket = None
+            conversion_key = None
             if s3_key:
                 word_s3_key = s3_key
+                word_bucket = bucket_sharepoint
+                pdf_filename = word_filename.replace('.docx', '.pdf')
             else:
                 word_s3_key = f"generated/{filename_base}.docx"
-            
+                word_bucket = bucket_output
+                pdf_filename = f"{filename_base}.pdf"
+
+            if not word_bucket:
+                raise ValueError("Target S3 bucket for Word document not configured")
+
             # Upload document to S3
             import boto3
             s3_client = boto3.client('s3')
-            bucket_name = os.environ.get('SHAREPOINT_BUCKET_NAME', '')
-            
-            if not bucket_name:
-                raise ValueError("SHAREPOINT_BUCKET_NAME not set")
-            
+
             with open(word_path, 'rb') as f:
-                s3_client.upload_fileobj(f, bucket_name, word_s3_key)
+                s3_client.upload_fileobj(f, word_bucket, word_s3_key)
+
+            # Ensure the PDF converter can access the Word file
+            if s3_key and bucket_output:
+                # Copy to output bucket for converter access
+                conversion_bucket = bucket_output
+                conversion_key = f"generated/{filename_base}.docx"
+                copy_source = {'Bucket': word_bucket, 'Key': word_s3_key}
+                s3_client.copy(copy_source, bucket_output, conversion_key)
+            else:
+                conversion_bucket = word_bucket
+                conversion_key = word_s3_key
             
             # Generate presigned URL for the uploaded document
             word_url = s3_client.generate_presigned_url(
                 'get_object',
-                Params={'Bucket': bucket_name, 'Key': word_s3_key},
+                Params={'Bucket': word_bucket, 'Key': word_s3_key},
                 ExpiresIn=3600  # 1 hour
             )
             
             # Invoke PDF converter Lambda to generate PDF
-            pdf_s3_key = f"generated/{filename_base}.pdf"
+            pdf_bucket = bucket_output or word_bucket
+            pdf_s3_key = f"generated/{pdf_filename}"
+
             pdf_url = None
             
             try:
@@ -350,8 +372,10 @@ class DocumentGenerator:
                         FunctionName=pdf_converter_function,
                         InvocationType='RequestResponse',  # Synchronous invocation
                         Payload=json.dumps({
-                            'word_s3_key': word_s3_key,
-                            'word_bucket': os.environ.get('OUTPUT_BUCKET_NAME')
+                            'word_s3_key': conversion_key,
+                            'word_bucket': conversion_bucket,
+                            'output_bucket': pdf_bucket,
+                            'pdf_s3_key': pdf_s3_key
                         })
                     )
                     result = json.loads(response['Payload'].read())
@@ -366,8 +390,9 @@ class DocumentGenerator:
             return {
                 "word_path": word_url,  # Return presigned URL
                 "word_s3_key": word_s3_key,
-                "pdf_path": pdf_url or pdf_s3_key,  # Return PDF URL or S3 key
+                "pdf_path": pdf_url or pdf_s3_key,
                 "pdf_s3_key": pdf_s3_key,
+                "pdf_bucket": pdf_bucket,
                 "filename": filename_base
             }
         else:
