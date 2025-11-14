@@ -206,6 +206,9 @@ class DocumentGenerator:
                 gcloud_version = update_metadata.get('gcloud_version', '14')
                 doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
                 service_name = update_metadata.get('service_name', title)
+                if not self.use_s3 and folder_path:
+                    from pathlib import Path
+                    folder_path = Path(folder_path)
             else:  # new_proposal_metadata
                 service_name = new_proposal_metadata.get('service', title)
                 lot = new_proposal_metadata.get('lot', '2')
