@@ -271,19 +271,65 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
                     if get_document_path:
                         # Check SERVICE DESC
                         service_desc_path = get_document_path(service_name, "SERVICE DESC", lot_num, gcloud_version)
-                        if service_desc_path and service_desc_path.exists():
-                            service_desc_exists = True
-                            mtime = service_desc_path.stat().st_mtime
-                            if last_update is None or mtime > last_update:
-                                last_update = mtime
+                        # Handle tuple return from Azure (blob_key, None) vs Path object for local
+                        if service_desc_path:
+                            if isinstance(service_desc_path, tuple):
+                                # Azure Blob Storage: tuple (blob_key, None)
+                                blob_key = service_desc_path[0]
+                                if blob_key:
+                                    try:
+                                        from app.services.azure_blob_service import AzureBlobService
+                                        azure_blob_service = AzureBlobService()
+                                        if azure_blob_service.blob_exists(blob_key):
+                                            service_desc_exists = True
+                                            # Get blob last modified time
+                                            blob_client = azure_blob_service.blob_service_client.get_blob_client(
+                                                container=azure_blob_service.container_name,
+                                                blob=blob_key
+                                            )
+                                            props = blob_client.get_blob_properties()
+                                            mtime = props.last_modified.timestamp()
+                                            if last_update is None or mtime > last_update:
+                                                last_update = mtime
+                                    except Exception as e:
+                                        logger.warning(f"Error checking Azure blob for SERVICE DESC: {e}")
+                            elif hasattr(service_desc_path, 'exists') and service_desc_path.exists():
+                                # Local Path object
+                                service_desc_exists = True
+                                mtime = service_desc_path.stat().st_mtime
+                                if last_update is None or mtime > last_update:
+                                    last_update = mtime
                         
                         # Check Pricing Doc
                         pricing_doc_path = get_document_path(service_name, "Pricing Doc", lot_num, gcloud_version)
-                        if pricing_doc_path and pricing_doc_path.exists():
-                            pricing_doc_exists = True
-                            mtime = pricing_doc_path.stat().st_mtime
-                            if last_update is None or mtime > last_update:
-                                last_update = mtime
+                        # Handle tuple return from Azure (blob_key, None) vs Path object for local
+                        if pricing_doc_path:
+                            if isinstance(pricing_doc_path, tuple):
+                                # Azure Blob Storage: tuple (blob_key, None)
+                                blob_key = pricing_doc_path[0]
+                                if blob_key:
+                                    try:
+                                        from app.services.azure_blob_service import AzureBlobService
+                                        azure_blob_service = AzureBlobService()
+                                        if azure_blob_service.blob_exists(blob_key):
+                                            pricing_doc_exists = True
+                                            # Get blob last modified time
+                                            blob_client = azure_blob_service.blob_service_client.get_blob_client(
+                                                container=azure_blob_service.container_name,
+                                                blob=blob_key
+                                            )
+                                            props = blob_client.get_blob_properties()
+                                            mtime = props.last_modified.timestamp()
+                                            if last_update is None or mtime > last_update:
+                                                last_update = mtime
+                                    except Exception as e:
+                                        logger.warning(f"Error checking Azure blob for Pricing Doc: {e}")
+                            elif hasattr(pricing_doc_path, 'exists') and pricing_doc_path.exists():
+                                # Local Path object
+                                pricing_doc_exists = True
+                                mtime = pricing_doc_path.stat().st_mtime
+                                if last_update is None or mtime > last_update:
+                                    last_update = mtime
                     
                     # Determine status
                     if service_desc_exists and pricing_doc_exists:
@@ -512,19 +558,65 @@ async def get_all_proposals_admin():
                         if get_document_path:
                             # Check SERVICE DESC
                             service_desc_path = get_document_path(service_name, "SERVICE DESC", lot_num, gcloud_version)
-                            if service_desc_path and service_desc_path.exists():
-                                service_desc_exists = True
-                                mtime = service_desc_path.stat().st_mtime
-                                if last_update is None or mtime > last_update:
-                                    last_update = mtime
+                            # Handle tuple return from Azure (blob_key, None) vs Path object for local
+                            if service_desc_path:
+                                if isinstance(service_desc_path, tuple):
+                                    # Azure Blob Storage: tuple (blob_key, None)
+                                    blob_key = service_desc_path[0]
+                                    if blob_key:
+                                        try:
+                                            from app.services.azure_blob_service import AzureBlobService
+                                            azure_blob_service = AzureBlobService()
+                                            if azure_blob_service.blob_exists(blob_key):
+                                                service_desc_exists = True
+                                                # Get blob last modified time
+                                                blob_client = azure_blob_service.blob_service_client.get_blob_client(
+                                                    container=azure_blob_service.container_name,
+                                                    blob=blob_key
+                                                )
+                                                props = blob_client.get_blob_properties()
+                                                mtime = props.last_modified.timestamp()
+                                                if last_update is None or mtime > last_update:
+                                                    last_update = mtime
+                                        except Exception as e:
+                                            logger.warning(f"Error checking Azure blob for SERVICE DESC: {e}")
+                                elif hasattr(service_desc_path, 'exists') and service_desc_path.exists():
+                                    # Local Path object
+                                    service_desc_exists = True
+                                    mtime = service_desc_path.stat().st_mtime
+                                    if last_update is None or mtime > last_update:
+                                        last_update = mtime
                             
                             # Check Pricing Doc
                             pricing_doc_path = get_document_path(service_name, "Pricing Doc", lot_num, gcloud_version)
-                            if pricing_doc_path and pricing_doc_path.exists():
-                                pricing_doc_exists = True
-                                mtime = pricing_doc_path.stat().st_mtime
-                                if last_update is None or mtime > last_update:
-                                    last_update = mtime
+                            # Handle tuple return from Azure (blob_key, None) vs Path object for local
+                            if pricing_doc_path:
+                                if isinstance(pricing_doc_path, tuple):
+                                    # Azure Blob Storage: tuple (blob_key, None)
+                                    blob_key = pricing_doc_path[0]
+                                    if blob_key:
+                                        try:
+                                            from app.services.azure_blob_service import AzureBlobService
+                                            azure_blob_service = AzureBlobService()
+                                            if azure_blob_service.blob_exists(blob_key):
+                                                pricing_doc_exists = True
+                                                # Get blob last modified time
+                                                blob_client = azure_blob_service.blob_service_client.get_blob_client(
+                                                    container=azure_blob_service.container_name,
+                                                    blob=blob_key
+                                                )
+                                                props = blob_client.get_blob_properties()
+                                                mtime = props.last_modified.timestamp()
+                                                if last_update is None or mtime > last_update:
+                                                    last_update = mtime
+                                        except Exception as e:
+                                            logger.warning(f"Error checking Azure blob for Pricing Doc: {e}")
+                                elif hasattr(pricing_doc_path, 'exists') and pricing_doc_path.exists():
+                                    # Local Path object
+                                    pricing_doc_exists = True
+                                    mtime = pricing_doc_path.stat().st_mtime
+                                    if last_update is None or mtime > last_update:
+                                        last_update = mtime
                         
                         # Determine status
                         if service_desc_exists and pricing_doc_exists:

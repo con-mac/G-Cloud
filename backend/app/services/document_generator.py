@@ -246,6 +246,13 @@ class DocumentGenerator:
                     # S3 environment: folder_path is an S3 prefix (string)
                     # Construct S3 prefix: GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/
                     folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/"
+                elif self.use_azure:
+                    # Azure environment: folder_path is a blob prefix (string)
+                    # Normalize service name for folder (replace spaces with underscores, remove special chars)
+                    import re
+                    service_folder = re.sub(r"[^\w\s\-]", "", service_name).strip()
+                    service_folder = re.sub(r"\s+", "_", service_folder)
+                    folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/"
                 else:
                     # Local environment: folder_path is a Path object
                     try:
@@ -305,8 +312,18 @@ class DocumentGenerator:
                 filename_base = service_name
                 output_dir = self.output_dir
                 s3_key = f"{folder_path}{word_filename}"  # Full S3 key
+            elif self.use_azure:
+                # Azure environment: save to /tmp first, then upload to Azure Blob Storage
+                # folder_path is a blob prefix (string), word_filename is the filename
+                word_path = self.output_dir / word_filename  # Save to /tmp first
+                filename_base = service_name
+                output_dir = self.output_dir
+                s3_key = None  # Not used in Azure
             else:
-                # Local environment: save directly to folder_path
+                # Local environment: save directly to folder_path (Path object)
+                # Ensure folder_path is a Path object before using / operator
+                if isinstance(folder_path, str):
+                    folder_path = Path(folder_path)
                 word_path = folder_path / word_filename
                 filename_base = service_name
                 output_dir = folder_path
@@ -336,6 +353,8 @@ class DocumentGenerator:
         })
         
         # Upload to Azure Blob Storage if in Azure environment
+        word_blob_key = None
+        pdf_blob_key = None
         if self.use_azure and self.azure_blob_service and (update_metadata or new_proposal_metadata):
             # Construct blob key matching the SharePoint folder structure
             # Format: GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/{filename}
@@ -359,7 +378,56 @@ class DocumentGenerator:
             if blob_key:
                 try:
                     self.azure_blob_service.upload_file(word_path, blob_key)
-                    logger.info(f"Uploaded document to Azure Blob Storage: {blob_key}")
+                    word_blob_key = blob_key
+                    logger.info(f"Uploaded document to Azure Blob Storage: {word_blob_key}")
+                    
+                    # Determine PDF blob key
+                    pdf_blob_key = blob_key.replace('.docx', '.pdf')
+                    
+                    # Call Azure PDF converter Function App
+                    pdf_converter_url = os.environ.get("PDF_CONVERTER_FUNCTION_URL")
+                    if pdf_converter_url:
+                        try:
+                            import requests  # Import at function level to avoid dependency issues
+                            function_key = os.environ.get("PDF_CONVERTER_FUNCTION_KEY", "")
+                            
+                            # Prepare request payload
+                            payload = {
+                                "word_blob_key": word_blob_key,
+                                "word_container": os.environ.get("AZURE_STORAGE_CONTAINER_NAME", "sharepoint"),
+                                "output_container": os.environ.get("AZURE_STORAGE_CONTAINER_NAME", "sharepoint"),
+                                "pdf_blob_key": pdf_blob_key
+                            }
+                            
+                            # Build URL with function key if available
+                            url = pdf_converter_url
+                            if function_key:
+                                url = f"{pdf_converter_url}?code={function_key}"
+                            
+                            # Call PDF converter
+                            response = requests.post(
+                                url,
+                                json=payload,
+                                timeout=300  # 5 minute timeout for PDF conversion
+                            )
+                            
+                            if response.status_code == 200:
+                                result = response.json()
+                                if result.get('success'):
+                                    pdf_blob_key = result.get('pdf_blob_key', pdf_blob_key)
+                                    logger.info(f"PDF conversion successful: {pdf_blob_key}")
+                                else:
+                                    logger.warning(f"PDF conversion failed: {result.get('error', 'Unknown error')}")
+                                    pdf_blob_key = None
+                            else:
+                                logger.warning(f"PDF converter returned status {response.status_code}: {response.text}")
+                                pdf_blob_key = None
+                        except Exception as e:
+                            logger.error(f"Failed to call PDF converter: {e}", exc_info=True)
+                            pdf_blob_key = None
+                    else:
+                        logger.warning("PDF_CONVERTER_FUNCTION_URL not set, skipping PDF conversion")
+                        pdf_blob_key = None
                 except Exception as e:
                     logger.error(f"Failed to upload to Azure Blob Storage: {e}")
                     # Don't fail the entire operation if Azure upload fails
@@ -446,6 +514,15 @@ class DocumentGenerator:
                 "pdf_path": pdf_url or pdf_s3_key,
                 "pdf_s3_key": pdf_s3_key,
                 "pdf_bucket": pdf_bucket,
+                "filename": filename_base
+            }
+        elif self.use_azure:
+            # Azure: return blob keys
+            return {
+                "word_path": str(word_path),  # Local path for download endpoint
+                "word_blob_key": word_blob_key,  # Azure blob key
+                "pdf_blob_key": pdf_blob_key,  # Azure PDF blob key (None if conversion failed)
+                "pdf_path": pdf_blob_key if pdf_blob_key else "",  # For compatibility
                 "filename": filename_base
             }
         else:

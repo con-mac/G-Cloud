@@ -23,7 +23,8 @@ for candidate in _candidate_paths:
         MOCK_BASE_PATH = candidate
         break
 
-if MOCK_BASE_PATH is None:
+# Only raise error if we're not in Azure (Azure uses Blob Storage, not local filesystem)
+if MOCK_BASE_PATH is None and not bool(os.environ.get('AZURE_STORAGE_CONNECTION_STRING', '')):
     raise FileNotFoundError(
         "Mock SharePoint base path not found. Checked candidates: "
         + ", ".join(str(p) for p in _candidate_paths if p is not None)
@@ -318,6 +319,7 @@ def get_document_path(service_name: str, doc_type: str, lot: str, gcloud_version
 def create_folder(service_name: str, lot: str, gcloud_version: str = "15") -> Tuple[bool, str]:
     """
     Create folder structure for new proposal.
+    In Azure/S3, folders are just prefixes, so we return the prefix path.
     
     Args:
         service_name: Service name (folder name)
@@ -327,6 +329,19 @@ def create_folder(service_name: str, lot: str, gcloud_version: str = "15") -> Tu
     Returns:
         Tuple of (success: bool, folder_path: str)
     """
+    # Check if we're in Azure (MOCK_BASE_PATH will be None)
+    use_azure = bool(os.environ.get("AZURE_STORAGE_CONNECTION_STRING", ""))
+    
+    if use_azure or MOCK_BASE_PATH is None:
+        # In Azure/S3: folders are just prefixes, return the prefix path
+        # Normalize service name (replace spaces with underscores for consistency)
+        import re
+        service_folder_name = re.sub(r"[^\w\s\-]", "", service_name).strip()
+        service_folder_name = re.sub(r"\s+", "_", service_folder_name)
+        folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_folder_name}/"
+        return True, folder_path
+    
+    # Local filesystem: create actual directories
     base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
     lot_folder = base_path / f"Cloud Support Services LOT {lot}"
     
@@ -343,9 +358,10 @@ def create_folder(service_name: str, lot: str, gcloud_version: str = "15") -> Tu
 def create_metadata_file(folder_path: str, service: str, owner: str, sponsor: str, last_edited_by: Optional[str] = None) -> bool:
     """
     Create metadata .txt file with exact format.
+    In Azure, uploads to Blob Storage.
     
     Args:
-        folder_path: Path to service folder
+        folder_path: Path to service folder (or blob prefix for Azure)
         service: Service name
         owner: Owner name (First name Last name)
         sponsor: Sponsor name (First name Last name)
@@ -354,16 +370,14 @@ def create_metadata_file(folder_path: str, service: str, owner: str, sponsor: st
     Returns:
         True if successful, False otherwise
     """
+    use_azure = bool(os.environ.get("AZURE_STORAGE_CONNECTION_STRING", ""))
+    
     try:
-        folder = Path(folder_path)
-        folder.mkdir(parents=True, exist_ok=True)
-        
         # Format: OWNER [First name] [Last name].txt
         owner_clean = owner.strip()
         filename = f"OWNER {owner_clean}.txt"
-        metadata_path = folder / filename
         
-        # Create file with exact format
+        # Create file content
         content = f"""1. SERVICE: {service}
 2. OWNER: {owner}
 3. SPONSOR: {sponsor}
@@ -373,13 +387,37 @@ def create_metadata_file(folder_path: str, service: str, owner: str, sponsor: st
         if last_edited_by:
             content += f"4. LAST EDITED BY: {last_edited_by}\n"
         
-        with open(metadata_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        return True
+        if use_azure:
+            # In Azure: upload to Blob Storage
+            from app.services.azure_blob_service import AzureBlobService
+            azure_blob_service = AzureBlobService()
+            
+            # folder_path is a blob prefix in Azure (ends with /)
+            if folder_path.endswith('/'):
+                blob_key = f"{folder_path}{filename}"
+            else:
+                blob_key = f"{folder_path}/{filename}"
+            
+            # Upload metadata file
+            from io import BytesIO
+            content_bytes = BytesIO(content.encode('utf-8'))
+            blob_client = azure_blob_service.blob_service_client.get_blob_client(
+                container=azure_blob_service.container_name,
+                blob=blob_key
+            )
+            blob_client.upload_blob(content_bytes, overwrite=True)
+            return True
+        else:
+            # Local filesystem: create actual file
+            folder = Path(folder_path)
+            folder.mkdir(parents=True, exist_ok=True)
+            metadata_path = folder / filename
+            with open(metadata_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return True
         
     except Exception as e:
-        logger.error(f"Error creating metadata file: {e}")
+        logger.error(f"Error creating metadata file: {e}", exc_info=True)
         return False
 
 

@@ -10,9 +10,12 @@ from typing import List, Optional, Literal, Dict
 import os
 import uuid
 import re
+import logging
 
 from app.services.document_generator import DocumentGenerator
 from app.services.s3_service import S3Service
+
+logger = logging.getLogger(__name__)
 
 # Initialize services based on environment
 _use_s3 = os.environ.get("USE_S3", "false").lower() == "true"
@@ -115,10 +118,31 @@ async def generate_service_description(request: ServiceDescriptionRequest):
         )
         
         # Handle PDF path - may be None in Lambda if PDF generation not implemented
-        pdf_path = result.get('pdf_path') or result.get('pdf_s3_key', '')
+        # Check for pdf_blob_key (Azure), pdf_s3_key (AWS), or pdf_path (local)
+        pdf_path = result.get('pdf_path') or result.get('pdf_blob_key') or result.get('pdf_s3_key', '')
+        
+        # Check if we're in Azure
+        use_azure = bool(os.environ.get("AZURE_STORAGE_CONNECTION_STRING", ""))
+        
         if pdf_path and not pdf_path.startswith('http'):
-            # Convert S3 key to presigned URL if needed
-            if _use_s3 and s3_service:
+            if use_azure and result.get('pdf_blob_key'):
+                # Azure: Check if PDF blob exists and create download URL
+                try:
+                    from app.services.azure_blob_service import AzureBlobService
+                    azure_blob_service = AzureBlobService()
+                    pdf_blob_key = result.get('pdf_blob_key')
+                    if pdf_blob_key and azure_blob_service.blob_exists(pdf_blob_key):
+                        # Extract filename from blob key for download URL
+                        pdf_filename_for_url = Path(pdf_blob_key).name
+                        pdf_path = f"/api/v1/templates/service-description/download/{pdf_filename_for_url}"
+                    else:
+                        # PDF doesn't exist yet (conversion may have failed or is in progress)
+                        pdf_path = ""
+                except Exception as e:
+                    logger.warning(f"Failed to check Azure blob for PDF: {e}")
+                    pdf_path = ""
+            elif _use_s3 and s3_service:
+                # AWS: Convert S3 key to presigned URL
                 try:
                     pdf_path = s3_service.get_presigned_url(pdf_path, expiration=3600)
                 except:
@@ -136,18 +160,19 @@ async def generate_service_description(request: ServiceDescriptionRequest):
                 # Convert to download URL (works for both /tmp/generated_documents and folder paths)
                 word_path = f"/api/v1/templates/service-description/download/{word_filename_for_url}"
         
-        # Convert PDF path to download URL if it's a local path
+        # Convert PDF path to download URL if it's a local path (not Azure, not AWS, not already a URL)
         pdf_filename_for_url = None
-        if pdf_path and not pdf_path.startswith('http'):
+        if pdf_path and not pdf_path.startswith('http') and not pdf_path.startswith('/api/'):
             from pathlib import Path
             pdf_filename_for_url = Path(pdf_path).name if pdf_path else None
-            # Only convert if PDF file exists (for now, PDF generation may not be available locally)
+            # Only convert if PDF file exists locally (for local development)
             pdf_path_local = Path(pdf_path)
             if pdf_path_local.exists() and pdf_filename_for_url:
                 pdf_path = f"/api/v1/templates/service-description/download/{pdf_filename_for_url}"
-            else:
-                # PDF doesn't exist yet, keep original path for "Coming Soon" message
+            elif not use_azure and not _use_s3:
+                # Local development: PDF doesn't exist yet, keep original path for "Coming Soon" message
                 pdf_path = pdf_path
+            # Azure/AWS: PDF path already handled above
         
         # Use actual filename from path if available, otherwise fallback to filename_base
         word_filename = word_filename_for_url if word_filename_for_url else f"{result['filename']}.docx"
