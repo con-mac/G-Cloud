@@ -206,8 +206,12 @@ class DocumentGenerator:
                 gcloud_version = update_metadata.get('gcloud_version', '14')
                 doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
                 service_name = update_metadata.get('service_name', title)
+                actual_folder_name = service_name  # Default to service_name
                 if not self.use_s3 and folder_path:
                     folder_path = Path(folder_path)
+                    # Extract actual folder name from path for filename consistency
+                    if isinstance(folder_path, Path) and folder_path.exists():
+                        actual_folder_name = folder_path.name
             else:  # new_proposal_metadata
                 service_name = new_proposal_metadata.get('service', title)
                 lot = new_proposal_metadata.get('lot', '2')
@@ -241,6 +245,7 @@ class DocumentGenerator:
                     folder_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name
                     
                     # Verify folder exists, if not try to find it with fuzzy match
+                    actual_folder_name = service_name
                     if not folder_path.exists():
                         # Try to find folder with fuzzy match
                         base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
@@ -250,13 +255,16 @@ class DocumentGenerator:
                             for folder in lot_folder.iterdir():
                                 if folder.is_dir() and fuzzy_match(service_name, folder.name):
                                     folder_path = folder
+                                    actual_folder_name = folder.name  # Use actual folder name for filename
                                     break
             
-            # Use exact filename format: PA GC15 SERVICE DESC [Service Name].docx
+            # Use exact filename format: PA GC15 SERVICE DESC [Folder Name].docx
+            # Use actual_folder_name (folder.name) to match what get_document_path expects
+            # This ensures saved files can be found when reopening
             if doc_type == 'SERVICE DESC':
-                word_filename = f"PA GC{gcloud_version} SERVICE DESC {service_name}.docx"
+                word_filename = f"PA GC{gcloud_version} SERVICE DESC {actual_folder_name}.docx"
             else:
-                word_filename = f"PA GC{gcloud_version} Pricing Doc {service_name}.docx"
+                word_filename = f"PA GC{gcloud_version} Pricing Doc {actual_folder_name}.docx"
             
             # Add _draft suffix if saving as draft
             if save_as_draft:
