@@ -11,8 +11,23 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Base path for mock SharePoint structure
-MOCK_BASE_PATH = Path(__file__).parent.parent.parent / "mock_sharepoint"
+# Base path for mock SharePoint structure. Support multiple deployment layouts.
+_candidate_paths = [
+    Path(__file__).resolve().parent.parent.parent / "mock_sharepoint",
+    Path(__file__).resolve().parent.parent / "mock_sharepoint",
+    Path(__file__).resolve().parents[3] / "mock_sharepoint" if len(Path(__file__).resolve().parents) > 3 else None,
+]
+MOCK_BASE_PATH = None
+for candidate in _candidate_paths:
+    if candidate and candidate.exists():
+        MOCK_BASE_PATH = candidate
+        break
+
+if MOCK_BASE_PATH is None:
+    raise FileNotFoundError(
+        "Mock SharePoint base path not found. Checked candidates: "
+        + ", ".join(str(p) for p in _candidate_paths if p is not None)
+    )
 
 
 def fuzzy_match(query: str, service_name: str) -> bool:
@@ -189,6 +204,7 @@ def search_documents(query: str, doc_type: Optional[str] = None, gcloud_version:
 def get_document_path(service_name: str, doc_type: str, lot: str, gcloud_version: str = "14") -> Optional[Path]:
     """
     Get path to document file.
+    Checks Azure Blob Storage if in Azure environment, otherwise checks local filesystem.
     
     Args:
         service_name: Service name
@@ -198,7 +214,71 @@ def get_document_path(service_name: str, doc_type: str, lot: str, gcloud_version
         
     Returns:
         Path to document file or None if not found
+        In Azure, returns a special marker object that read_document_content can handle
     """
+    import os
+    
+    # Check if we're in Azure (has Azure Storage connection string)
+    use_azure = bool(os.environ.get("AZURE_STORAGE_CONNECTION_STRING", ""))
+    
+    if use_azure:
+        # In Azure: check Azure Blob Storage
+        try:
+            from app.services.azure_blob_service import AzureBlobService
+            azure_blob_service = AzureBlobService()
+            
+            # Normalize service name for folder matching
+            import re
+            service_folder_normalized = re.sub(r"[^\w\s\-]", "", service_name).strip()
+            service_folder_normalized = re.sub(r"\s+", "_", service_folder_normalized)
+            
+            # Search for matching service folders in Azure Blob Storage
+            base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/"
+            blob_list = azure_blob_service.list_blobs(prefix=base_prefix)
+            
+            # Find service folder using fuzzy match
+            service_folder_name = None
+            for blob_name in blob_list:
+                # Extract folder name from blob path
+                # Format: GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{folder}/{filename}
+                parts = blob_name.split('/')
+                if len(parts) >= 4:
+                    folder_name = parts[3]
+                    if fuzzy_match(service_name, folder_name):
+                        service_folder_name = folder_name
+                        break
+            
+            if not service_folder_name:
+                return None
+            
+            # Determine filename - try regular file first, then draft file
+            if doc_type == "SERVICE DESC":
+                filename = f"PA GC{gcloud_version} SERVICE DESC {service_name}.docx"
+                draft_filename = f"PA GC{gcloud_version} SERVICE DESC {service_name}_draft.docx"
+            elif doc_type == "Pricing Doc":
+                filename = f"PA GC{gcloud_version} Pricing Doc {service_name}.docx"
+                draft_filename = f"PA GC{gcloud_version} Pricing Doc {service_name}_draft.docx"
+            else:
+                return None
+            
+            # Try regular file first
+            blob_key = f"{base_prefix}{service_folder_name}/{filename}"
+            if azure_blob_service.blob_exists(blob_key):
+                # Return a special marker that read_document_content can handle
+                # We'll use a tuple (blob_key, None) to indicate Azure Blob Storage
+                return (blob_key, None)
+            
+            # If regular file doesn't exist, try draft file
+            draft_blob_key = f"{base_prefix}{service_folder_name}/{draft_filename}"
+            if azure_blob_service.blob_exists(draft_blob_key):
+                return (draft_blob_key, None)
+            
+            return None
+        except Exception as e:
+            logger.error(f"Error checking Azure Blob Storage: {e}")
+            # Fall through to local filesystem check
+    
+    # Local filesystem check (original logic)
     base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
     lot_folder = base_path / f"Cloud Support Services LOT {lot}"
     

@@ -1,0 +1,110 @@
+name: Deploy Prod
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: false
+
+env:
+  TF_CLI_ARGS_plan: -lock-timeout=5m
+  TF_CLI_ARGS_apply: -lock-timeout=5m -auto-approve
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt pytest
+      - name: Run pytest
+        run: pytest backend/tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+      - name: Frontend build
+        run: npm run build
+        working-directory: frontend
+
+  terraform-deploy:
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ARM_USE_OIDC: 'true'
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_backend_resource_group: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+      TF_VAR_backend_storage_account: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+      TF_VAR_backend_container_name: ${{ vars.TF_BACKEND_CONTAINER_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Terraform init
+        working-directory: infrastructure/azure
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_BACKEND_CONTAINER_NAME }}"
+
+      - name: Terraform plan
+        working-directory: infrastructure/azure
+        run: terraform plan -var-file=environments/prod.tfvars
+
+      - name: Terraform apply
+        if: github.ref == 'refs/heads/main'
+        working-directory: infrastructure/azure
+        run: terraform apply -var-file=environments/prod.tfvars
+
+      - name: Capture Terraform outputs (for logs)
+        working-directory: infrastructure/azure
+        run: terraform output
+
+      - name: Build and push PDF converter image
+        env:
+          ACR_NAME: gcloudacrprodun8d8
+        run: ./scripts/azure/build_pdf_image.sh
+
+      - name: Deploy API Function App
+        run: ./scripts/azure/deploy_api_function.sh
+
+      - name: Deploy PDF Function App
+        env:
+          ACR_NAME: gcloudacrprodun8d8
+        run: ./scripts/azure/deploy_pdf_function.sh
+
+      - name: Deploy frontend
+        env:
+          VITE_API_BASE_URL: https://gcloud-api-prod.azurewebsites.net
+        run: ./scripts/azure/deploy_frontend.sh

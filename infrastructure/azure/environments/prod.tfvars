@@ -1,0 +1,13 @@
+environment            = "prod"
+location               = "uksouth"
+resource_group_name    = "gcloud-prod-rg"
+resource_naming_prefix = "gcloud"
+backend_resource_group  = "gcloud-tfstate-rg"
+backend_storage_account = "gcloudtfstateprod"
+backend_container_name  = "tfstate"
+static_webapp_location  = "westeurope"
+tags = {
+  owner       = "Platform"
+  costCentre  = "G-Cloud"
+  environment = "prod"
+}

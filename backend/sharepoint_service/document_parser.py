@@ -228,6 +228,28 @@ def read_document_content(service_name: str, doc_type: str, lot: str, gcloud_ver
     if not doc_path:
         return None
     
+    # Handle Azure Blob Storage (detected by tuple return from get_document_path)
+    if isinstance(doc_path, tuple) and len(doc_path) == 2 and doc_path[1] is None:
+        # doc_path is (blob_key, None) indicating Azure Blob Storage
+        blob_key = doc_path[0]
+        try:
+            from app.services.azure_blob_service import AzureBlobService
+            azure_blob_service = AzureBlobService()
+            
+            # Download document from Azure Blob Storage to memory
+            doc_bytes = azure_blob_service.get_file_bytes(blob_key)
+            
+            # Parse from bytes
+            if doc_type == "SERVICE DESC":
+                # Create a temporary file-like object from bytes
+                doc_file = BytesIO(doc_bytes)
+                return parse_service_description_document_from_bytes(doc_file)
+            
+            return None
+        except Exception as e:
+            logger.error(f"Error reading document from Azure Blob Storage: {e}")
+            return None
+    
     # Handle S3 storage
     if USE_S3:
         # doc_path is an S3 key (string)

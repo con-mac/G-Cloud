@@ -6,6 +6,7 @@ Generates Word and PDF documents from templates
 import os
 import json
 import shutil
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 from docx import Document
@@ -16,6 +17,8 @@ from bs4 import BeautifulSoup
 from docx.oxml import OxmlElement
 from docx.text.paragraph import Paragraph
 from docx.oxml.ns import qn
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentGenerator:
@@ -30,6 +33,17 @@ class DocumentGenerator:
         """
         self.s3_service = s3_service
         self.use_s3 = s3_service is not None
+        
+        # Check if we're in Azure (has Azure Storage connection string but no S3)
+        self.use_azure = not self.use_s3 and bool(os.environ.get("AZURE_STORAGE_CONNECTION_STRING", ""))
+        self.azure_blob_service = None
+        if self.use_azure:
+            try:
+                from app.services.azure_blob_service import AzureBlobService
+                self.azure_blob_service = AzureBlobService()
+            except Exception as e:
+                logger.warning(f"Failed to initialize Azure Blob Service: {e}")
+                self.use_azure = False
         
         if self.use_s3:
             # Lambda environment: use /tmp for temporary files
@@ -320,6 +334,35 @@ class DocumentGenerator:
             'Add Title': title,
             '{{SERVICE_NAME}}': title,
         })
+        
+        # Upload to Azure Blob Storage if in Azure environment
+        if self.use_azure and self.azure_blob_service and (update_metadata or new_proposal_metadata):
+            # Construct blob key matching the SharePoint folder structure
+            # Format: GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/{filename}
+            blob_key = None
+            if update_metadata:
+                folder_path_str = update_metadata.get('folder_path', '')
+                if folder_path_str:
+                    # Extract service folder name from path
+                    if isinstance(folder_path, Path):
+                        folder_name = folder_path.name
+                    else:
+                        folder_name = actual_folder_name
+                    blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {update_metadata.get('lot', '3')}/{folder_name}/{word_filename}"
+            else:  # new_proposal_metadata
+                # Normalize service name for folder (replace spaces with underscores, remove special chars)
+                import re
+                service_folder = re.sub(r"[^\w\s\-]", "", service_name).strip()
+                service_folder = re.sub(r"\s+", "_", service_folder)
+                blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/{word_filename}"
+            
+            if blob_key:
+                try:
+                    self.azure_blob_service.upload_file(word_path, blob_key)
+                    logger.info(f"Uploaded document to Azure Blob Storage: {blob_key}")
+                except Exception as e:
+                    logger.error(f"Failed to upload to Azure Blob Storage: {e}")
+                    # Don't fail the entire operation if Azure upload fails
         
         # Upload to S3 if in Lambda environment
         if self.use_s3:

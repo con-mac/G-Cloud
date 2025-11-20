@@ -147,3 +147,4 @@ az monitor app-insights query --app gcloud-ai-prod --resource-group gcloud-prod-
 
 **Primary Application URL**: [https://witty-tree-011900503.3.azurestaticapps.net](https://witty-tree-011900503.3.azurestaticapps.net)
 
+
