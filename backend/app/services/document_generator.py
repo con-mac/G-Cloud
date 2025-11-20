@@ -242,10 +242,14 @@ class DocumentGenerator:
                     USE_S3 = False
                     get_document_path = None
                 
+                # Initialize actual_folder_name - will be used for filename regardless of environment
+                actual_folder_name = service_name  # Default to service_name
+                
                 if self.use_s3 or (get_document_path and USE_S3):
                     # S3 environment: folder_path is an S3 prefix (string)
                     # Construct S3 prefix: GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/
                     folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/"
+                    # For S3, actual_folder_name stays as service_name (already set above)
                 elif self.use_azure:
                     # Azure environment: folder_path is a blob prefix (string)
                     # Normalize service name for folder (replace spaces with underscores, remove special chars)
@@ -253,6 +257,8 @@ class DocumentGenerator:
                     service_folder = re.sub(r"[^\w\s\-]", "", service_name).strip()
                     service_folder = re.sub(r"\s+", "_", service_folder)
                     folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/"
+                    # For Azure, use the normalized service_folder name for consistency
+                    actual_folder_name = service_folder
                 else:
                     # Local environment: folder_path is a Path object
                     try:
