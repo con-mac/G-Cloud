@@ -7,6 +7,7 @@ import CreateProposal from './pages/CreateProposal';
 import ServiceDescriptionForm from './pages/ServiceDescriptionForm';
 import QuestionnairePage from './pages/QuestionnairePage';
 import AdminDashboard from './pages/AdminDashboard';
+import QuestionnaireAnalytics from './pages/QuestionnaireAnalytics';
 
 // Protected route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
@@ -72,6 +73,14 @@ function App() {
         element={
           <ProtectedRoute>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/analytics"
+        element={
+          <ProtectedRoute>
+            <QuestionnaireAnalytics />
           </ProtectedRoute>
         }
       />

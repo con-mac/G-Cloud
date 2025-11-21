@@ -225,12 +225,20 @@ export default function AdminDashboard() {
             Manage and monitor all G-Cloud proposals
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          onClick={() => navigate('/login')}
-        >
-          Switch to Employee View
-        </Button>
+        <Box display="flex" gap={2}>
+          <Button
+            variant="contained"
+            onClick={() => navigate('/admin/analytics')}
+          >
+            Questionnaire Analytics
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/login')}
+          >
+            Switch to Employee View
+          </Button>
+        </Box>
       </Box>
 
       {error && (

@@ -30,6 +30,12 @@ try:
 except (ImportError, AttributeError, ModuleNotFoundError):
     questionnaire = None
 
+# Import analytics router (uses file storage, not database)
+try:
+    from app.api.routes import analytics
+except (ImportError, AttributeError, ModuleNotFoundError):
+    analytics = None
+
 # Only import database-dependent routes if not in Lambda
 if not _use_s3:
     try:
@@ -51,6 +57,8 @@ if proposals:
     api_router.include_router(proposals.router, prefix="/proposals", tags=["Proposals"])
 if questionnaire:
     api_router.include_router(questionnaire.router, prefix="/questionnaire", tags=["Questionnaire"])
+if analytics:
+    api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 if sections:
     api_router.include_router(sections.router, prefix="/sections", tags=["Sections"])
 
