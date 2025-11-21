@@ -24,6 +24,12 @@ try:
 except (ImportError, AttributeError, ModuleNotFoundError):
     proposals = None
 
+# Import questionnaire router (uses file storage, not database)
+try:
+    from app.api.routes import questionnaire
+except (ImportError, AttributeError, ModuleNotFoundError):
+    questionnaire = None
+
 # Only import database-dependent routes if not in Lambda
 if not _use_s3:
     try:
@@ -43,6 +49,8 @@ if sharepoint:
     api_router.include_router(sharepoint.router, prefix="/sharepoint", tags=["SharePoint"])
 if proposals:
     api_router.include_router(proposals.router, prefix="/proposals", tags=["Proposals"])
+if questionnaire:
+    api_router.include_router(questionnaire.router, prefix="/questionnaire", tags=["Questionnaire"])
 if sections:
     api_router.include_router(sections.router, prefix="/sections", tags=["Sections"])
 

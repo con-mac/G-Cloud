@@ -289,6 +289,17 @@ export default function ProposalFlow() {
       case 0:
         return (
           <Box>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2" component="div">
+                <strong>Workflow Steps:</strong>
+                <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                  <li>Create New or Update existing proposal</li>
+                  <li>Complete Service Description document</li>
+                  <li>Generate documents (Word & PDF)</li>
+                  <li>Complete G-Cloud Capabilities Questionnaire</li>
+                </ol>
+              </Typography>
+            </Alert>
             <FormControl component="fieldset" fullWidth>
               <FormLabel component="legend" sx={{ mb: 2, fontWeight: 600 }}>
                 Are you updating or creating new?

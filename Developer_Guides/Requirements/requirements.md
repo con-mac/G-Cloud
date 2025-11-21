@@ -754,6 +754,14 @@ This requirements document will be reviewed and updated regularly as the project
   - Display helpful summaries for users
 - System shall validate inputs based on question type and constraints
 
+#### FR-17.3.4: Questionnaire Pagination
+- System shall paginate the questionnaire interface for better user experience
+- System shall group questions by Section Name from the Excel sheets
+- Each page/section shall display all questions belonging to that section
+- System shall provide navigation between sections (Previous/Next buttons)
+- System shall show progress indicator (e.g., "Section 1 of 5")
+- System shall allow users to navigate to any section directly via section navigation
+
 #### FR-17.3.4: Questionnaire State Management
 - System shall allow users to save questionnaire responses as drafts
 - System shall allow users to edit their answers before final submission

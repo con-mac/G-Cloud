@@ -5,6 +5,7 @@ import ProposalsList from './pages/ProposalsList';
 import ProposalEditor from './pages/ProposalEditor';
 import CreateProposal from './pages/CreateProposal';
 import ServiceDescriptionForm from './pages/ServiceDescriptionForm';
+import QuestionnairePage from './pages/QuestionnairePage';
 import AdminDashboard from './pages/AdminDashboard';
 
 // Protected route wrapper
@@ -55,6 +56,14 @@ function App() {
         element={
           <ProtectedRoute>
             <ProposalEditor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/questionnaire/:serviceName/:lot"
+        element={
+          <ProtectedRoute>
+            <QuestionnairePage />
           </ProtectedRoute>
         }
       />

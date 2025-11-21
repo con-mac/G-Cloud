@@ -1186,7 +1186,38 @@ export default function ServiceDescriptionForm() {
           }}>
             Done
           </Button>
-          <Button variant="contained" onClick={() => {
+          {(() => {
+            // Get service name and lot for questionnaire navigation
+            const updateMeta = sessionStorage.getItem('updateMetadata');
+            const newProposal = sessionStorage.getItem('newProposal');
+            let serviceName = title.trim();
+            let lot = '3';
+            
+            if (updateMeta) {
+              const meta = JSON.parse(updateMeta);
+              serviceName = meta.service_name || serviceName;
+              lot = meta.lot || lot;
+            } else if (newProposal) {
+              const meta = JSON.parse(newProposal);
+              serviceName = meta.service || serviceName;
+              lot = meta.lot || lot;
+            }
+            
+            return (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  setSuccessDialog(false);
+                  navigate(`/questionnaire/${encodeURIComponent(serviceName)}/${lot}`);
+                }}
+                sx={{ mr: 1 }}
+              >
+                Complete Questionnaire
+              </Button>
+            );
+          })()}
+          <Button variant="outlined" onClick={() => {
             setSuccessDialog(false);
             // Reset form
             setTitle('');
