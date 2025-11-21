@@ -62,14 +62,14 @@ htmlcov/
 .pytest_cache/
 
 # Uploaded documents (exclude from repo)
-docs/*.docx
+# docs/*.docx
 docs/*.xlsx
 docs/*.pdf
 docs/*:Zone.Identifier
 
 # Generated documents
 backend/generated_documents/
-*.docx
+# *.docx
 *.pdf
 
 # Terraform
