@@ -221,11 +221,22 @@ class DocumentGenerator:
                 doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
                 service_name = update_metadata.get('service_name', title)
                 actual_folder_name = service_name  # Default to service_name
-                if not self.use_s3 and folder_path:
+                # Only convert to Path for local filesystem (not Azure/S3)
+                if not self.use_s3 and not self.use_azure and folder_path:
                     folder_path = Path(folder_path)
                     # Extract actual folder name from path for filename consistency
                     if isinstance(folder_path, Path) and folder_path.exists():
                         actual_folder_name = folder_path.name
+                elif self.use_azure and folder_path:
+                    # For Azure, folder_path is a blob prefix string like "GCloud 15/PA Services/Cloud Support Services LOT 2/Service Name/"
+                    # Extract service folder name from the blob prefix
+                    parts = folder_path.rstrip('/').split('/')
+                    if len(parts) > 0:
+                        # Last non-empty part is the service folder name
+                        for part in reversed(parts):
+                            if part:
+                                actual_folder_name = part
+                                break
             else:  # new_proposal_metadata
                 service_name = new_proposal_metadata.get('service', title)
                 lot = new_proposal_metadata.get('lot', '2')
@@ -362,14 +373,10 @@ class DocumentGenerator:
             # Format: GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/{filename}
             blob_key = None
             if update_metadata:
-                folder_path_str = update_metadata.get('folder_path', '')
-                if folder_path_str:
-                    # Extract service folder name from path
-                    if isinstance(folder_path, Path):
-                        folder_name = folder_path.name
-                    else:
-                        folder_name = actual_folder_name
-                    blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {update_metadata.get('lot', '3')}/{folder_name}/{word_filename}"
+                # For Azure, use actual_folder_name which was correctly extracted above
+                # For local, folder_path might be a Path, but we should use actual_folder_name for consistency
+                folder_name = actual_folder_name
+                blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {update_metadata.get('lot', '3')}/{folder_name}/{word_filename}"
             else:  # new_proposal_metadata
                 # Use service_name directly with spaces - NO normalization
                 blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/{word_filename}"
