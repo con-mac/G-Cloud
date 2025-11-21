@@ -696,5 +696,99 @@ This requirements document will be reviewed and updated regularly as the project
 
 ---
 
+## 17. G-Cloud 15 Enhanced Features
+
+### 17.1 Pricing Document Generation
+
+#### FR-17.1.1: Automatic Pricing Doc Creation
+- System shall automatically generate a generic Pricing Document when a new proposal folder and service name is created
+- System shall use the "PA GC15 Pricing Doc SERVICE TITLE.docx" template
+- System shall map the Service Name from the Service Description document to:
+  - Cover Page title
+  - Document title
+- System shall follow the exact same mapping logic as the Service Description document generation
+- System shall output the Pricing Document at the first step when folder and service name is created
+
+#### FR-17.1.2: Pricing Doc Completion Message
+- When a user selects "Complete and generate docs" in the Service Description workflow, system shall display an informational message:
+  - "G-Cloud 15 will require a single rate card only this year that will be created and handled centrally. A generic pricing doc will be automatically generated. If your service requires a specific rate applied please contact the PA Bid Team"
+- System shall continue with document generation after displaying this message
+- System shall allow download of both Service Description and Pricing documents
+
+### 17.2 Enhanced LOT Support
+
+#### FR-17.2.1: New LOT Structure
+- System shall support three LOT types:
+  - **LOT 3**: Cloud Support Services
+  - **LOT 2a**: IaaS and PaaS Services
+  - **LOT 2b**: SaaS Services
+- System shall follow the exact folder structure and naming convention from earlier requirements
+- Folder structure format: `GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/`
+- System shall handle LOT values: "3", "2a", "2b"
+
+### 17.3 G-Cloud Capabilities Questionnaire
+
+#### FR-17.3.1: Questionnaire Workflow Integration
+- System shall add a new workflow step: "G-Cloud Capabilities Questionnaire"
+- System shall position this step after "Complete and generate documents" in the Service Description workflow
+- System shall reference the Questionnaire step in the workflow diagram at the "Create New or Update" section
+- System shall notify users of all logical workflow steps including the Questionnaire
+
+#### FR-17.3.2: LOT-Specific Questions
+- System shall load questions from the Excel document (`RM1557.15-G-Cloud-question-export (1).xlsx`)
+- System shall focus on LOT 3, LOT 2a, and LOT 2b question sets
+- System shall name question sets as "LOT 3", "LOT 2a", "LOT 2b" (ignoring other wording in sheet names)
+- System shall map Service Name from the associated Service Description document to the 'Service Name' field in the questionnaire
+- System shall ignore rows with Red filling in the second column (indicates not needed, already answered in SERVICE DESC)
+
+#### FR-17.3.3: Question Types and Validation
+- System shall support multiple question types:
+  - **Radio buttons**: Single selection from options
+  - **Checkboxes**: Multiple selections from options
+  - **Text fields**: Free text input
+  - **Textarea**: Multi-line text input
+  - **List of text fields**: Multiple text inputs (e.g., features, benefits)
+- System shall use helpers, hints, and advice from the Excel document to:
+  - Determine correct variable type/format needed
+  - Provide user guidance and validation rules
+  - Display helpful summaries for users
+- System shall validate inputs based on question type and constraints
+
+#### FR-17.3.4: Questionnaire State Management
+- System shall allow users to save questionnaire responses as drafts
+- System shall allow users to edit their answers before final submission
+- System shall support a "locked" state where no further editing is permitted
+- System shall determine the best output format for locked questionnaires (functional, not necessarily pretty)
+
+### 17.4 Analytics Dashboard for Admin Users
+
+#### FR-17.4.1: Visual Analytics
+- System shall provide a hierarchical, top-down analytical view for admin users
+- System shall display visualisations showing:
+  - How many services chose option x, y, or z for each question
+  - Distribution of answers across all services
+  - Trends and patterns in responses
+
+#### FR-17.4.2: Drill-Down Functionality
+- System shall allow admins to drill into visualisations to see:
+  - Which specific services answered what
+  - Service-level detail for any aggregated view
+  - Individual service responses
+
+#### FR-17.4.3: Completion Tracking
+- System shall identify and display services that haven't answered the questionnaire at all
+- System shall show completion status for each service
+- System shall provide filters to view:
+  - Completed questionnaires
+  - In-progress/draft questionnaires
+  - Not started questionnaires
+
+#### FR-17.4.4: Data Export
+- System shall allow export of analytics data for further analysis
+- System shall support export of individual service responses
+- System shall maintain data integrity and audit trail for all analytics
+
+---
+
 **End of Requirements Document**
 
