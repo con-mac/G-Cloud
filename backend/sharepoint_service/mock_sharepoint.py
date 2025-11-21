@@ -228,12 +228,8 @@ def get_document_path(service_name: str, doc_type: str, lot: str, gcloud_version
             from app.services.azure_blob_service import AzureBlobService
             azure_blob_service = AzureBlobService()
             
-            # Normalize service name for folder matching
-            import re
-            service_folder_normalized = re.sub(r"[^\w\s\-]", "", service_name).strip()
-            service_folder_normalized = re.sub(r"\s+", "_", service_folder_normalized)
-            
             # Search for matching service folders in Azure Blob Storage
+            # Use service_name directly with spaces - NO normalization
             base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/"
             blob_list = azure_blob_service.list_blobs(prefix=base_prefix)
             
@@ -252,13 +248,14 @@ def get_document_path(service_name: str, doc_type: str, lot: str, gcloud_version
             if not service_folder_name:
                 return None
             
-            # Determine filename - try regular file first, then draft file
+            # Determine filename - use service_folder_name (actual folder name) not service_name (search query)
+            # This ensures we match the filename format used when saving documents
             if doc_type == "SERVICE DESC":
-                filename = f"PA GC{gcloud_version} SERVICE DESC {service_name}.docx"
-                draft_filename = f"PA GC{gcloud_version} SERVICE DESC {service_name}_draft.docx"
+                filename = f"PA GC{gcloud_version} SERVICE DESC {service_folder_name}.docx"
+                draft_filename = f"PA GC{gcloud_version} SERVICE DESC {service_folder_name}_draft.docx"
             elif doc_type == "Pricing Doc":
-                filename = f"PA GC{gcloud_version} Pricing Doc {service_name}.docx"
-                draft_filename = f"PA GC{gcloud_version} Pricing Doc {service_name}_draft.docx"
+                filename = f"PA GC{gcloud_version} Pricing Doc {service_folder_name}.docx"
+                draft_filename = f"PA GC{gcloud_version} Pricing Doc {service_folder_name}_draft.docx"
             else:
                 return None
             
@@ -334,11 +331,8 @@ def create_folder(service_name: str, lot: str, gcloud_version: str = "15") -> Tu
     
     if use_azure or MOCK_BASE_PATH is None:
         # In Azure/S3: folders are just prefixes, return the prefix path
-        # Normalize service name (replace spaces with underscores for consistency)
-        import re
-        service_folder_name = re.sub(r"[^\w\s\-]", "", service_name).strip()
-        service_folder_name = re.sub(r"\s+", "_", service_folder_name)
-        folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_folder_name}/"
+        # Use service_name directly with spaces - NO normalization
+        folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/"
         return True, folder_path
     
     # Local filesystem: create actual directories

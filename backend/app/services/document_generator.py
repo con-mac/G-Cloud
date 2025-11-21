@@ -252,13 +252,9 @@ class DocumentGenerator:
                     # For S3, actual_folder_name stays as service_name (already set above)
                 elif self.use_azure:
                     # Azure environment: folder_path is a blob prefix (string)
-                    # Normalize service name for folder (replace spaces with underscores, remove special chars)
-                    import re
-                    service_folder = re.sub(r"[^\w\s\-]", "", service_name).strip()
-                    service_folder = re.sub(r"\s+", "_", service_folder)
-                    folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/"
-                    # For Azure, use the normalized service_folder name for consistency
-                    actual_folder_name = service_folder
+                    # Use service_name directly with spaces - NO normalization
+                    folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/"
+                    # For Azure, actual_folder_name stays as service_name (already set above)
                 else:
                     # Local environment: folder_path is a Path object
                     try:
@@ -375,11 +371,8 @@ class DocumentGenerator:
                         folder_name = actual_folder_name
                     blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {update_metadata.get('lot', '3')}/{folder_name}/{word_filename}"
             else:  # new_proposal_metadata
-                # Normalize service name for folder (replace spaces with underscores, remove special chars)
-                import re
-                service_folder = re.sub(r"[^\w\s\-]", "", service_name).strip()
-                service_folder = re.sub(r"\s+", "_", service_folder)
-                blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/{word_filename}"
+                # Use service_name directly with spaces - NO normalization
+                blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/{word_filename}"
             
             if blob_key:
                 try:
@@ -390,9 +383,10 @@ class DocumentGenerator:
                     # Determine PDF blob key
                     pdf_blob_key = blob_key.replace('.docx', '.pdf')
                     
-                    # Call Azure PDF converter Function App
+                    # Call Azure PDF converter Function App - ONLY when completing (not saving as draft)
+                    # PDFs should only be generated for final completed documents, not drafts
                     pdf_converter_url = os.environ.get("PDF_CONVERTER_FUNCTION_URL")
-                    if pdf_converter_url:
+                    if pdf_converter_url and not save_as_draft:
                         try:
                             import requests  # Import at function level to avoid dependency issues
                             function_key = os.environ.get("PDF_CONVERTER_FUNCTION_KEY", "")
