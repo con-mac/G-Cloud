@@ -141,8 +141,8 @@ def search_documents(query: str, doc_type: Optional[str] = None, gcloud_version:
     for version in versions_to_search:
         base_path = MOCK_BASE_PATH / f"GCloud {version}" / "PA Services"
         
-        # Search both LOT 2 and LOT 3
-        for lot in ["2", "3"]:
+        # Search all LOTs (2, 2a, 2b, 3)
+        for lot in ["2", "2a", "2b", "3"]:
             lot_folder = base_path / f"Cloud Support Services LOT {lot}"
             
             if not lot_folder.exists():
@@ -320,7 +320,7 @@ def create_folder(service_name: str, lot: str, gcloud_version: str = "15") -> Tu
     
     Args:
         service_name: Service name (folder name)
-        lot: LOT number ("2" or "3")
+        lot: LOT number ("2", "2a", "2b", or "3")
         gcloud_version: GCloud version ("14" or "15")
         
     Returns:
@@ -428,7 +428,7 @@ def list_all_folders(gcloud_version: str = "14") -> List[Dict]:
     results = []
     base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
     
-    for lot in ["2", "3"]:
+    for lot in ["2", "2a", "2b", "3"]:
         lot_folder = base_path / f"Cloud Support Services LOT {lot}"
         
         if not lot_folder.exists():

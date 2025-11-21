@@ -29,7 +29,7 @@ export interface MetadataResponse {
 
 export interface CreateFolderRequest {
   service_name: string;
-  lot: '2' | '3';
+  lot: '2' | '2a' | '2b' | '3';
   gcloud_version?: '14' | '15';
 }
 
@@ -37,7 +37,7 @@ export interface CreateMetadataRequest {
   service_name: string;
   owner: string;
   sponsor: string;
-  lot: '2' | '3';
+  lot: '2' | '2a' | '2b' | '3';
   gcloud_version?: '14' | '15';
   last_edited_by?: string;
 }
@@ -61,7 +61,7 @@ class SharePointApiService {
    */
   async getMetadata(
     serviceName: string,
-    lot: '2' | '3',
+    lot: '2' | '2a' | '2b' | '3',
     gcloudVersion: '14' | '15' = '14'
   ): Promise<MetadataResponse> {
     try {
@@ -82,7 +82,7 @@ class SharePointApiService {
   async getDocument(
     serviceName: string,
     docType: 'SERVICE DESC' | 'Pricing Doc',
-    lot: '2' | '3',
+    lot: '2' | '2a' | '2b' | '3',
     gcloudVersion: '14' | '15' = '14'
   ): Promise<{ service_name: string; doc_type: string; lot: string; gcloud_version: string; file_path: string; exists: boolean }> {
     try {
@@ -129,7 +129,7 @@ class SharePointApiService {
   async getDocumentContent(
     serviceName: string,
     docType: 'SERVICE DESC' | 'Pricing Doc',
-    lot: '2' | '3',
+    lot: '2' | '2a' | '2b' | '3',
     gcloudVersion: '14' | '15' = '14'
   ): Promise<{ title: string; description: string; features: string[]; benefits: string[]; service_definition: Array<{ subtitle: string; content: string }> }> {
     try {

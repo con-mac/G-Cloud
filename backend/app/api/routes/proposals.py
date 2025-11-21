@@ -236,7 +236,7 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
             # Search in SharePoint folder structure
             # Format: GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_folder}/{filename}
             for gcloud_version in ["14", "15"]:
-                for lot in ["2", "3"]:
+                for lot in ["2", "2a", "2b", "3"]:
                     base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/"
                     blob_list = azure_blob_service.list_blobs(prefix=base_prefix)
                     
@@ -382,8 +382,8 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
         if not pa_services.exists():
             continue
         
-        # Check both LOT 2 and LOT 3
-        for lot_num in ["2", "3"]:
+        # Check all LOTs (2, 2a, 2b, 3)
+        for lot_num in ["2", "2a", "2b", "3"]:
             lot_folder = pa_services / f"Cloud Support Services LOT {lot_num}"
             if not lot_folder.exists() or not lot_folder.is_dir():
                 continue

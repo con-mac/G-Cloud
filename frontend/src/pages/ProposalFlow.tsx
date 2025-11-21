@@ -43,7 +43,7 @@ import sharepointApi, { SearchResult } from '../services/sharepointApi';
 
 type FlowType = 'update' | 'create' | null;
 type DocType = 'SERVICE DESC' | 'Pricing Doc' | null;
-type LotType = '2' | '3' | null;
+type LotType = '2' | '2a' | '2b' | '3' | null;
 
 export default function ProposalFlow() {
   const navigate = useNavigate();
@@ -157,7 +157,7 @@ export default function ProposalFlow() {
         try {
           // Use docType from state if selectedResult doesn't have it
           const docTypeToUse = (selectedResult.doc_type || docType) as 'SERVICE DESC' | 'Pricing Doc';
-          const lotToUse = (selectedResult.lot || '2') as '2' | '3';
+          const lotToUse = (selectedResult.lot || '3') as '2a' | '2b' | '3';
           const gcloudVersionToUse = (selectedResult.gcloud_version || '14') as '14' | '15';
           
           console.log('Loading document:', {
@@ -424,13 +424,14 @@ export default function ProposalFlow() {
               />
               <FormControl fullWidth>
                 <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600 }}>
-                  Is this a LOT 2 or LOT 3 proposal?
+                  Which LOT is this proposal for?
                 </FormLabel>
                 <RadioGroup
                   value={createData.lot || ''}
                   onChange={(e) => setCreateData({ ...createData, lot: e.target.value as LotType })}
                 >
-                  <FormControlLabel value="2" control={<Radio />} label="Cloud Support Services LOT 2" />
+                  <FormControlLabel value="2a" control={<Radio />} label="Cloud Support Services LOT 2a (IaaS and PaaS)" />
+                  <FormControlLabel value="2b" control={<Radio />} label="Cloud Support Services LOT 2b (SaaS)" />
                   <FormControlLabel value="3" control={<Radio />} label="Cloud Support Services LOT 3" />
                 </RadioGroup>
               </FormControl>

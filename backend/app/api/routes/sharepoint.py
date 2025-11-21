@@ -91,7 +91,7 @@ async def search_sharepoint_documents(request: SearchRequest):
 @router.get("/metadata/{service_name}", response_model=MetadataResponse)
 async def get_metadata(
     service_name: str,
-    lot: str = Query(..., description="LOT number (2 or 3)"),
+    lot: str = Query(..., description="LOT number (2, 2a, 2b, or 3)"),
     gcloud_version: str = Query("14", description="GCloud version (14 or 15)"),
     response: Response = None
 ):
@@ -100,7 +100,7 @@ async def get_metadata(
     
     Args:
         service_name: Service name
-        lot: LOT number (2 or 3)
+        lot: LOT number (2, 2a, 2b, or 3)
         gcloud_version: GCloud version (14 or 15)
         
     Returns:
@@ -162,7 +162,7 @@ async def get_metadata(
 async def get_document(
     service_name: str,
     doc_type: str = Query(..., description="Document type (SERVICE DESC or Pricing Doc)"),
-    lot: str = Query(..., description="LOT number (2 or 3)"),
+    lot: str = Query(..., description="LOT number (2, 2a, 2b, or 3)"),
     gcloud_version: str = Query("14", description="GCloud version (14 or 15)")
 ):
     """
@@ -171,7 +171,7 @@ async def get_document(
     Args:
         service_name: Service name
         doc_type: Document type ("SERVICE DESC" or "Pricing Doc")
-        lot: LOT number (2 or 3)
+        lot: LOT number (2, 2a, 2b, or 3)
         gcloud_version: GCloud version (14 or 15)
         
     Returns:
@@ -345,7 +345,7 @@ class DocumentContentResponse(BaseModel):
 async def get_document_content(
     service_name: str,
     doc_type: str = Query(..., description="Document type (SERVICE DESC or Pricing Doc)"),
-    lot: str = Query(..., description="LOT number (2 or 3)"),
+    lot: str = Query(..., description="LOT number (2, 2a, 2b, or 3)"),
     gcloud_version: str = Query("14", description="GCloud version (14 or 15)"),
     response: Response = None
 ):
@@ -355,7 +355,7 @@ async def get_document_content(
     Args:
         service_name: Service name
         doc_type: Document type ("SERVICE DESC" or "Pricing Doc")
-        lot: LOT number (2 or 3)
+        lot: LOT number (2, 2a, 2b, or 3)
         gcloud_version: GCloud version (14 or 15)
         
     Returns:
