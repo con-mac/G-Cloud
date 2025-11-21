@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict
 import logging
+import os
 
 from sharepoint_service.sharepoint_service import (
     search_documents,
@@ -202,7 +203,7 @@ async def get_document(
 @router.post("/create-folder")
 async def create_service_folder(request: CreateFolderRequest):
     """
-    Create folder structure for new proposal.
+    Create folder structure for new proposal and generate Pricing Document.
     
     Args:
         request: Folder creation request
@@ -219,6 +220,39 @@ async def create_service_folder(request: CreateFolderRequest):
         
         if not success:
             raise HTTPException(status_code=500, detail="Failed to create folder")
+        
+        # Generate Pricing Document at folder creation (as per G-Cloud 15 requirements)
+        try:
+            from app.services.pricing_document_generator import PricingDocumentGenerator
+            from app.services.s3_service import S3Service
+            
+            # Initialize pricing document generator
+            _use_s3 = os.environ.get("USE_S3", "false").lower() == "true"
+            if _use_s3:
+                s3_service = S3Service()
+                pricing_generator = PricingDocumentGenerator(s3_service=s3_service)
+            else:
+                pricing_generator = PricingDocumentGenerator()
+            
+            # Prepare metadata for pricing doc generation
+            new_proposal_metadata = {
+                'service': request.service_name,
+                'lot': request.lot,
+                'gcloud_version': request.gcloud_version
+            }
+            
+            # Generate pricing document
+            pricing_result = pricing_generator.generate_pricing_document(
+                service_name=request.service_name,
+                gcloud_version=request.gcloud_version,
+                lot=request.lot,
+                new_proposal_metadata=new_proposal_metadata
+            )
+            
+            logger.info(f"Generated pricing document: {pricing_result.get('word_blob_key') or pricing_result.get('word_path')}")
+        except Exception as e:
+            # Log error but don't fail folder creation if pricing doc generation fails
+            logger.warning(f"Failed to generate pricing document: {e}")
         
         return {
             "success": True,

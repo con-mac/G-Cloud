@@ -602,6 +602,10 @@ export default function ServiceDescriptionForm() {
       return;
     }
 
+    // Show info message about G-Cloud 15 rate cards
+    const infoMessage = "G-Cloud 15 will require a single rate card only this year that will be created and handled centrally. A generic pricing doc will be automatically generated. If your service requires a specific rate applied please contact the PA Bid Team";
+    alert(infoMessage);
+
     setSubmitting(true);
 
     try {
