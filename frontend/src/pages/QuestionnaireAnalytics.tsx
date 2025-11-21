@@ -293,7 +293,7 @@ export default function QuestionnaireAnalytics() {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={100}
-                                    label={({ answer, count }) => `${answer}: ${count}`}
+                                    label={(entry: any) => `${entry.answer}: ${entry.count}`}
                                   >
                                     {chartData.map((_, index) => (
                                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
