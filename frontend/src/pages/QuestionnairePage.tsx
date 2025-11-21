@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Container,
   Box,
@@ -36,7 +36,6 @@ import questionnaireApi, { Question, QuestionnaireData, QuestionAnswer } from '.
 
 export default function QuestionnairePage() {
   const { serviceName, lot } = useParams<{ serviceName: string; lot: string }>();
-  const navigate = useNavigate();
   
   const [loading, setLoading] = useState(true);
   const [questionnaireData, setQuestionnaireData] = useState<QuestionnaireData | null>(null);
@@ -198,7 +197,7 @@ export default function QuestionnairePage() {
     setCurrentSectionIndex(index);
   };
 
-  const renderQuestion = (question: Question, sectionName: string) => {
+  const renderQuestion = (question: Question) => {
     const currentAnswer = answers[question.question_text];
     
     switch (question.question_type) {
@@ -427,7 +426,7 @@ export default function QuestionnairePage() {
           Section {currentSectionIndex + 1} of {totalSections}
         </Typography>
 
-        {currentQuestions.map((question) => renderQuestion(question, currentSectionName))}
+        {currentQuestions.map((question) => renderQuestion(question))}
       </Paper>
 
       {/* Navigation */}
