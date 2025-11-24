@@ -449,15 +449,12 @@ export default function AdminDashboard() {
                         label={({ name, percent }) => {
                           const percentage = percent ? (percent * 100).toFixed(0) : 0;
                           // Truncate long section names
-                          const displayName = name.length > 20 ? `${name.substring(0, 20)}...` : name;
+                          const displayName = name && name.length > 20 ? `${name.substring(0, 20)}...` : (name || 'Unknown');
                           return `${displayName}: ${percentage}%`;
                         }}
                         outerRadius={120}
                         fill="#8884d8"
                         dataKey="value"
-                        onMouseEnter={(_, index) => {
-                          // Highlight effect handled by CSS
-                        }}
                       >
                         {analyticsSummary.sections.map((_, index) => (
                           <Cell 
@@ -482,7 +479,7 @@ export default function AdminDashboard() {
                         wrapperStyle={{ fontSize: '12px' }}
                         formatter={(value: string) => {
                           // Truncate long names in legend
-                          return value.length > 25 ? `${value.substring(0, 25)}...` : value;
+                          return value && value.length > 25 ? `${value.substring(0, 25)}...` : (value || 'Unknown');
                         }}
                       />
                     </PieChart>
