@@ -76,7 +76,8 @@ pa-deployment/
 
 ## Documentation
 
-- [Deployment Guide](docs/PA-DEPLOYMENT-GUIDE.md)
+- [Manual Deployment Guide](docs/PA-Manual-Deployment-Guide.md) - **Start here for step-by-step instructions**
+- [Deployment Guide](docs/PA-DEPLOYMENT-GUIDE.md) - Detailed technical guide
 - [Architecture Overview](../PA-Env-Deploy.md)
 - [Files to Copy](COPY_FILES.md)
 
