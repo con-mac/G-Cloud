@@ -40,6 +40,20 @@ import {
 } from '@mui/icons-material';
 import { proposalsService } from '../services/proposals';
 import sharepointApi from '../services/sharepointApi';
+import analyticsApi, { AnalyticsSummary } from '../services/analyticsApi';
+import {
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -53,10 +67,45 @@ export default function AdminDashboard() {
   const [messageBody, setMessageBody] = useState('');
   const [loadingDocument, setLoadingDocument] = useState(false);
   const [documentContent, setDocumentContent] = useState<any>(null);
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [drillDownOpen, setDrillDownOpen] = useState(false);
+  const [drillDownData, setDrillDownData] = useState<any>(null);
+  const [loadingDrillDown, setLoadingDrillDown] = useState(false);
 
   useEffect(() => {
     loadProposals();
+    loadAnalytics();
   }, []);
+
+  const loadAnalytics = async () => {
+    try {
+      setLoadingAnalytics(true);
+      setAnalyticsError(null);
+      const summary = await analyticsApi.getAnalyticsSummary();
+      setAnalyticsSummary(summary);
+    } catch (err: any) {
+      console.error('Failed to load analytics:', err);
+      setAnalyticsError(err.response?.data?.detail || 'Failed to load analytics.');
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  const handleDrillDown = async (sectionName: string, questionText: string) => {
+    try {
+      setLoadingDrillDown(true);
+      const data = await analyticsApi.getDrillDown(sectionName, questionText);
+      setDrillDownData(data);
+      setDrillDownOpen(true);
+    } catch (err: any) {
+      console.error('Failed to load drill-down:', err);
+      alert(`Failed to load drill-down: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setLoadingDrillDown(false);
+    }
+  };
 
   const loadProposals = async () => {
     try {
@@ -299,6 +348,140 @@ export default function AdminDashboard() {
         </Grid>
       </Grid>
 
+      {/* Analytics Widgets */}
+      {analyticsSummary && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12}>
+            <Typography variant="h5" gutterBottom>
+              Questionnaire Analytics
+            </Typography>
+          </Grid>
+          
+          {/* Summary Cards */}
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography variant="h4" gutterBottom>
+                  {analyticsSummary.total_services}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Total Services
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography variant="h4" gutterBottom color="success.main">
+                  {analyticsSummary.with_responses}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  With Responses
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography variant="h4" gutterBottom color="warning.main">
+                  {analyticsSummary.not_started}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Not Started
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography variant="h4" gutterBottom color="error.main">
+                  {analyticsSummary.locked}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Locked
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* LOT Breakdown Chart */}
+          {analyticsSummary.lot_breakdown && Object.keys(analyticsSummary.lot_breakdown).length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    LOT Breakdown
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={Object.entries(analyticsSummary.lot_breakdown).map(([lot, count]) => ({ lot, count }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="lot" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="count" fill="#0088FE" onClick={(data) => {
+                        // Navigate to analytics page filtered by LOT
+                        navigate(`/admin/analytics?lot=${data.lot}`);
+                      }} style={{ cursor: 'pointer' }} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* Top Questions Chart */}
+          {analyticsSummary.section_stats && Object.keys(analyticsSummary.section_stats).length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Responses by Section
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={Object.entries(analyticsSummary.section_stats).map(([section, stats]: [string, any]) => ({
+                          name: section,
+                          value: stats.total_responses || 0,
+                        }))}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {Object.entries(analyticsSummary.section_stats).map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'][index % 5]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
+      )}
+
+      {analyticsError && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          Analytics: {analyticsError}
+        </Alert>
+      )}
+
+      {loadingAnalytics && (
+        <Box display="flex" justifyContent="center" p={2}>
+          <CircularProgress size={24} />
+        </Box>
+      )}
+
       {/* Proposals Table */}
       <Card>
         <CardContent>
@@ -485,6 +668,71 @@ export default function AdminDashboard() {
           <Button onClick={() => setMessageDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleSendMessage} variant="contained" color="primary">
             Send Email
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Drill-Down Dialog */}
+      <Dialog
+        open={drillDownOpen}
+        onClose={() => setDrillDownOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Drill-Down: {drillDownData?.question}
+        </DialogTitle>
+        <DialogContent>
+          {loadingDrillDown ? (
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
+          ) : drillDownData ? (
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                Answer Distribution
+              </Typography>
+              {drillDownData.answer_distribution && Object.keys(drillDownData.answer_distribution).length > 0 ? (
+                <Box mb={3}>
+                  {Object.entries(drillDownData.answer_distribution).map(([answer, count]: [string, any]) => (
+                    <Box key={answer} mb={1} display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body1">{answer || '(No answer)'}</Typography>
+                      <Chip label={count} color="primary" size="small" />
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No answers yet</Typography>
+              )}
+              
+              <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+                Services by Answer
+              </Typography>
+              {drillDownData.services_by_answer && Object.keys(drillDownData.services_by_answer).length > 0 ? (
+                <List>
+                  {Object.entries(drillDownData.services_by_answer).map(([answer, services]: [string, any]) => (
+                    <Box key={answer} mb={2}>
+                      <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                        {answer || '(No answer)'} ({services.length} services)
+                      </Typography>
+                      {services.map((service: string, idx: number) => (
+                        <Chip key={idx} label={service} sx={{ mr: 1, mb: 1 }} size="small" />
+                      ))}
+                    </Box>
+                  ))}
+                </List>
+              ) : (
+                <Typography variant="body2" color="text.secondary">No services have answered this question</Typography>
+              )}
+            </Box>
+          ) : (
+            <Typography>No data available</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDrillDownOpen(false)}>Close</Button>
+          <Button onClick={() => navigate('/admin/analytics')} variant="contained">
+            View Full Analytics
           </Button>
         </DialogActions>
       </Dialog>

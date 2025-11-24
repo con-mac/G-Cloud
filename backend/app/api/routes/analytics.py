@@ -415,7 +415,7 @@ async def get_all_services_status(
         azure_blob_service = AzureBlobService()
         
         # Get all service folders
-        lots_to_check = [lot] if lot else ["2", "2a", "2b", "3"]
+        lots_to_check = [lot] if lot else ["2a", "2b", "3"]
         
         for lot_val in lots_to_check:
             base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot_val}/"
@@ -474,7 +474,7 @@ async def get_all_services_status(
         # Local filesystem
         from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
         
-        lots_to_check = [lot] if lot else ["2", "2a", "2b", "3"]
+        lots_to_check = [lot] if lot else ["2a", "2b", "3"]
         
         for lot_val in lots_to_check:
             base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot_val}"
@@ -551,7 +551,7 @@ async def get_all_questionnaire_responses(
         from app.services.azure_blob_service import AzureBlobService
         azure_blob_service = AzureBlobService()
         
-        lots_to_check = [lot] if lot else ["2", "2a", "2b", "3"]
+        lots_to_check = [lot] if lot else ["2a", "2b", "3"]
         
         for lot_val in lots_to_check:
             base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot_val}/"
@@ -577,7 +577,7 @@ async def get_all_questionnaire_responses(
         # Local filesystem
         from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
         
-        lots_to_check = [lot] if lot else ["2", "2a", "2b", "3"]
+        lots_to_check = [lot] if lot else ["2a", "2b", "3"]
         
         for lot_val in lots_to_check:
             base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot_val}"
