@@ -429,13 +429,13 @@ export default function AdminDashboard() {
             </Grid>
           )}
 
-          {/* Top Questions Chart */}
+          {/* Service Categories Chart */}
           {analyticsSummary.sections && analyticsSummary.sections.length > 0 && (
             <Grid item xs={12} md={6}>
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    Responses by Section
+                    Service Categories
                   </Typography>
                   <ResponsiveContainer width="100%" height={400}>
                     <PieChart>
@@ -446,31 +446,6 @@ export default function AdminDashboard() {
                         }))}
                         cx="50%"
                         cy="50%"
-                        labelLine={false}
-                        label={({ name, percent, index }) => {
-                          const percentage = percent ? (percent * 100).toFixed(0) : 0;
-                          // Truncate long section names
-                          const displayName = name && name.length > 20 ? `${name.substring(0, 20)}...` : (name || 'Unknown');
-                          const isActive = activeSectionIndex === index;
-                          return (
-                            <text
-                              x={0}
-                              y={0}
-                              textAnchor="middle"
-                              fill={isActive ? '#1976d2' : '#666'}
-                              fontSize={isActive ? 14 : 12}
-                              fontWeight={isActive ? 'bold' : 'normal'}
-                              style={{
-                                transition: 'all 0.3s ease',
-                                transform: isActive ? 'scale(1.15)' : 'scale(1)',
-                                filter: isActive ? 'drop-shadow(0 2px 6px rgba(25, 118, 210, 0.5))' : 'none',
-                                pointerEvents: 'none',
-                              }}
-                            >
-                              {`${displayName}: ${percentage}%`}
-                            </text>
-                          );
-                        }}
                         outerRadius={120}
                         fill="#8884d8"
                         dataKey="value"
@@ -487,7 +462,7 @@ export default function AdminDashboard() {
                           return (
                             <Cell 
                               key={`cell-${index}`} 
-                              fill={isActive ? baseColor : baseColor}
+                              fill={baseColor}
                               style={{
                                 opacity: activeSectionIndex !== null && !isActive ? 0.5 : 1,
                                 transition: 'opacity 0.3s ease',
@@ -508,13 +483,6 @@ export default function AdminDashboard() {
                           `${value} services`,
                           name
                         ]}
-                      />
-                      <Legend 
-                        wrapperStyle={{ fontSize: '12px' }}
-                        formatter={(value: string) => {
-                          // Truncate long names in legend
-                          return value && value.length > 25 ? `${value.substring(0, 25)}...` : (value || 'Unknown');
-                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
