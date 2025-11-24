@@ -70,6 +70,7 @@ export default function AdminDashboard() {
   const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [activeSectionIndex, setActiveSectionIndex] = useState<number | null>(null);
 
   useEffect(() => {
     loadProposals();
@@ -446,22 +447,59 @@ export default function AdminDashboard() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => {
+                        activeIndex={activeSectionIndex ?? undefined}
+                        activeShape={{
+                          outerRadius: 130,
+                          fill: '#8884d8',
+                        }}
+                        label={({ name, percent, index }) => {
                           const percentage = percent ? (percent * 100).toFixed(0) : 0;
                           // Truncate long section names
                           const displayName = name && name.length > 20 ? `${name.substring(0, 20)}...` : (name || 'Unknown');
-                          return `${displayName}: ${percentage}%`;
+                          const isActive = activeSectionIndex === index;
+                          return (
+                            <text
+                              x={0}
+                              y={0}
+                              textAnchor="middle"
+                              fill={isActive ? '#1976d2' : '#666'}
+                              fontSize={isActive ? 14 : 12}
+                              fontWeight={isActive ? 'bold' : 'normal'}
+                              style={{
+                                transition: 'all 0.3s ease',
+                                transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                                filter: isActive ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' : 'none',
+                              }}
+                            >
+                              {`${displayName}: ${percentage}%`}
+                            </text>
+                          );
                         }}
                         outerRadius={120}
                         fill="#8884d8"
                         dataKey="value"
+                        onMouseEnter={(_, index) => {
+                          setActiveSectionIndex(index);
+                        }}
+                        onMouseLeave={() => {
+                          setActiveSectionIndex(null);
+                        }}
                       >
-                        {analyticsSummary.sections.map((_, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7300'][index % 8]} 
-                          />
-                        ))}
+                        {analyticsSummary.sections.map((_, index) => {
+                          const isActive = activeSectionIndex === index;
+                          const baseColor = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7300'][index % 8];
+                          return (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={isActive ? baseColor : baseColor}
+                              style={{
+                                opacity: activeSectionIndex !== null && !isActive ? 0.5 : 1,
+                                transition: 'opacity 0.3s ease',
+                                cursor: 'pointer',
+                              }}
+                            />
+                          );
+                        })}
                       </Pie>
                       <Tooltip 
                         contentStyle={{
