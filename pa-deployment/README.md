@@ -33,9 +33,14 @@ This deployment uses:
 3. Ensure you have Azure CLI installed and logged in
 4. Ensure you have access to PA's Azure subscription
 5. Run the deployment script:
-   ```bash
-   ./deploy.sh
-   ```
+   - **Bash version** (Linux/Mac/Azure Cloud Shell Bash):
+     ```bash
+     ./deploy.sh
+     ```
+   - **PowerShell version** (Windows/Azure Cloud Shell PowerShell):
+     ```powershell
+     .\deploy.ps1
+     ```
 
 ## Prerequisites
 
@@ -49,12 +54,17 @@ This deployment uses:
 
 ```
 pa-deployment/
-├── deploy.sh                    # Main deployment script
+├── deploy.sh                    # Main deployment script (Bash)
+├── deploy.ps1                   # Main deployment script (PowerShell)
 ├── scripts/                     # Deployment sub-scripts
-│   ├── setup-resources.sh      # Create Azure resources
-│   ├── deploy-functions.sh     # Deploy backend
-│   ├── deploy-frontend.sh      # Deploy frontend
-│   └── configure-auth.sh        # Configure SSO
+│   ├── setup-resources.sh      # Create Azure resources (Bash)
+│   ├── setup-resources.ps1     # Create Azure resources (PowerShell)
+│   ├── deploy-functions.sh     # Deploy backend (Bash)
+│   ├── deploy-functions.ps1    # Deploy backend (PowerShell)
+│   ├── deploy-frontend.sh      # Deploy frontend (Bash)
+│   ├── deploy-frontend.ps1     # Deploy frontend (PowerShell)
+│   ├── configure-auth.sh        # Configure SSO (Bash)
+│   └── configure-auth.ps1       # Configure SSO (PowerShell)
 ├── backend/                     # Backend code (placeholders)
 │   ├── app/                    # FastAPI application
 │   ├── function_app/           # Azure Functions entry point
@@ -83,7 +93,7 @@ pa-deployment/
    - Update API base URLs
 
 3. **Deploy**:
-   - Run `./deploy.sh`
+   - Run `./deploy.sh` (Bash) or `.\deploy.ps1` (PowerShell)
    - Configure private endpoints
    - Test end-to-end
 
