@@ -575,6 +575,9 @@ async def get_all_proposals_admin():
         List of all proposals across all owners
     """
     try:
+        # Check if we're in Azure
+        use_azure = not USE_S3 and bool(os.environ.get("AZURE_STORAGE_CONNECTION_STRING", ""))
+        
         if USE_S3:
             # For S3, we need to use list_all_folders and search_documents
             try:
@@ -656,6 +659,142 @@ async def get_all_proposals_admin():
             proposals.sort(key=lambda x: x.get("last_update") or "", reverse=True)
             return proposals
         
+        # If using Azure, use Azure Blob Storage
+        if use_azure:
+            try:
+                from app.services.azure_blob_service import AzureBlobService
+                azure_blob_service = AzureBlobService()
+                
+                proposals = []
+                
+                # Search in SharePoint folder structure
+                for gcloud_version in ["14", "15"]:
+                    for lot in ["2", "2a", "2b", "3"]:
+                        base_prefix = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/"
+                        blob_list = azure_blob_service.list_blobs(prefix=base_prefix)
+                        
+                        # Group blobs by folder (service_folder)
+                        service_folders = {}
+                        for blob_name in blob_list:
+                            parts = blob_name.split('/')
+                            if len(parts) >= 4:
+                                folder_name = parts[3]
+                                if folder_name not in service_folders:
+                                    service_folders[folder_name] = []
+                                service_folders[folder_name].append(blob_name)
+                        
+                        # Check each service folder
+                        for folder_name, blob_names in service_folders.items():
+                            # Look for metadata file (OWNER *.txt)
+                            metadata_blob = None
+                            for blob_name in blob_names:
+                                if blob_name.endswith('.txt') and 'OWNER' in blob_name:
+                                    metadata_blob = blob_name
+                                    break
+                            
+                            if not metadata_blob:
+                                continue
+                            
+                            # Read metadata
+                            try:
+                                metadata_bytes = azure_blob_service.get_file_bytes(metadata_blob)
+                                metadata_content = metadata_bytes.decode('utf-8')
+                                
+                                # Parse metadata
+                                metadata = {}
+                                for line in metadata_content.split('\n'):
+                                    if ':' in line:
+                                        key, value = line.split(':', 1)
+                                        key = key.strip().lstrip('0123456789. ').strip()
+                                        value = value.strip()
+                                        if key:
+                                            metadata[key.lower().replace(' ', '_')] = value
+                                
+                                folder_owner = metadata.get('owner', '').strip()
+                                service_name = metadata.get('service', folder_name)
+                                
+                                # Check if documents exist
+                                service_desc_exists = False
+                                pricing_doc_exists = False
+                                last_update = None
+                                
+                                # Check for SERVICE DESC files
+                                for blob_name in blob_names:
+                                    if 'SERVICE DESC' in blob_name and blob_name.endswith('.docx') and '_draft' not in blob_name:
+                                        service_desc_exists = True
+                                        try:
+                                            blob_client = azure_blob_service.blob_service_client.get_blob_client(
+                                                container=azure_blob_service.container_name,
+                                                blob=blob_name
+                                            )
+                                            props = blob_client.get_blob_properties()
+                                            mtime = props.last_modified.timestamp()
+                                            if last_update is None or mtime > last_update:
+                                                last_update = mtime
+                                        except Exception as e:
+                                            logger.warning(f"Error getting blob timestamp: {e}")
+                                    elif 'Pricing Doc' in blob_name and blob_name.endswith('.docx'):
+                                        pricing_doc_exists = True
+                                        try:
+                                            blob_client = azure_blob_service.blob_service_client.get_blob_client(
+                                                container=azure_blob_service.container_name,
+                                                blob=blob_name
+                                            )
+                                            props = blob_client.get_blob_properties()
+                                            mtime = props.last_modified.timestamp()
+                                            if last_update is None or mtime > last_update:
+                                                last_update = mtime
+                                        except Exception as e:
+                                            logger.warning(f"Error getting blob timestamp: {e}")
+                                
+                                # Determine status
+                                if service_desc_exists and pricing_doc_exists:
+                                    status = "complete"
+                                    completion_percentage = 100.0
+                                elif service_desc_exists or pricing_doc_exists:
+                                    status = "incomplete"
+                                    completion_percentage = 50.0
+                                else:
+                                    status = "draft"
+                                    completion_percentage = 0.0
+                                
+                                # Format last update
+                                last_update_str = None
+                                if last_update:
+                                    last_update_str = datetime.fromtimestamp(last_update).isoformat()
+                                
+                                # Create proposal ID
+                                proposal_id = f"{service_name}_{gcloud_version}_{lot}".replace(" ", "_").lower()
+                                
+                                proposals.append({
+                                    "id": proposal_id,
+                                    "title": service_name,
+                                    "framework_version": f"G-Cloud {gcloud_version}",
+                                    "gcloud_version": gcloud_version,
+                                    "lot": lot,
+                                    "status": status,
+                                    "completion_percentage": completion_percentage,
+                                    "section_count": 2,
+                                    "valid_sections": 2 if status == "complete" else 1 if status == "incomplete" else 0,
+                                    "created_at": last_update_str or datetime.now().isoformat(),
+                                    "updated_at": last_update_str or datetime.now().isoformat(),
+                                    "last_update": last_update_str,
+                                    "service_desc_exists": service_desc_exists,
+                                    "pricing_doc_exists": pricing_doc_exists,
+                                    "owner": folder_owner,
+                                    "sponsor": metadata.get('sponsor', ''),
+                                })
+                            except Exception as e:
+                                logger.warning(f"Error processing metadata blob {metadata_blob}: {e}")
+                                continue
+                
+                # Sort by last update (most recent first)
+                proposals.sort(key=lambda x: x.get("last_update") or "", reverse=True)
+                return proposals
+            except Exception as e:
+                logger.error(f"Error getting proposals from Azure Blob Storage: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"Error loading proposals: {str(e)}")
+        
         # Local file system path
         if not MOCK_BASE_PATH or not MOCK_BASE_PATH.exists():
             return []
@@ -673,8 +812,8 @@ async def get_all_proposals_admin():
             if not pa_services.exists():
                 continue
             
-            # Check both LOT 2 and LOT 3
-            for lot_num in ["2", "3"]:
+            # Check all LOTs (2, 2a, 2b, 3)
+            for lot_num in ["2", "2a", "2b", "3"]:
                 lot_folder = pa_services / f"Cloud Support Services LOT {lot_num}"
                 if not lot_folder.exists() or not lot_folder.is_dir():
                     continue
