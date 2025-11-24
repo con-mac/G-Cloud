@@ -622,7 +622,7 @@ async def aggregate_responses_by_section(
         return []
     
     # Get sections for the LOT (or all LOTs)
-    lots_to_check = [lot] if lot else ["2", "2a", "2b", "3"]
+    lots_to_check = [lot] if lot else ["2a", "2b", "3"]
     
     sections_analytics = []
     
