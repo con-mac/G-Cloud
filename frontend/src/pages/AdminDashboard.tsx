@@ -47,6 +47,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Sector,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -448,9 +449,22 @@ export default function AdminDashboard() {
                         cy="50%"
                         labelLine={false}
                         activeIndex={activeSectionIndex ?? undefined}
-                        activeShape={{
-                          outerRadius: 130,
-                          fill: '#8884d8',
+                        activeShape={(props: any) => {
+                          const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+                          return (
+                            <g>
+                              <Sector
+                                cx={cx}
+                                cy={cy}
+                                innerRadius={innerRadius}
+                                outerRadius={outerRadius + 10}
+                                startAngle={startAngle}
+                                endAngle={endAngle}
+                                fill={fill}
+                                style={{ transition: 'all 0.3s ease' }}
+                              />
+                            </g>
+                          );
                         }}
                         label={({ name, percent, index }) => {
                           const percentage = percent ? (percent * 100).toFixed(0) : 0;
