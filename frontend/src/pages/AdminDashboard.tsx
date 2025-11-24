@@ -93,19 +93,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDrillDown = async (sectionName: string, questionText: string) => {
-    try {
-      setLoadingDrillDown(true);
-      const data = await analyticsApi.getDrillDown(sectionName, questionText);
-      setDrillDownData(data);
-      setDrillDownOpen(true);
-    } catch (err: any) {
-      console.error('Failed to load drill-down:', err);
-      alert(`Failed to load drill-down: ${err.response?.data?.detail || err.message}`);
-    } finally {
-      setLoadingDrillDown(false);
-    }
-  };
+  // Drill-down functionality available for future enhancement
+  // Currently charts navigate to full analytics page for detailed view
 
   const loadProposals = async () => {
     try {
