@@ -70,9 +70,6 @@ export default function AdminDashboard() {
   const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  const [drillDownOpen, setDrillDownOpen] = useState(false);
-  const [drillDownData, setDrillDownData] = useState<any>(null);
-  const [loadingDrillDown, setLoadingDrillDown] = useState(false);
 
   useEffect(() => {
     loadProposals();
@@ -663,70 +660,6 @@ export default function AdminDashboard() {
         </DialogActions>
       </Dialog>
 
-      {/* Drill-Down Dialog */}
-      <Dialog
-        open={drillDownOpen}
-        onClose={() => setDrillDownOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          Drill-Down: {drillDownData?.question}
-        </DialogTitle>
-        <DialogContent>
-          {loadingDrillDown ? (
-            <Box display="flex" justifyContent="center" p={4}>
-              <CircularProgress />
-            </Box>
-          ) : drillDownData ? (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Answer Distribution
-              </Typography>
-              {drillDownData.answer_distribution && Object.keys(drillDownData.answer_distribution).length > 0 ? (
-                <Box mb={3}>
-                  {Object.entries(drillDownData.answer_distribution).map(([answer, count]: [string, any]) => (
-                    <Box key={answer} mb={1} display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography variant="body1">{answer || '(No answer)'}</Typography>
-                      <Chip label={count} color="primary" size="small" />
-                    </Box>
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary">No answers yet</Typography>
-              )}
-              
-              <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-                Services by Answer
-              </Typography>
-              {drillDownData.breakdown && Object.keys(drillDownData.breakdown).length > 0 ? (
-                <Box>
-                  {Object.entries(drillDownData.breakdown).map(([answer, services]: [string, any]) => (
-                    <Box key={answer} mb={2}>
-                      <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                        {answer || '(No answer)'} ({Array.isArray(services) ? services.length : 0} services)
-                      </Typography>
-                      {Array.isArray(services) && services.map((service: any, idx: number) => (
-                        <Chip key={idx} label={service.service_name || service} sx={{ mr: 1, mb: 1 }} size="small" />
-                      ))}
-                    </Box>
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary">No services have answered this question</Typography>
-              )}
-            </Box>
-          ) : (
-            <Typography>No data available</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDrillDownOpen(false)}>Close</Button>
-          <Button onClick={() => navigate('/admin/analytics')} variant="contained">
-            View Full Analytics
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Container>
   );
 }
