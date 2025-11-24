@@ -81,6 +81,32 @@ class AnalyticsApiService {
     );
     return response;
   }
+
+  async seedQuestionnaireData(): Promise<{
+    success: boolean;
+    message: string;
+    results: Array<{
+      service_name: string;
+      lot: string;
+      status: string;
+      answers_count?: number;
+      is_locked?: boolean;
+      error?: string;
+    }>;
+    total: number;
+    succeeded: number;
+    failed: number;
+  }> {
+    const response = await apiService.post<{
+      success: boolean;
+      message: string;
+      results: any[];
+      total: number;
+      succeeded: number;
+      failed: number;
+    }>('/analytics/seed-questionnaire-data', {});
+    return response;
+  }
 }
 
 const analyticsApi = new AnalyticsApiService();

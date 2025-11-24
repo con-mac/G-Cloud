@@ -18,6 +18,103 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Seed data functions (inline to avoid import issues)
+SAMPLE_SERVICES = [
+    {
+        "service_name": "Cloud Infrastructure Services",
+        "lot": "3",
+        "gcloud_version": "15",
+        "completion_status": "completed",
+        "is_locked": True,
+    },
+    {
+        "service_name": "Data Analytics Platform",
+        "lot": "2a",
+        "gcloud_version": "15",
+        "completion_status": "completed",
+        "is_locked": True,
+    },
+    {
+        "service_name": "Customer Relationship Management",
+        "lot": "2b",
+        "gcloud_version": "15",
+        "completion_status": "draft",
+        "is_locked": False,
+    },
+    {
+        "service_name": "Security Monitoring Service",
+        "lot": "3",
+        "gcloud_version": "15",
+        "completion_status": "completed",
+        "is_locked": False,
+    },
+    {
+        "service_name": "Business Intelligence Tool",
+        "lot": "2a",
+        "gcloud_version": "15",
+        "completion_status": "draft",
+        "is_locked": False,
+    },
+]
+
+def _generate_sample_answers(parser: QuestionnaireParser, lot: str, service_name: str) -> List[Dict[str, Any]]:
+    """Generate sample answers for a questionnaire"""
+    sections = parser.parse_questions_for_lot(lot)
+    answers = []
+    
+    for section_name, questions in sections.items():
+        for question in questions:
+            question_text = question.get('question_text', '')
+            question_type = question.get('question_type', 'text')
+            answer_options = question.get('answer_options', [])
+            
+            answer_value = None
+            
+            if question_type == 'text' or question_type == 'Text field':
+                if 'service name' in question_text.lower() or 'service called' in question_text.lower():
+                    answer_value = service_name
+                elif 'service type' in question_text.lower():
+                    answer_value = "Cloud Support Service"
+                else:
+                    answer_value = f"Sample answer for {question_text[:30]}"
+            elif question_type == 'textarea' or question_type == 'Textarea':
+                answer_value = f"This is a sample detailed response for the question: {question_text[:50]}. It provides comprehensive information about the service capabilities and features."
+            elif question_type == 'radio' or question_type == 'Radio buttons':
+                if answer_options:
+                    answer_value = answer_options[0]
+                else:
+                    answer_value = "Yes"
+            elif question_type == 'checkbox' or question_type == 'Grouped checkboxes':
+                if answer_options:
+                    answer_value = answer_options[:min(3, len(answer_options))]
+                else:
+                    answer_value = ["Option 1", "Option 2"]
+            elif question_type == 'list' or question_type == 'List of text fields':
+                if 'systems requirements' in question_text.lower():
+                    answer_value = [
+                        "Windows 10 or later",
+                        "Minimum 4GB RAM",
+                        "Internet connection required",
+                        "Modern web browser",
+                        "Active directory integration"
+                    ]
+                else:
+                    answer_value = [
+                        "Sample requirement item one",
+                        "Sample requirement item two",
+                        "Sample requirement item three"
+                    ]
+            
+            if answer_value is not None:
+                answers.append({
+                    "question_text": question_text,
+                    "question_type": question_type,
+                    "answer": answer_value,
+                    "section_name": section_name
+                })
+    
+    return answers
+
 # Initialize parser
 _parser = None
 
@@ -196,6 +293,105 @@ async def get_drill_down(
     except Exception as e:
         logger.error(f"Error getting drill-down: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error getting drill-down: {str(e)}")
+
+
+@router.post("/seed-questionnaire-data")
+async def seed_questionnaire_data():
+    """
+    Seed sample questionnaire data for testing admin analytics (admin only)
+    
+    Creates 5 sample questionnaire responses with various completion statuses.
+    
+    Returns:
+        Summary of seeded data
+    """
+    try:
+        # Initialize parser
+        parser = QuestionnaireParser()
+        
+        # Check if we're in Azure
+        use_azure = bool(os.environ.get("AZURE_STORAGE_CONNECTION_STRING", ""))
+        
+        results = []
+        
+        # Generate and save responses for each service
+        for service in SAMPLE_SERVICES:
+            try:
+                # Generate answers
+                answers = _generate_sample_answers(
+                    parser,
+                    service['lot'],
+                    service['service_name']
+                )
+                
+                # Save response using the same logic as questionnaire.py
+                response_data = {
+                    "service_name": service['service_name'],
+                    "lot": service['lot'],
+                    "gcloud_version": service['gcloud_version'],
+                    "answers": answers,
+                    "is_draft": (service['completion_status'] == 'draft'),
+                    "is_locked": service['is_locked'],
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                
+                if use_azure:
+                    from app.services.azure_blob_service import AzureBlobService
+                    azure_blob_service = AzureBlobService()
+                    
+                    blob_key = f"GCloud {service['gcloud_version']}/PA Services/Cloud Support Services LOT {service['lot']}/{service['service_name']}/questionnaire_responses.json"
+                    
+                    json_data = json.dumps(response_data, indent=2)
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                        f.write(json_data)
+                        temp_path = Path(f.name)
+                    
+                    try:
+                        azure_blob_service.upload_file(temp_path, blob_key)
+                    finally:
+                        if temp_path.exists():
+                            temp_path.unlink()
+                else:
+                    # Local filesystem
+                    from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
+                    
+                    response_path = MOCK_BASE_PATH / f"GCloud {service['gcloud_version']}" / "PA Services" / f"Cloud Support Services LOT {service['lot']}" / service['service_name'] / "questionnaire_responses.json"
+                    
+                    response_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    with open(response_path, 'w', encoding='utf-8') as f:
+                        json.dump(response_data, f, indent=2)
+                
+                results.append({
+                    "service_name": service['service_name'],
+                    "lot": service['lot'],
+                    "status": "success",
+                    "answers_count": len(answers),
+                    "is_locked": service['is_locked']
+                })
+            except Exception as e:
+                logger.error(f"Failed to seed {service['service_name']}: {e}", exc_info=True)
+                results.append({
+                    "service_name": service['service_name'],
+                    "lot": service['lot'],
+                    "status": "error",
+                    "error": str(e)
+                })
+        
+        success_count = len([r for r in results if r['status'] == 'success'])
+        
+        return {
+            "success": True,
+            "message": f"Seeded {success_count} questionnaire responses",
+            "results": results,
+            "total": len(SAMPLE_SERVICES),
+            "succeeded": success_count,
+            "failed": len(results) - success_count
+        }
+    except Exception as e:
+        logger.error(f"Error seeding questionnaire data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error seeding data: {str(e)}")
 
 
 async def get_all_services_status(

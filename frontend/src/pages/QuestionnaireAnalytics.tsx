@@ -63,6 +63,7 @@ export default function QuestionnaireAnalytics() {
   const [drillDownOpen, setDrillDownOpen] = useState(false);
   const [drillDownData, setDrillDownData] = useState<DrillDownResponse | null>(null);
   const [loadingDrillDown, setLoadingDrillDown] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   useEffect(() => {
     loadAnalytics();
@@ -122,6 +123,31 @@ export default function QuestionnaireAnalytics() {
     }
   };
 
+  const handleSeedData = async () => {
+    if (!confirm('This will create 5 sample questionnaire responses for testing. Continue?')) {
+      return;
+    }
+
+    try {
+      setSeeding(true);
+      setError(null);
+      const result = await analyticsApi.seedQuestionnaireData();
+      
+      if (result.success) {
+        alert(`Successfully seeded ${result.succeeded} questionnaire responses!\n\nServices created:\n${result.results.map(r => `- ${r.service_name} (LOT ${r.lot}): ${r.status}`).join('\n')}`);
+        // Reload analytics to show new data
+        await loadAnalytics();
+      } else {
+        setError(`Seeding completed with errors: ${result.failed} failed`);
+      }
+    } catch (err: any) {
+      console.error('Failed to seed data:', err);
+      setError(err.response?.data?.detail || 'Failed to seed questionnaire data');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -157,19 +183,30 @@ export default function QuestionnaireAnalytics() {
             Visual analytics of questionnaire responses with drill-down functionality
           </Typography>
         </Box>
-        <FormControl sx={{ minWidth: 200 }}>
-          <InputLabel>Filter by LOT</InputLabel>
-          <Select
-            value={selectedLot}
-            label="Filter by LOT"
-            onChange={(e) => setSelectedLot(e.target.value)}
+        <Box display="flex" gap={2} alignItems="center">
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel>Filter by LOT</InputLabel>
+            <Select
+              value={selectedLot}
+              label="Filter by LOT"
+              onChange={(e) => setSelectedLot(e.target.value)}
+            >
+              <MenuItem value="">All LOTs</MenuItem>
+              <MenuItem value="2a">LOT 2a</MenuItem>
+              <MenuItem value="2b">LOT 2b</MenuItem>
+              <MenuItem value="3">LOT 3</MenuItem>
+            </Select>
+          </FormControl>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={handleSeedData}
+            disabled={seeding}
+            startIcon={seeding ? <CircularProgress size={20} /> : undefined}
           >
-            <MenuItem value="">All LOTs</MenuItem>
-            <MenuItem value="2a">LOT 2a</MenuItem>
-            <MenuItem value="2b">LOT 2b</MenuItem>
-            <MenuItem value="3">LOT 3</MenuItem>
-          </Select>
-        </FormControl>
+            {seeding ? 'Seeding...' : 'Seed Test Data'}
+          </Button>
+        </Box>
       </Box>
 
       {/* Summary Cards */}
