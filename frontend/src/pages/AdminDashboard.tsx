@@ -47,7 +47,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  Sector,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -448,24 +447,6 @@ export default function AdminDashboard() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        activeIndex={activeSectionIndex ?? undefined}
-                        activeShape={(props: any) => {
-                          const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
-                          return (
-                            <g>
-                              <Sector
-                                cx={cx}
-                                cy={cy}
-                                innerRadius={innerRadius}
-                                outerRadius={outerRadius + 10}
-                                startAngle={startAngle}
-                                endAngle={endAngle}
-                                fill={fill}
-                                style={{ transition: 'all 0.3s ease' }}
-                              />
-                            </g>
-                          );
-                        }}
                         label={({ name, percent, index }) => {
                           const percentage = percent ? (percent * 100).toFixed(0) : 0;
                           // Truncate long section names
@@ -481,8 +462,9 @@ export default function AdminDashboard() {
                               fontWeight={isActive ? 'bold' : 'normal'}
                               style={{
                                 transition: 'all 0.3s ease',
-                                transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                                filter: isActive ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' : 'none',
+                                transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                                filter: isActive ? 'drop-shadow(0 2px 6px rgba(25, 118, 210, 0.5))' : 'none',
+                                pointerEvents: 'none',
                               }}
                             >
                               {`${displayName}: ${percentage}%`}
@@ -492,7 +474,7 @@ export default function AdminDashboard() {
                         outerRadius={120}
                         fill="#8884d8"
                         dataKey="value"
-                        onMouseEnter={(_, index) => {
+                        onMouseEnter={(data: any, index: number) => {
                           setActiveSectionIndex(index);
                         }}
                         onMouseLeave={() => {
