@@ -211,6 +211,104 @@ async def get_responses(
         raise HTTPException(status_code=500, detail=f"Error getting responses: {str(e)}")
 
 
+@router.post("/responses/{service_name}/lock")
+async def lock_questionnaire(
+    service_name: str,
+    lot: str = Query(..., description="LOT number (2a, 2b, or 3)"),
+    gcloud_version: str = Query("15", description="G-Cloud version")
+):
+    """
+    Lock a questionnaire (admin only)
+    
+    Args:
+        service_name: Service name
+        lot: LOT number
+        gcloud_version: G-Cloud version
+        
+    Returns:
+        Success status
+    """
+    import os
+    import json
+    from pathlib import Path
+    
+    try:
+        # Load existing responses
+        answers, is_draft, is_locked = await load_questionnaire_responses(service_name, lot, gcloud_version)
+        
+        if is_locked:
+            return {
+                "success": True,
+                "message": "Questionnaire is already locked",
+                "is_locked": True
+            }
+        
+        # Check if we're in Azure
+        use_azure = bool(os.environ.get("AZURE_STORAGE_CONNECTION_STRING", ""))
+        
+        if use_azure:
+            from app.services.azure_blob_service import AzureBlobService
+            azure_blob_service = AzureBlobService()
+            
+            blob_key = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/questionnaire_responses.json"
+            
+            if not azure_blob_service.blob_exists(blob_key):
+                raise HTTPException(status_code=404, detail="Questionnaire responses not found")
+            
+            # Get existing data
+            json_bytes = azure_blob_service.get_file_bytes(blob_key)
+            response_data = json.loads(json_bytes.decode('utf-8'))
+            
+            # Update to locked
+            response_data['is_draft'] = False
+            response_data['is_locked'] = True
+            response_data['updated_at'] = datetime.utcnow().isoformat()
+            
+            # Save back
+            json_data = json.dumps(response_data, indent=2)
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                f.write(json_data)
+                temp_path = Path(f.name)
+            
+            try:
+                azure_blob_service.upload_file(temp_path, blob_key)
+            finally:
+                if temp_path.exists():
+                    temp_path.unlink()
+        else:
+            # Local filesystem
+            from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
+            
+            response_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name / "questionnaire_responses.json"
+            
+            if not response_path.exists():
+                raise HTTPException(status_code=404, detail="Questionnaire responses not found")
+            
+            with open(response_path, 'r', encoding='utf-8') as f:
+                response_data = json.load(f)
+            
+            # Update to locked
+            response_data['is_draft'] = False
+            response_data['is_locked'] = True
+            response_data['updated_at'] = datetime.utcnow().isoformat()
+            
+            # Save back
+            with open(response_path, 'w', encoding='utf-8') as f:
+                json.dump(response_data, f, indent=2)
+        
+        return {
+            "success": True,
+            "message": "Questionnaire locked successfully",
+            "is_locked": True
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error locking questionnaire: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error locking questionnaire: {str(e)}")
+
+
 async def save_questionnaire_responses(
     service_name: str,
     lot: str,

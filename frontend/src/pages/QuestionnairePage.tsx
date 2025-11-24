@@ -20,9 +20,6 @@ import {
   TextField,
   FormGroup,
   CircularProgress,
-  Stepper,
-  Step,
-  StepLabel,
   Alert,
   Chip,
 } from '@mui/material';
@@ -134,52 +131,6 @@ export default function QuestionnairePage() {
     }
   };
 
-  const handleLock = async () => {
-    if (!questionnaireData) return;
-    
-    if (!confirm('Are you sure you want to lock this questionnaire? Once locked, you cannot edit it.')) {
-      return;
-    }
-    
-    try {
-      setSaving(true);
-      setError(null);
-      setSuccessMessage(null);
-      
-      // Convert answers to QuestionAnswer format
-      const questionAnswers: QuestionAnswer[] = [];
-      for (const sectionName of questionnaireData.section_order) {
-        const questions = questionnaireData.sections[sectionName] || [];
-        for (const question of questions) {
-          if (answers[question.question_text] !== undefined) {
-            questionAnswers.push({
-              question_text: question.question_text,
-              question_type: question.question_type,
-              answer: answers[question.question_text],
-              section_name: sectionName,
-            });
-          }
-        }
-      }
-      
-      await questionnaireApi.saveResponses({
-        service_name: questionnaireData.service_name,
-        lot: questionnaireData.lot,
-        gcloud_version: questionnaireData.gcloud_version,
-        answers: questionAnswers,
-        is_draft: false,
-        is_locked: true,
-      });
-      
-      setSuccessMessage('Questionnaire locked successfully!');
-      // Reload to get updated locked status
-      await loadQuestionnaire();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to lock questionnaire');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleNext = () => {
     if (questionnaireData && currentSectionIndex < questionnaireData.section_order.length - 1) {
@@ -401,20 +352,48 @@ export default function QuestionnairePage() {
         </Alert>
       )}
 
-      {/* Section Stepper */}
+      {/* Section Navigation - Compact Chip List */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Stepper activeStep={currentSectionIndex} alternativeLabel>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+          Sections ({currentSectionIndex + 1} of {totalSections})
+        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1,
+            overflowX: 'auto',
+            pb: 1,
+            '&::-webkit-scrollbar': {
+              height: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: 'rgba(0,0,0,0.1)',
+              borderRadius: '4px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              borderRadius: '4px',
+            },
+          }}
+        >
           {questionnaireData.section_order.map((sectionName, index) => (
-            <Step key={sectionName}>
-              <StepLabel
-                onClick={() => handleSectionClick(index)}
-                sx={{ cursor: 'pointer' }}
-              >
-                {sectionName}
-              </StepLabel>
-            </Step>
+            <Chip
+              key={sectionName}
+              label={sectionName}
+              onClick={() => handleSectionClick(index)}
+              color={index === currentSectionIndex ? 'primary' : 'default'}
+              variant={index === currentSectionIndex ? 'filled' : 'outlined'}
+              sx={{
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                '&:hover': {
+                  backgroundColor: index === currentSectionIndex ? undefined : 'action.hover',
+                },
+              }}
+            />
           ))}
-        </Stepper>
+        </Box>
       </Paper>
 
       {/* Current Section */}
@@ -439,25 +418,13 @@ export default function QuestionnairePage() {
           Previous
         </Button>
 
-        <Box>
-          <Button
-            startIcon={<SaveIcon />}
-            onClick={handleSaveDraft}
-            disabled={saving || questionnaireData.is_locked}
-            sx={{ mr: 2 }}
-          >
-            {saving ? <CircularProgress size={24} /> : 'Save Draft'}
-          </Button>
-          <Button
-            startIcon={<LockIcon />}
-            onClick={handleLock}
-            disabled={saving || questionnaireData.is_locked}
-            variant="contained"
-            color="warning"
-          >
-            Lock Questionnaire
-          </Button>
-        </Box>
+        <Button
+          startIcon={<SaveIcon />}
+          onClick={handleSaveDraft}
+          disabled={saving || questionnaireData.is_locked}
+        >
+          {saving ? <CircularProgress size={24} /> : 'Save Draft'}
+        </Button>
 
         <Button
           endIcon={<ArrowForwardIcon />}

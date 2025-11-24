@@ -29,7 +29,14 @@ import {
   ListItemText,
   Chip,
   Paper,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import {
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
+} from '@mui/icons-material';
+import questionnaireApi from '../services/questionnaireApi';
 import {
   BarChart,
   Bar,
@@ -97,6 +104,22 @@ export default function QuestionnaireAnalytics() {
       alert(`Failed to load drill-down: ${err.response?.data?.detail || err.message}`);
     } finally {
       setLoadingDrillDown(false);
+    }
+  };
+
+  const handleLockService = async (service: ServiceStatus) => {
+    if (!confirm(`Are you sure you want to lock the questionnaire for "${service.service_name}"? Once locked, it cannot be edited.`)) {
+      return;
+    }
+
+    try {
+      await questionnaireApi.lockQuestionnaire(service.service_name, service.lot, service.gcloud_version);
+      alert(`Questionnaire for "${service.service_name}" has been locked successfully.`);
+      // Reload analytics to reflect the change
+      await loadAnalytics();
+    } catch (err: any) {
+      console.error('Failed to lock questionnaire:', err);
+      alert(`Failed to lock questionnaire: ${err.response?.data?.detail || err.message}`);
     }
   };
 
@@ -346,7 +369,26 @@ export default function QuestionnaireAnalytics() {
                   {servicesStatus
                     .filter(s => s.has_responses)
                     .map((service) => (
-                      <ListItem key={service.service_name}>
+                      <ListItem 
+                        key={service.service_name}
+                        secondaryAction={
+                          !service.is_locked ? (
+                            <Tooltip title="Lock Questionnaire">
+                              <IconButton
+                                edge="end"
+                                onClick={() => handleLockService(service)}
+                                color="warning"
+                              >
+                                <LockIcon />
+                              </IconButton>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip title="Questionnaire is locked">
+                              <LockIcon color="success" />
+                            </Tooltip>
+                          )
+                        }
+                      >
                         <ListItemText
                           primary={service.service_name}
                           secondary={

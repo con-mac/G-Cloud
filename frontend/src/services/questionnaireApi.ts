@@ -115,6 +115,30 @@ class QuestionnaireApiService {
       throw error;
     }
   }
+
+  /**
+   * Lock a questionnaire (admin only)
+   */
+  async lockQuestionnaire(
+    serviceName: string,
+    lot: string,
+    gcloudVersion: string = '15'
+  ): Promise<{ success: boolean; message: string; is_locked: boolean }> {
+    try {
+      const response = await apiService.post<{ success: boolean; message: string; is_locked: boolean }>(
+        `/questionnaire/responses/${encodeURIComponent(serviceName)}/lock`,
+        {},
+        {
+          lot,
+          gcloud_version: gcloudVersion,
+        }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Error locking questionnaire:', error);
+      throw error;
+    }
+  }
 }
 
 const questionnaireApi = new QuestionnaireApiService();
