@@ -474,7 +474,7 @@ export default function AdminDashboard() {
                         outerRadius={120}
                         fill="#8884d8"
                         dataKey="value"
-                        onMouseEnter={(data: any, index: number) => {
+                        onMouseEnter={(_: any, index: number) => {
                           setActiveSectionIndex(index);
                         }}
                         onMouseLeave={() => {
