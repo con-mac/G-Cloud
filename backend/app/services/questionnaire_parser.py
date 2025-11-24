@@ -37,11 +37,27 @@ class QuestionnaireParser:
                 docs_dir = backend_dir / "docs"
                 self.excel_path = docs_dir / "RM1557.15-G-Cloud-question-export (1).xlsx"
             
-            # Fallback to /app/docs if in Docker
-            if not self.excel_path.exists() and Path("/app/docs").exists():
-                self.excel_path = Path("/app/docs") / "RM1557.15-G-Cloud-question-export (1).xlsx"
+            # Fallback to /app/docs if in Docker/Azure
+            if not self.excel_path.exists():
+                azure_docs_path = Path("/app/docs") / "RM1557.15-G-Cloud-question-export (1).xlsx"
+                if azure_docs_path.exists():
+                    self.excel_path = azure_docs_path
+                else:
+                    # Try in the same directory as the script (for Azure Functions)
+                    script_dir = Path(__file__).parent.parent.parent
+                    script_docs_path = script_dir / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx"
+                    if script_docs_path.exists():
+                        self.excel_path = script_docs_path
         
         if not self.excel_path.exists():
+            # List possible paths for debugging
+            possible_paths = [
+                project_root / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx",
+                backend_dir / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx",
+                Path("/app/docs") / "RM1557.15-G-Cloud-question-export (1).xlsx",
+                Path(__file__).parent.parent.parent / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx",
+            ]
+            logger.error(f"Questionnaire Excel file not found. Tried paths: {[str(p) for p in possible_paths]}")
             raise FileNotFoundError(f"Questionnaire Excel file not found: {self.excel_path}")
     
     def parse_questions_for_lot(self, lot: str) -> Dict[str, List[Dict[str, Any]]]:

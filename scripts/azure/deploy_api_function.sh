@@ -49,6 +49,13 @@ if [ -d "${ROOT_DIR}/mock_sharepoint" ]; then
   rsync -a "${ROOT_DIR}/mock_sharepoint" "${DIST_DIR}/"
 fi
 
+# Include docs folder (contains questionnaire Excel file and templates)
+if [ -d "${ROOT_DIR}/docs" ]; then
+  log "Including docs folder in deployment package"
+  mkdir -p "${DIST_DIR}/docs"
+  rsync -a "${ROOT_DIR}/docs/" "${DIST_DIR}/docs/"
+fi
+
 log "Copying Azure Functions metadata"
 cp -R "${BACKEND_DIR}/function_app" "${DIST_DIR}/function_app"
 cp "${BACKEND_DIR}/host.json" "${DIST_DIR}/host.json"
