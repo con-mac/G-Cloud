@@ -125,13 +125,13 @@ class QuestionnaireApiService {
     gcloudVersion: string = '15'
   ): Promise<{ success: boolean; message: string; is_locked: boolean }> {
     try {
+      const params = new URLSearchParams({
+        lot,
+        gcloud_version: gcloudVersion,
+      });
       const response = await apiService.post<{ success: boolean; message: string; is_locked: boolean }>(
-        `/questionnaire/responses/${encodeURIComponent(serviceName)}/lock`,
-        {},
-        {
-          lot,
-          gcloud_version: gcloudVersion,
-        }
+        `/questionnaire/responses/${encodeURIComponent(serviceName)}/lock?${params.toString()}`,
+        {}
       );
       return response;
     } catch (error: any) {

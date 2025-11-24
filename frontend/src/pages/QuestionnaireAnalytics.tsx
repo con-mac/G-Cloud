@@ -30,11 +30,10 @@ import {
   Chip,
   Paper,
   IconButton,
-  Tooltip,
+  Tooltip as MuiTooltip,
 } from '@mui/material';
 import {
   Lock as LockIcon,
-  LockOpen as LockOpenIcon,
 } from '@mui/icons-material';
 import questionnaireApi from '../services/questionnaireApi';
 import {
@@ -373,7 +372,7 @@ export default function QuestionnaireAnalytics() {
                         key={service.service_name}
                         secondaryAction={
                           !service.is_locked ? (
-                            <Tooltip title="Lock Questionnaire">
+                            <MuiTooltip title="Lock Questionnaire">
                               <IconButton
                                 edge="end"
                                 onClick={() => handleLockService(service)}
@@ -381,11 +380,11 @@ export default function QuestionnaireAnalytics() {
                               >
                                 <LockIcon />
                               </IconButton>
-                            </Tooltip>
+                            </MuiTooltip>
                           ) : (
-                            <Tooltip title="Questionnaire is locked">
+                            <MuiTooltip title="Questionnaire is locked">
                               <LockIcon color="success" />
-                            </Tooltip>
+                            </MuiTooltip>
                           )
                         }
                       >
