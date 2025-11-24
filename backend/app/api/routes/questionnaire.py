@@ -103,12 +103,32 @@ async def get_questions(
             raise HTTPException(status_code=500, detail=f"Error parsing questions: {str(e)}")
         
         # Map service name to Service Name question if provided
+        # Look for the first question in the "Service name" section (typically the first section)
         if service_name:
-            for section_name, questions in sections.items():
-                for question in questions:
-                    if 'service name' in question['question_text'].lower() or 'service name' in str(question.get('question_text', '')).lower():
-                        # Pre-fill service name
-                        question['prefilled_answer'] = service_name
+            # First, try to find "Service name" section
+            service_name_section = None
+            for section_name in section_order:
+                if 'service name' in section_name.lower():
+                    service_name_section = section_name
+                    break
+            
+            # If found, map to first question in that section
+            if service_name_section and service_name_section in sections:
+                questions = sections[service_name_section]
+                if questions and len(questions) > 0:
+                    # Map to the first question in the Service name section
+                    questions[0]['prefilled_answer'] = service_name
+                    logger.info(f"Mapped service name '{service_name}' to first question in '{service_name_section}' section")
+            else:
+                # Fallback: search all sections for a question containing "service name"
+                for section_name, questions in sections.items():
+                    for question in questions:
+                        if 'service name' in question['question_text'].lower() or 'what\'s your service called' in question['question_text'].lower():
+                            # Pre-fill service name
+                            question['prefilled_answer'] = service_name
+                            logger.info(f"Mapped service name '{service_name}' to question: {question['question_text']}")
+                            break
+                    if any(q.get('prefilled_answer') == service_name for q in questions):
                         break
         
         # Try to load saved answers
