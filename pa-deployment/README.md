@@ -10,17 +10,31 @@ This deployment uses:
 - **Private endpoints** only (no public access)
 - **Serverless architecture** for cost efficiency
 
+## Current Status
+
+### ✅ Completed
+- Deployment scripts with interactive prompts
+- Backend structure with placeholder API routes
+- SharePoint service skeleton with Graph API placeholders
+- Configuration templates
+- Azure resource setup scripts
+- Authentication configuration script
+
+### ⏳ Pending Implementation
+- **SharePoint Integration**: All functions in `sharepoint_service/sharepoint_online.py` are placeholders
+- **Frontend Files**: Need to be copied from main repo and updated for MSAL
+- **Document Generator**: Needs SharePoint upload/download implementation
+- **Questionnaire Parser**: Needs to be copied from main repo
+
 ## Quick Start
 
-1. Ensure you have Azure CLI installed and logged in
-2. Ensure you have access to PA's Azure subscription
-3. Run the deployment script:
+1. **Copy frontend files** from main repository (see `COPY_FILES.md`)
+2. **Complete SharePoint integration** in `backend/sharepoint_service/sharepoint_online.py`
+3. Ensure you have Azure CLI installed and logged in
+4. Ensure you have access to PA's Azure subscription
+5. Run the deployment script:
    ```bash
    ./deploy.sh
-   ```
-   Or on Windows:
-   ```powershell
-   .\deploy.ps1
    ```
 
 ## Prerequisites
@@ -28,13 +42,50 @@ This deployment uses:
 - Azure CLI 2.0+
 - Access to PA Azure subscription
 - Access to SharePoint site
-- App Registration created in Azure AD
-- VNet and private endpoints configured
+- App Registration created in Azure AD (or let script create it)
+- VNet and private endpoints configured (or configure after deployment)
+
+## File Structure
+
+```
+pa-deployment/
+├── deploy.sh                    # Main deployment script
+├── scripts/                     # Deployment sub-scripts
+│   ├── setup-resources.sh      # Create Azure resources
+│   ├── deploy-functions.sh     # Deploy backend
+│   ├── deploy-frontend.sh      # Deploy frontend
+│   └── configure-auth.sh        # Configure SSO
+├── backend/                     # Backend code (placeholders)
+│   ├── app/                    # FastAPI application
+│   ├── function_app/           # Azure Functions entry point
+│   └── sharepoint_service/     # SharePoint integration (placeholders)
+├── frontend/                    # Frontend code (to be copied)
+├── config/                      # Configuration templates
+└── docs/                        # Documentation
+```
 
 ## Documentation
 
 - [Deployment Guide](docs/PA-DEPLOYMENT-GUIDE.md)
-- [Architecture Overview](PA-Env-Deploy.md)
+- [Architecture Overview](../PA-Env-Deploy.md)
+- [Files to Copy](COPY_FILES.md)
+
+## Next Steps
+
+1. **Complete SharePoint Integration**:
+   - Implement Graph API calls in `sharepoint_service/sharepoint_online.py`
+   - Update `document_generator.py` to use SharePoint
+   - Test file upload/download
+
+2. **Copy Frontend Files**:
+   - Copy pages from main repo
+   - Integrate MSAL for authentication
+   - Update API base URLs
+
+3. **Deploy**:
+   - Run `./deploy.sh`
+   - Configure private endpoints
+   - Test end-to-end
 
 ## Repository
 
