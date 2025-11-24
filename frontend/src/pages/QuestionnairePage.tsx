@@ -41,6 +41,7 @@ export default function QuestionnairePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [listValidationErrors, setListValidationErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (lot && serviceName) {
@@ -80,6 +81,48 @@ export default function QuestionnairePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper functions for list validation
+  const stripNumberPrefix = (text: string): string => {
+    return text.replace(/^\s*\d+\.?\s*/, '').trim();
+  };
+
+  const countWords = (text: string): number => {
+    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  };
+
+  const validateListItems = (items: string[], questionText: string): boolean => {
+    const validItems = items.filter(item => item.trim().length > 0);
+    
+    if (validItems.length > 10) {
+      setListValidationErrors(prev => ({
+        ...prev,
+        [questionText]: `Maximum 10 items allowed (currently ${validItems.length})`
+      }));
+      return false;
+    }
+    
+    // Check each item is max 10 words
+    for (const item of validItems) {
+      const strippedItem = stripNumberPrefix(item);
+      const words = countWords(strippedItem);
+      if (words > 10) {
+        setListValidationErrors(prev => ({
+          ...prev,
+          [questionText]: `Each item must be max 10 words (found ${words} words in one item)`
+        }));
+        return false;
+      }
+    }
+    
+    // Clear error if valid
+    setListValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[questionText];
+      return newErrors;
+    });
+    return true;
   };
 
   const handleAnswerChange = (questionText: string, answer: any) => {
@@ -242,6 +285,10 @@ export default function QuestionnairePage() {
       case 'list':
         // List of text fields (like features/benefits)
         const listItems = currentAnswer || [''];
+        const validItems = listItems.filter((item: string) => item.trim().length > 0);
+        const maxItems = 10;
+        const validationError = listValidationErrors[question.question_text];
+        
         return (
           <Box key={question.question_text} sx={{ mb: 3 }}>
             <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600, display: 'block' }}>
@@ -257,28 +304,49 @@ export default function QuestionnairePage() {
                 {question.question_advice}
               </Typography>
             )}
-            {listItems.map((item: string, idx: number) => (
-              <TextField
-                key={idx}
-                fullWidth
-                value={item}
-                onChange={(e) => {
-                  const newList = [...listItems];
-                  newList[idx] = e.target.value;
-                  handleAnswerChange(question.question_text, newList);
-                }}
-                sx={{ mb: 1 }}
-                placeholder={`Item ${idx + 1}`}
-              />
-            ))}
+            {validationError && (
+              <Alert severity="error" sx={{ mb: 1 }}>
+                {validationError}
+              </Alert>
+            )}
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+              {validItems.length}/{maxItems} items (max 10 words per item)
+            </Typography>
+            {listItems.map((item: string, idx: number) => {
+              const strippedItem = stripNumberPrefix(item);
+              const wordCount = countWords(strippedItem);
+              const hasError = wordCount > 10;
+              
+              return (
+                <TextField
+                  key={idx}
+                  fullWidth
+                  value={item}
+                  onChange={(e) => {
+                    const newList = [...listItems];
+                    newList[idx] = e.target.value;
+                    handleAnswerChange(question.question_text, newList);
+                    // Validate on change
+                    validateListItems(newList, question.question_text);
+                  }}
+                  error={hasError}
+                  helperText={hasError ? `${wordCount} words (max 10)` : wordCount > 0 ? `${wordCount} words` : ''}
+                  sx={{ mb: 1 }}
+                  placeholder={`Item ${idx + 1}`}
+                />
+              );
+            })}
             <Button
               size="small"
               onClick={() => {
-                handleAnswerChange(question.question_text, [...listItems, '']);
+                if (validItems.length < maxItems) {
+                  handleAnswerChange(question.question_text, [...listItems, '']);
+                }
               }}
+              disabled={validItems.length >= maxItems}
               sx={{ mt: 1 }}
             >
-              Add Item
+              Add Item {validItems.length >= maxItems ? `(Max ${maxItems} items)` : ''}
             </Button>
           </Box>
         );

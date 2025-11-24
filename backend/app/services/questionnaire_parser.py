@@ -168,6 +168,8 @@ class QuestionnaireParser:
                     continue
                 
                 section_name = str(section_name).strip()
+                # Fix encoding issues
+                section_name = section_name.replace('â€™', "'").replace('â€"', '"').replace('â€"', '"')
                 
                 # Get question text
                 question_text = row[question_col_idx - 1] if len(row) >= question_col_idx else None
@@ -175,6 +177,8 @@ class QuestionnaireParser:
                     continue
                 
                 question_text = str(question_text).strip()
+                # Fix encoding issues: replace â€™ with '
+                question_text = question_text.replace('â€™', "'").replace('â€"', '"').replace('â€"', '"')
                 
                 # Get question type
                 question_type = None
@@ -189,20 +193,27 @@ class QuestionnaireParser:
                     advice_value = row[question_advice_col_idx - 1]
                     if advice_value:
                         question_advice = str(advice_value).strip()
+                        # Fix encoding issues
+                        question_advice = question_advice.replace('â€™', "'").replace('â€"', '"').replace('â€"', '"')
                 
                 question_hint = None
                 if question_hint_col_idx and len(row) >= question_hint_col_idx:
                     hint_value = row[question_hint_col_idx - 1]
                     if hint_value:
                         question_hint = str(hint_value).strip()
+                        # Fix encoding issues
+                        question_hint = question_hint.replace('â€™', "'").replace('â€"', '"').replace('â€"', '"')
                 
                 # Get answer options
                 answer_options = []
                 for col_idx in answer_cols:
                     if len(row) >= col_idx:
                         answer_value = row[col_idx - 1]
-                        if answer_value and str(answer_value).strip():
-                            answer_options.append(str(answer_value).strip())
+                    if answer_value and str(answer_value).strip():
+                        answer_option = str(answer_value).strip()
+                        # Fix encoding issues
+                        answer_option = answer_option.replace('â€™', "'").replace('â€"', '"').replace('â€"', '"')
+                        answer_options.append(answer_option)
                 
                 # Normalize question type
                 normalized_type = self._normalize_question_type(question_type, answer_options)
