@@ -374,7 +374,7 @@ export default function AdminDashboard() {
             <Card>
               <CardContent>
                 <Typography variant="h4" gutterBottom color="success.main">
-                  {analyticsSummary.with_responses}
+                  {analyticsSummary.services_with_responses}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   With Responses
@@ -386,7 +386,7 @@ export default function AdminDashboard() {
             <Card>
               <CardContent>
                 <Typography variant="h4" gutterBottom color="warning.main">
-                  {analyticsSummary.not_started}
+                  {analyticsSummary.services_without_responses}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Not Started
@@ -398,7 +398,7 @@ export default function AdminDashboard() {
             <Card>
               <CardContent>
                 <Typography variant="h4" gutterBottom color="error.main">
-                  {analyticsSummary.locked}
+                  {analyticsSummary.services_locked}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Locked
@@ -422,9 +422,11 @@ export default function AdminDashboard() {
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Bar dataKey="count" fill="#0088FE" onClick={(data) => {
+                      <Bar dataKey="count" fill="#0088FE" onClick={(data: any) => {
                         // Navigate to analytics page filtered by LOT
-                        navigate(`/admin/analytics?lot=${data.lot}`);
+                        if (data && data.lot) {
+                          navigate(`/admin/analytics?lot=${data.lot}`);
+                        }
                       }} style={{ cursor: 'pointer' }} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -434,7 +436,7 @@ export default function AdminDashboard() {
           )}
 
           {/* Top Questions Chart */}
-          {analyticsSummary.section_stats && Object.keys(analyticsSummary.section_stats).length > 0 && (
+          {analyticsSummary.sections && analyticsSummary.sections.length > 0 && (
             <Grid item xs={12} md={6}>
               <Card>
                 <CardContent>
@@ -444,19 +446,19 @@ export default function AdminDashboard() {
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
-                        data={Object.entries(analyticsSummary.section_stats).map(([section, stats]: [string, any]) => ({
-                          name: section,
-                          value: stats.total_responses || 0,
+                        data={analyticsSummary.sections.map((section) => ({
+                          name: section.section_name,
+                          value: section.completed_services || 0,
                         }))}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent }) => `${name}: ${percent ? (percent * 100).toFixed(0) : 0}%`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {Object.entries(analyticsSummary.section_stats).map((_, index) => (
+                        {analyticsSummary.sections.map((_, index) => (
                           <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'][index % 5]} />
                         ))}
                       </Pie>
@@ -708,19 +710,19 @@ export default function AdminDashboard() {
               <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
                 Services by Answer
               </Typography>
-              {drillDownData.services_by_answer && Object.keys(drillDownData.services_by_answer).length > 0 ? (
-                <List>
-                  {Object.entries(drillDownData.services_by_answer).map(([answer, services]: [string, any]) => (
+              {drillDownData.breakdown && Object.keys(drillDownData.breakdown).length > 0 ? (
+                <Box>
+                  {Object.entries(drillDownData.breakdown).map(([answer, services]: [string, any]) => (
                     <Box key={answer} mb={2}>
                       <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                        {answer || '(No answer)'} ({services.length} services)
+                        {answer || '(No answer)'} ({Array.isArray(services) ? services.length : 0} services)
                       </Typography>
-                      {services.map((service: string, idx: number) => (
-                        <Chip key={idx} label={service} sx={{ mr: 1, mb: 1 }} size="small" />
+                      {Array.isArray(services) && services.map((service: any, idx: number) => (
+                        <Chip key={idx} label={service.service_name || service} sx={{ mr: 1, mb: 1 }} size="small" />
                       ))}
                     </Box>
                   ))}
-                </List>
+                </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">No services have answered this question</Typography>
               )}
