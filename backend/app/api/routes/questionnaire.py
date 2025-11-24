@@ -24,8 +24,9 @@ def get_parser():
     if _parser is None:
         try:
             _parser = QuestionnaireParser()
+            logger.info(f"Questionnaire parser initialized successfully. Excel path: {_parser.excel_path}")
         except Exception as e:
-            logger.warning(f"Failed to initialize questionnaire parser: {e}")
+            logger.error(f"Failed to initialize questionnaire parser: {e}", exc_info=True)
             _parser = None
     return _parser
 
@@ -81,14 +82,25 @@ async def get_questions(
     try:
         parser = get_parser()
         if not parser:
-            raise HTTPException(status_code=500, detail="Questionnaire parser not available")
+            logger.error("Questionnaire parser is None - initialization failed")
+            raise HTTPException(status_code=500, detail="Questionnaire parser not available. Please check server logs.")
         
         if lot not in ["3", "2a", "2b"]:
             raise HTTPException(status_code=400, detail=f"Invalid LOT: {lot}. Must be '3', '2a', or '2b'")
         
         # Parse questions grouped by section
-        sections = parser.parse_questions_for_lot(lot)
-        section_order = parser.get_sections_for_lot(lot)
+        try:
+            sections = parser.parse_questions_for_lot(lot)
+            section_order = parser.get_sections_for_lot(lot)
+        except FileNotFoundError as e:
+            logger.error(f"Excel file not found for LOT {lot}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Questionnaire Excel file not found. Expected at: {parser.excel_path if hasattr(parser, 'excel_path') else 'unknown'}"
+            )
+        except Exception as e:
+            logger.error(f"Error parsing questions for LOT {lot}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Error parsing questions: {str(e)}")
         
         # Map service name to Service Name question if provided
         if service_name:
