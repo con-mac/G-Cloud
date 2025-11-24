@@ -406,7 +406,14 @@ export default function AdminDashboard() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="lot" />
                       <YAxis />
-                      <Tooltip />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #ccc',
+                          borderRadius: '4px',
+                          padding: '8px',
+                        }}
+                      />
                       <Legend />
                       <Bar dataKey="count" fill="#0088FE" onClick={(data: any) => {
                         // Navigate to analytics page filtered by LOT
@@ -429,7 +436,7 @@ export default function AdminDashboard() {
                   <Typography variant="h6" gutterBottom>
                     Responses by Section
                   </Typography>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={400}>
                     <PieChart>
                       <Pie
                         data={analyticsSummary.sections.map((section) => ({
@@ -439,16 +446,45 @@ export default function AdminDashboard() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${percent ? (percent * 100).toFixed(0) : 0}%`}
-                        outerRadius={80}
+                        label={({ name, percent }) => {
+                          const percentage = percent ? (percent * 100).toFixed(0) : 0;
+                          // Truncate long section names
+                          const displayName = name.length > 20 ? `${name.substring(0, 20)}...` : name;
+                          return `${displayName}: ${percentage}%`;
+                        }}
+                        outerRadius={120}
                         fill="#8884d8"
                         dataKey="value"
+                        onMouseEnter={(_, index) => {
+                          // Highlight effect handled by CSS
+                        }}
                       >
                         {analyticsSummary.sections.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'][index % 5]} />
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7300'][index % 8]} 
+                          />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #ccc',
+                          borderRadius: '4px',
+                          padding: '8px',
+                        }}
+                        formatter={(value: any, name: any) => [
+                          `${value} services`,
+                          name
+                        ]}
+                      />
+                      <Legend 
+                        wrapperStyle={{ fontSize: '12px' }}
+                        formatter={(value: string) => {
+                          // Truncate long names in legend
+                          return value.length > 25 ? `${value.substring(0, 25)}...` : value;
+                        }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
