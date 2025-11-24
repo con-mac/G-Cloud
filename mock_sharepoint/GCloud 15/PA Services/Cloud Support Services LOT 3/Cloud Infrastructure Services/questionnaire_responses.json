@@ -1,0 +1,164 @@
+{
+  "service_name": "Cloud Infrastructure Services",
+  "lot": "3",
+  "gcloud_version": "15",
+  "answers": [
+    {
+      "question_text": "What's your service called?",
+      "question_type": "text",
+      "answer": "Cloud Infrastructure Services",
+      "section_name": "Service name"
+    },
+    {
+      "question_text": "Which categories does your service fit under?",
+      "question_type": "checkbox",
+      "answer": [
+        "Managed Private IaaS",
+        "Managed Private SaaS/PaaS",
+        "Application management"
+      ],
+      "section_name": "About your service"
+    },
+    {
+      "question_text": "Does your service have any constraints that buyers should know about?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Does your service have any constraints that buyers. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Service scope"
+    },
+    {
+      "question_text": "Supplier type",
+      "question_type": "text",
+      "answer": "Sample answer for Supplier type",
+      "section_name": "Reselling"
+    },
+    {
+      "question_text": "Are you reselling another organisation's services?",
+      "question_type": "radio",
+      "answer": "I'm not a reseller",
+      "section_name": "Reselling"
+    },
+    {
+      "question_text": "Which organisation's services do you resell?",
+      "question_type": "text",
+      "answer": "Sample answer for Which organisation's services ",
+      "section_name": "Reselling"
+    },
+    {
+      "question_text": "Email or ticketing support",
+      "question_type": "text",
+      "answer": "Sample answer for Email or ticketing support",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you provide email or online ticketing support?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "How quickly do you respond to questions?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: How quickly do you respond to questions?. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Can users manage the status and priority of their support tickets?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "What accessibility standards does your online ticketing support management meet?",
+      "question_type": "radio",
+      "answer": "WCAG 2.2 AAA",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Phone support",
+      "question_type": "text",
+      "answer": "Sample answer for Phone support",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you provide phone support?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "When can users get phone support?",
+      "question_type": "radio",
+      "answer": "24 hours, 7 days a week",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Web chat support",
+      "question_type": "text",
+      "answer": "Sample answer for Web chat support",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you provide web chat support?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "When can users get web chat support?",
+      "question_type": "radio",
+      "answer": "24 hours, 7 days a week",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you make available an AI driven self service tool (BOT) before you reach an operative?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "What accessibility standards does your web chat meet?",
+      "question_type": "radio",
+      "answer": "WCAG 2.2 AAA",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Describe how your web chat is accessible.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how your web chat is accessible.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Describe any web chat testing that you've done with assistive technology users.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe any web chat testing that you've done wit. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Describe your support levels",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe your support levels. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "How do you manage staff security clearance checks?",
+      "question_type": "radio",
+      "answer": "Staff screening performed which conforms to BS7858:2019",
+      "section_name": "Staff security"
+    },
+    {
+      "question_text": "If the role requires it, what level of security clearance are you prepared to make sure your staff have?",
+      "question_type": "radio",
+      "answer": "Up to Developed Vetting (DV)",
+      "section_name": "Staff security"
+    },
+    {
+      "question_text": "Do you offer special pricing for educational organisations?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Pricing"
+    }
+  ],
+  "is_draft": false,
+  "is_locked": true,
+  "updated_at": "2025-11-20T10:29:16.374550"
+}

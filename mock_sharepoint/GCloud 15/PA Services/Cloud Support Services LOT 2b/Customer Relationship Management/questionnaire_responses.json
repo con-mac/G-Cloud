@@ -1,0 +1,990 @@
+{
+  "service_name": "Customer Relationship Management",
+  "lot": "2b",
+  "gcloud_version": "15",
+  "answers": [
+    {
+      "question_text": "What's your service called?",
+      "question_type": "text",
+      "answer": "Customer Relationship Management",
+      "section_name": "Service name"
+    },
+    {
+      "question_text": "Which categories does your service fit under?",
+      "question_type": "checkbox",
+      "answer": [
+        "Model driven application platforms",
+        "Robotic process automation",
+        "Business Intelligence"
+      ],
+      "section_name": "About your service"
+    },
+    {
+      "question_text": "Does your service support Multi cloud?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "About your service"
+    },
+    {
+      "question_text": "Add-ons and extensions",
+      "question_type": "text",
+      "answer": "Sample answer for Add-ons and extensions",
+      "section_name": "Service scope"
+    },
+    {
+      "question_text": "Is your service an add-on or extension to other software services?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Service scope"
+    },
+    {
+      "question_text": "What other software services is your service an extension to?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: What other software services is your service an ex. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Service scope"
+    },
+    {
+      "question_text": "Is the service a public, private, community or hybrid cloud service?",
+      "question_type": "checkbox",
+      "answer": [
+        "Public cloud",
+        "Private cloud",
+        "Community cloud"
+      ],
+      "section_name": "Service scope"
+    },
+    {
+      "question_text": "Does your service have any constraints that buyers should know about?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Does your service have any constraints that buyers. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Service scope"
+    },
+    {
+      "question_text": "What system requirements does your service have?",
+      "question_type": "list",
+      "answer": [
+        "Sample requirement item one",
+        "Sample requirement item two",
+        "Sample requirement item three"
+      ],
+      "section_name": "Service scope"
+    },
+    {
+      "question_text": "Supplier type",
+      "question_type": "text",
+      "answer": "Sample answer for Supplier type",
+      "section_name": "Reselling"
+    },
+    {
+      "question_text": "Are you reselling another organisation's services?",
+      "question_type": "radio",
+      "answer": "I'm not a reseller",
+      "section_name": "Reselling"
+    },
+    {
+      "question_text": "Which organisation's services do you resell?",
+      "question_type": "text",
+      "answer": "Sample answer for Which organisation's services ",
+      "section_name": "Reselling"
+    },
+    {
+      "question_text": "Email or ticketing support",
+      "question_type": "text",
+      "answer": "Sample answer for Email or ticketing support",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you provide email or online ticketing support?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "How quickly do you respond to questions?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: How quickly do you respond to questions?. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Can users manage the status and priority of their support tickets?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "What accessibility standards does your online ticketing support management meet?",
+      "question_type": "radio",
+      "answer": "WCAG 2.2 AAA",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Phone support",
+      "question_type": "text",
+      "answer": "Sample answer for Phone support",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you provide phone support?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "When can users get phone support?",
+      "question_type": "radio",
+      "answer": "24 hours, 7 days a week",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Web chat support",
+      "question_type": "text",
+      "answer": "Sample answer for Web chat support",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you provide web chat support?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "When can users get web chat support?",
+      "question_type": "radio",
+      "answer": "24 hours, 7 days a week",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you make available an AI driven self service tool (BOT) before you reach an operative?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "What accessibility standards does your web chat meet?",
+      "question_type": "radio",
+      "answer": "WCAG 2.2 AAA",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Describe how your web chat is accessible.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how your web chat is accessible.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Describe any web chat testing that you've done with assistive technology users.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe any web chat testing that you've done wit. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Do you provide onsite support?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Describe your support levels",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe your support levels. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Can third parties engaged by the buyer access the support features of your service?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "User support"
+    },
+    {
+      "question_text": "Browsers",
+      "question_type": "text",
+      "answer": "Sample answer for Browsers",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Is your service accessed through a browser?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "What browsers does your service work with?",
+      "question_type": "checkbox",
+      "answer": [
+        "Microsoft Edge",
+        "Firefox",
+        "Chrome"
+      ],
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Installation",
+      "question_type": "text",
+      "answer": "Sample answer for Installation",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Is there an application that users install to use your service?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Which operating systems does your service work with?",
+      "question_type": "checkbox",
+      "answer": [
+        "Android",
+        "iOS",
+        "Linux or Unix"
+      ],
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Mobile",
+      "question_type": "text",
+      "answer": "Sample answer for Mobile",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Has your service been designed to work on mobile devices?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Describe any differences between the mobile and desktop service.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe any differences between the mobile and de. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Service interface",
+      "question_type": "text",
+      "answer": "Sample answer for Service interface",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Is there a service interface?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Describe the service interface",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe the service interface. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "What accessibility standards does your service interface meet?",
+      "question_type": "radio",
+      "answer": "WCAG 2.2 AAA",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Describe how your service is accessible.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how your service is accessible.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Describe any interface testing you've done with users of assistive technology.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe any interface testing you've done with us. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "User support",
+      "question_type": "text",
+      "answer": "Sample answer for User support",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "What accessibility standards can you support the user with?",
+      "question_type": "radio",
+      "answer": "WCAG 2.2 AAA",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "API",
+      "question_type": "text",
+      "answer": "Sample answer for API",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Is there an API for your service?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Describe what users can and can't do using your API.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe what users can and can't do using your AP. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Do you provide API documentation for your service?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "How is your API documented?",
+      "question_type": "checkbox",
+      "answer": [
+        "Open API (also known as Swagger)",
+        "HTML",
+        "ODF"
+      ],
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Is there a sandbox or test environment for your API?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Customisation",
+      "question_type": "text",
+      "answer": "Sample answer for Customisation",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "Can buyers customise your service?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "How can users customise your service?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: How can users customise your service?. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "How users work with your service"
+    },
+    {
+      "question_text": "How do you help users start using your service?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: How do you help users start using your service?. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "Documentation",
+      "question_type": "text",
+      "answer": "Sample answer for Documentation",
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "Do you provide documentation for your service?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "What formats do you provide documentation in?",
+      "question_type": "checkbox",
+      "answer": [
+        "HTML",
+        "ODF",
+        "PDF"
+      ],
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "What other formats do you provide documentation in?",
+      "question_type": "list",
+      "answer": [
+        "Sample requirement item one",
+        "Sample requirement item two",
+        "Sample requirement item three"
+      ],
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "What accessibility standards does your documentation meet?",
+      "question_type": "radio",
+      "answer": "WCAG 2.2 AAA",
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "Describe how your onboarding and offboarding documentation is accessible.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how your onboarding and offboarding docum. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "How do users extract their data when the contract ends?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: How do users extract their data when the contract . It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "Describe what happens at the end of the contract.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe what happens at the end of the contract.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Onboarding and offboarding"
+    },
+    {
+      "question_text": "How do users export their data?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: How do users export their data?. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Data importing and exporting"
+    },
+    {
+      "question_text": "Data export formats",
+      "question_type": "text",
+      "answer": "Sample answer for Data export formats",
+      "section_name": "Data importing and exporting"
+    },
+    {
+      "question_text": "What open formats can users export their data in?",
+      "question_type": "checkbox",
+      "answer": [
+        "CSV",
+        "ODF",
+        "Other"
+      ],
+      "section_name": "Data importing and exporting"
+    },
+    {
+      "question_text": "What other formats can users export their data in?",
+      "question_type": "list",
+      "answer": [
+        "Sample requirement item one",
+        "Sample requirement item two",
+        "Sample requirement item three"
+      ],
+      "section_name": "Data importing and exporting"
+    },
+    {
+      "question_text": "Data import formats",
+      "question_type": "text",
+      "answer": "Sample answer for Data import formats",
+      "section_name": "Data importing and exporting"
+    },
+    {
+      "question_text": "What open data formats can users upload their data in?",
+      "question_type": "checkbox",
+      "answer": [
+        "CSV",
+        "ODF",
+        "Other"
+      ],
+      "section_name": "Data importing and exporting"
+    },
+    {
+      "question_text": "What other formats can users upload their data in?",
+      "question_type": "list",
+      "answer": [
+        "Sample requirement item one",
+        "Sample requirement item two",
+        "Sample requirement item three"
+      ],
+      "section_name": "Data importing and exporting"
+    },
+    {
+      "question_text": "Metrics",
+      "question_type": "text",
+      "answer": "Sample answer for Metrics",
+      "section_name": "Analytics"
+    },
+    {
+      "question_text": "Do you provide service usage metrics?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Analytics"
+    },
+    {
+      "question_text": "Describe the service metrics you provide.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe the service metrics you provide.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Analytics"
+    },
+    {
+      "question_text": "How do you provide service metrics?",
+      "question_type": "checkbox",
+      "answer": [
+        "Through an API",
+        "Real-time dashboards",
+        "Regular reports"
+      ],
+      "section_name": "Analytics"
+    },
+    {
+      "question_text": "Does your solution support resource tagging?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Analytics"
+    },
+    {
+      "question_text": "Does your solution support FOCUS resource tagging?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Analytics"
+    },
+    {
+      "question_text": "How do you guarantee users aren't affected by the demand other users are placing on your service?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: How do you guarantee users aren't affected by the . It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Scaling"
+    },
+    {
+      "question_text": "Public sector networks",
+      "question_type": "text",
+      "answer": "Sample answer for Public sector networks",
+      "section_name": "Public sector networks"
+    },
+    {
+      "question_text": "Does your service connect to any public sector networks?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Public sector networks"
+    },
+    {
+      "question_text": "What public sector networks is the service directly connected to?",
+      "question_type": "checkbox",
+      "answer": [
+        "Public Services Network (PSN)",
+        "Police National Network (PNN)",
+        "Joint Academic Network (JANET)"
+      ],
+      "section_name": "Public sector networks"
+    },
+    {
+      "question_text": "Which other public sector networks is your service connected to?",
+      "question_type": "list",
+      "answer": [
+        "Sample requirement item one",
+        "Sample requirement item two",
+        "Sample requirement item three"
+      ],
+      "section_name": "Public sector networks"
+    },
+    {
+      "question_text": "Protection between networks",
+      "question_type": "text",
+      "answer": "Sample answer for Protection between networks",
+      "section_name": "Data-in-transit protection"
+    },
+    {
+      "question_text": "How do you protect data between the buyer's network and your network?",
+      "question_type": "checkbox",
+      "answer": [
+        "Private network or public sector network",
+        "TLS (Version 1.2 or above)",
+        "IPsec or TLS VPN gateway"
+      ],
+      "section_name": "Data-in-transit protection"
+    },
+    {
+      "question_text": "Describe how else you protect data between the buyer's network and your network.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how else you protect data between the buy. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Data-in-transit protection"
+    },
+    {
+      "question_text": "Protection within your network",
+      "question_type": "text",
+      "answer": "Sample answer for Protection within your network",
+      "section_name": "Data-in-transit protection"
+    },
+    {
+      "question_text": "How do you protect data within your network?",
+      "question_type": "checkbox",
+      "answer": [
+        "TLS (Version 1.2 or above)",
+        "IPsec or TLS VPN gateway",
+        "Legacy SSL and TLS (under 1.2)"
+      ],
+      "section_name": "Data-in-transit protection"
+    },
+    {
+      "question_text": "Describe how else you protect data within your network.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how else you protect data within your net. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Data-in-transit protection"
+    },
+    {
+      "question_text": "Data storage and processing locations",
+      "question_type": "text",
+      "answer": "Sample answer for Data storage and processing lo",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Do you know where your data is stored and processed?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Where is data stored and processed?",
+      "question_type": "checkbox",
+      "answer": [
+        "United Kingdom",
+        "European Economic Area (EEA)",
+        "Other locations"
+      ],
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Can users specify where data is stored and processed?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "With which standards does your datacentre security setup comply?",
+      "question_type": "radio",
+      "answer": "Complies with a recognised standard, for example CSA CCM v4.0 or SSAE-18 / ISAE 3402",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Penetration testing",
+      "question_type": "text",
+      "answer": "Sample answer for Penetration testing",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "How often do you do penetration testing?",
+      "question_type": "radio",
+      "answer": "At least every 6 months",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "What is your approach to penetration testing?",
+      "question_type": "radio",
+      "answer": "\u00e2\u20ac\u02dcIT Health Check' performed by a CHECK service provider",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Protection of data at rest",
+      "question_type": "text",
+      "answer": "Sample answer for Protection of data at rest",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "How do you protect data at rest?",
+      "question_type": "checkbox",
+      "answer": [
+        "Physical access control, complying with CSA CCM v4.0",
+        "Physical access control, complying with SSAE-18 / ISAE 3402",
+        "Physical access control, complying with another standard"
+      ],
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Describe how else you protect data at rest.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how else you protect data at rest.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Data sanitisation process",
+      "question_type": "text",
+      "answer": "Sample answer for Data sanitisation process",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Do you have a data sanitisation process?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "How do you make sure customer data is sanitised and/or permanently erased from your solution after use?",
+      "question_type": "checkbox",
+      "answer": [
+        "Deleted data can't be directly accessed / Cryptographic Erasure",
+        "Data Erasure",
+        "Explicit overwriting of storage before reallocation / Secure Erase"
+      ],
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "How do you dispose of equipment?",
+      "question_type": "radio",
+      "answer": "Complying with a recognised standard, for example CSA CCM v4.0, CAS (Sanitisation) or ISO/IEC 27001",
+      "section_name": "Asset protection"
+    },
+    {
+      "question_text": "Describe the level of availability you guarantee.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe the level of availability you guarantee.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Availability and resilience"
+    },
+    {
+      "question_text": "Describe how your service is designed to be resilient.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how your service is designed to be resili. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Availability and resilience"
+    },
+    {
+      "question_text": "How does your service report any outages?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: How does your service report any outages?. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Availability and resilience"
+    },
+    {
+      "question_text": "Does your organisation have a named person with board-level (or equivalent) authorisation who's responsible for the security of all of your services?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Governance"
+    },
+    {
+      "question_text": "Security governance",
+      "question_type": "text",
+      "answer": "Sample answer for Security governance",
+      "section_name": "Governance"
+    },
+    {
+      "question_text": "Does your organisation comply with the recommendations in the Software Security Code of Practice",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Governance"
+    },
+    {
+      "question_text": "Is your security governance certified to a standard?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Governance"
+    },
+    {
+      "question_text": "What security governance standards do you comply with?",
+      "question_type": "checkbox",
+      "answer": [
+        "Physical access control, complying with CSA CCM v4.0",
+        "ISO/IEC 27001",
+        "Other"
+      ],
+      "section_name": "Governance"
+    },
+    {
+      "question_text": "List the other standards your governance standards comply with.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: List the other standards your governance standards. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Governance"
+    },
+    {
+      "question_text": "Describe how you approach security governance.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how you approach security governance.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Governance"
+    },
+    {
+      "question_text": "What information security policies and processes do you follow?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: What information security policies and processes d. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Governance"
+    },
+    {
+      "question_text": "Which configuration and change management processes does your organisation comply with?",
+      "question_type": "radio",
+      "answer": "Complies with a recognised standard, for example CSA CCM v4.0 or SSAE-18 / ISAE 3402",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "Describe your configuration and change management processes.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe your configuration and change management . It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "Which vulnerability management processes does your organisation comply with?",
+      "question_type": "radio",
+      "answer": "Complies with a recognised standard, for example CSA CCM v4.0 or SSAE-18 / ISAE 3402",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "Describe your vulnerability management process?",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe your vulnerability management process?. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "Which protective monitoring processes does your organisation comply with?",
+      "question_type": "radio",
+      "answer": "Complies with a recognised standard, for example CSA CCM v4.0 or SSAE-18 / ISAE 3402",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "Describe your protective monitoring processes.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe your protective monitoring processes.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "Which incident management processes does your organisation comply with?",
+      "question_type": "radio",
+      "answer": "Complies with a recognised standard, for example, CSA CCM v4.0 or ISO/IEC 27035:2011 or SSAE-18 / ISAE 3402",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "Are you compliant with NCSC guidance on Post-quantum cryptography secure?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "Describe your incident management processes.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe your incident management processes.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Operational security"
+    },
+    {
+      "question_text": "How do you manage staff security clearance checks?",
+      "question_type": "radio",
+      "answer": "Staff screening performed which conforms to BS7858:2019",
+      "section_name": "Staff security"
+    },
+    {
+      "question_text": "If the role requires it, what level of security clearance are you prepared to make sure your staff have?",
+      "question_type": "radio",
+      "answer": "Up to Developed Vetting (DV)",
+      "section_name": "Staff security"
+    },
+    {
+      "question_text": "How does your organisation demonstrate that it adheres to best practice in secure software development?",
+      "question_type": "radio",
+      "answer": "Independent review of processes (for example CESG CPA Build Standard, ISO/IEC 27034, ISO/IEC 27001 or CSA CCM v4.0)",
+      "section_name": "Secure development"
+    },
+    {
+      "question_text": "User authentication",
+      "question_type": "text",
+      "answer": "Sample answer for User authentication",
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "Do users need to be authenticated when using your service?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "How do you authenticate users when they access the service?",
+      "question_type": "checkbox",
+      "answer": [
+        "Multi-Factor Authentication (MFA)",
+        "Public key authentication (including by TLS client certificate)",
+        "Identity federation with existing provider (for example Google apps)"
+      ],
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "Describe how you authenticate users when they access the service.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how you authenticate users when they acce. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "Describe how you restrict access in management interfaces and support channels.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how you restrict access in management int. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "How often do you test your access controls?",
+      "question_type": "radio",
+      "answer": "At least every 6 months",
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "Management access",
+      "question_type": "text",
+      "answer": "Sample answer for Management access",
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "How do you authenticate management access to your service?",
+      "question_type": "checkbox",
+      "answer": [
+        "Multi-Factor Authentication (MFA)",
+        "Public key authentication (including by TLS client certificate)",
+        "Identity federation with existing provider (for example Google apps)"
+      ],
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "Describe how you authenticate management access to your service.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe how you authenticate management access to. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Identity and authentication"
+    },
+    {
+      "question_text": "Audit for buyers' users' actions",
+      "question_type": "text",
+      "answer": "Sample answer for Audit for buyers' users' actio",
+      "section_name": "Audit information for users"
+    },
+    {
+      "question_text": "How do buyers access audit information about the actions their users have taken?",
+      "question_type": "radio",
+      "answer": "Users have access to real-time audit information",
+      "section_name": "Audit information for users"
+    },
+    {
+      "question_text": "How long do you store users' audit data for?",
+      "question_type": "radio",
+      "answer": "User-defined",
+      "section_name": "Audit information for users"
+    },
+    {
+      "question_text": "Audit for suppliers' users' actions",
+      "question_type": "text",
+      "answer": "Sample answer for Audit for suppliers' users' ac",
+      "section_name": "Audit information for users"
+    },
+    {
+      "question_text": "How do buyers access audit information about the actions your organisation has taken?",
+      "question_type": "radio",
+      "answer": "Users have access to real-time audit information",
+      "section_name": "Audit information for users"
+    },
+    {
+      "question_text": "How long do you store your organisation's audit data for?",
+      "question_type": "radio",
+      "answer": "User-defined",
+      "section_name": "Audit information for users"
+    },
+    {
+      "question_text": "How long are system logs stored for?",
+      "question_type": "radio",
+      "answer": "User-defined",
+      "section_name": "Audit information for users"
+    },
+    {
+      "question_text": "Do you offer special pricing for educational organisations?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Pricing"
+    },
+    {
+      "question_text": "Free or trial versions",
+      "question_type": "text",
+      "answer": "Sample answer for Free or trial versions",
+      "section_name": "Pricing"
+    },
+    {
+      "question_text": "Do you provide a free trial option for your service?",
+      "question_type": "radio",
+      "answer": "Yes",
+      "section_name": "Pricing"
+    },
+    {
+      "question_text": "Describe the free version of your service.",
+      "question_type": "textarea",
+      "answer": "This is a sample detailed response for the question: Describe the free version of your service.. It provides comprehensive information about the service capabilities and features.",
+      "section_name": "Pricing"
+    },
+    {
+      "question_text": "Provide a link to the free version of your service",
+      "question_type": "text",
+      "answer": "Sample answer for Provide a link to the free ver",
+      "section_name": "Pricing"
+    }
+  ],
+  "is_draft": true,
+  "is_locked": false,
+  "updated_at": "2025-11-23T10:29:16.906575"
+}
