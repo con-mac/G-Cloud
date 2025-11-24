@@ -26,28 +26,45 @@ class QuestionnaireParser:
         if excel_path:
             self.excel_path = Path(excel_path)
         else:
-            # Default to docs folder (project root)
+            # Try multiple possible locations
+            possible_paths = []
+            
+            # 1. /app/docs (Azure Functions/Docker standard location)
+            possible_paths.append(Path("/app/docs") / "RM1557.15-G-Cloud-question-export (1).xlsx")
+            
+            # 2. Relative to this file (for local development)
             backend_dir = Path(__file__).parent.parent.parent
             project_root = backend_dir.parent  # Go up one more level to project root
-            docs_dir = project_root / "docs"
-            self.excel_path = docs_dir / "RM1557.15-G-Cloud-question-export (1).xlsx"
+            possible_paths.append(project_root / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx")
             
-            # Fallback to backend/docs
-            if not self.excel_path.exists():
-                docs_dir = backend_dir / "docs"
-                self.excel_path = docs_dir / "RM1557.15-G-Cloud-question-export (1).xlsx"
+            # 3. backend/docs
+            possible_paths.append(backend_dir / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx")
             
-            # Fallback to /app/docs if in Docker/Azure
-            if not self.excel_path.exists():
-                azure_docs_path = Path("/app/docs") / "RM1557.15-G-Cloud-question-export (1).xlsx"
-                if azure_docs_path.exists():
-                    self.excel_path = azure_docs_path
-                else:
-                    # Try in the same directory as the script (for Azure Functions)
-                    script_dir = Path(__file__).parent.parent.parent
-                    script_docs_path = script_dir / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx"
-                    if script_docs_path.exists():
-                        self.excel_path = script_docs_path
+            # 4. Same level as backend (for Azure Functions deployment structure)
+            # In Azure Functions, structure might be: /home/site/wwwroot/app/... and /home/site/wwwroot/docs/...
+            azure_root = Path("/home/site/wwwroot")
+            if azure_root.exists():
+                possible_paths.append(azure_root / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx")
+            
+            # 5. Current working directory/docs
+            possible_paths.append(Path.cwd() / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx")
+            
+            # Find the first existing path
+            self.excel_path = None
+            for path in possible_paths:
+                if path.exists():
+                    self.excel_path = path
+                    logger.info(f"Found questionnaire Excel file at: {path}")
+                    break
+            
+            if not self.excel_path:
+                # Try one more: check if docs folder exists at any level
+                for base in [Path("/app"), Path("/home/site/wwwroot"), Path.cwd(), backend_dir, project_root]:
+                    test_path = base / "docs" / "RM1557.15-G-Cloud-question-export (1).xlsx"
+                    if test_path.exists():
+                        self.excel_path = test_path
+                        logger.info(f"Found questionnaire Excel file at: {test_path}")
+                        break
         
         if not self.excel_path.exists():
             # List possible paths for debugging
