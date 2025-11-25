@@ -90,8 +90,8 @@ if ($LASTEXITCODE -ne 0) {
     Write-Warning "Key Vault already exists: $KEY_VAULT_NAME"
 }
 
-# Create Function App (Consumption plan for serverless)
-Write-Info "Creating Function App for backend API..."
+# Create or update Function App (Consumption plan for serverless)
+Write-Info "Setting up Function App for backend API..."
 $funcExists = az functionapp show --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP 2>&1
 if ($LASTEXITCODE -ne 0) {
     # Create storage account for function app (required)
@@ -121,12 +121,13 @@ if ($LASTEXITCODE -ne 0) {
     
     Write-Success "Function App created: $FUNCTION_APP_NAME"
 } else {
-    Write-Warning "Function App already exists: $FUNCTION_APP_NAME"
+    Write-Success "Using existing Function App: $FUNCTION_APP_NAME"
+    Write-Info "Function App will be updated with new configuration during deployment"
 }
 
-# Create Static Web App (or App Service for private hosting)
-Write-Info "Creating Static Web App for frontend..."
-$webExists = az staticwebapp show --name $WEB_APP_NAME --resource-group $RESOURCE_GROUP 2>&1
+# Create or update Static Web App (or App Service for private hosting)
+Write-Info "Setting up Web App for frontend..."
+$webAppExists = az webapp show --name $WEB_APP_NAME --resource-group $RESOURCE_GROUP 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Static Web Apps have limited private endpoint support"
     Write-Warning "Consider using App Service with private endpoints for full private access"
@@ -144,20 +145,16 @@ if ($LASTEXITCODE -ne 0) {
     }
     
     # Create Web App
-    $webAppExists = az webapp show --name $WEB_APP_NAME --resource-group $RESOURCE_GROUP 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        az webapp create `
-            --name $WEB_APP_NAME `
-            --resource-group $RESOURCE_GROUP `
-            --plan $APP_SERVICE_PLAN `
-            --runtime "NODE:18-lts" | Out-Null
-        
-        Write-Success "Web App created: $WEB_APP_NAME"
-    } else {
-        Write-Warning "Web App already exists: $WEB_APP_NAME"
-    }
+    az webapp create `
+        --name $WEB_APP_NAME `
+        --resource-group $RESOURCE_GROUP `
+        --plan $APP_SERVICE_PLAN `
+        --runtime "NODE:18-lts" | Out-Null
+    
+    Write-Success "Web App created: $WEB_APP_NAME"
 } else {
-    Write-Warning "Static Web App already exists: $WEB_APP_NAME"
+    Write-Success "Using existing Web App: $WEB_APP_NAME"
+    Write-Info "Web App will be updated with new configuration during deployment"
 }
 
 # Handle Application Insights

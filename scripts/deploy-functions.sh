@@ -59,9 +59,15 @@ mkdir -p .python_packages/lib/site-packages
 
 # Deploy to Function App
 print_info "Deploying to Function App: $FUNCTION_APP_NAME"
-func azure functionapp publish "$FUNCTION_APP_NAME" --python
+if command -v func &> /dev/null; then
+    func azure functionapp publish "$FUNCTION_APP_NAME" --python
+else
+    print_warning "Azure Functions Core Tools not found. Skipping code deployment."
+    print_warning "Install with: npm install -g azure-functions-core-tools@4"
+    print_info "Function App exists and will be configured, but code deployment skipped."
+fi
 
-# Configure app settings
+# Configure app settings (updates existing or creates new)
 print_info "Configuring Function App settings..."
 
 # Get Key Vault reference

@@ -60,9 +60,20 @@ msgraph-sdk>=1.0.0
 
 # Deploy to Function App
 Write-Info "Deploying to Function App: $FUNCTION_APP_NAME"
-func azure functionapp publish $FUNCTION_APP_NAME --python
+try {
+    $funcCheck = Get-Command func -ErrorAction SilentlyContinue
+    if ($funcCheck) {
+        func azure functionapp publish $FUNCTION_APP_NAME --python
+    } else {
+        Write-Warning "Azure Functions Core Tools not found. Skipping code deployment."
+        Write-Warning "Install with: npm install -g azure-functions-core-tools@4"
+        Write-Info "Function App exists and will be configured, but code deployment skipped."
+    }
+} catch {
+    Write-Warning "Code deployment failed or skipped. Function App will be configured with settings."
+}
 
-# Configure app settings
+# Configure app settings (updates existing or creates new)
 Write-Info "Configuring Function App settings..."
 
 # Get Key Vault reference

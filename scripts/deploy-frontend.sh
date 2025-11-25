@@ -65,18 +65,25 @@ npm run build
 # Deploy to App Service
 print_info "Deploying to Web App: $WEB_APP_NAME"
 
-# Create deployment package
-cd dist
-zip -r ../deployment.zip .
-cd ..
+# Check if frontend dist exists
+if [ ! -d "dist" ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
+    print_warning "Frontend dist folder not found or empty. Skipping code deployment."
+    print_warning "Build frontend first with: npm run build"
+    print_info "Web App exists and will be configured, but code deployment skipped."
+else
+    # Create deployment package
+    cd dist
+    zip -r ../deployment.zip .
+    cd ..
+    
+    # Deploy using zip deploy
+    az webapp deployment source config-zip \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$WEB_APP_NAME" \
+        --src deployment.zip
+fi
 
-# Deploy using zip deploy
-az webapp deployment source config-zip \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "$WEB_APP_NAME" \
-    --src deployment.zip
-
-# Configure app settings
+# Configure app settings (updates existing or creates new)
 print_info "Configuring Web App settings..."
 
 az webapp config appsettings set \

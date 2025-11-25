@@ -51,6 +51,16 @@ search_resource_groups() {
     az group list --query "[].name" -o tsv 2>/dev/null || echo ""
 }
 
+search_function_apps() {
+    local rg=$1
+    az functionapp list --resource-group "$rg" --query "[].name" -o tsv 2>/dev/null || echo ""
+}
+
+search_web_apps() {
+    local rg=$1
+    az webapp list --resource-group "$rg" --query "[].name" -o tsv 2>/dev/null || echo ""
+}
+
 search_storage_accounts() {
     local rg=$1
     az storage account list --resource-group "$rg" --query "[].name" -o tsv 2>/dev/null || echo ""
@@ -225,13 +235,51 @@ main() {
     
     # Prompt for Function App name
     print_info "Step 2: Function App Configuration"
-    read -p "Enter Function App name for backend API [pa-gcloud15-api]: " FUNCTION_APP_NAME
-    FUNCTION_APP_NAME=${FUNCTION_APP_NAME:-pa-gcloud15-api}
+    existing_function_apps=($(search_function_apps "$RESOURCE_GROUP"))
+    
+    if [ ${#existing_function_apps[@]} -gt 0 ]; then
+        echo "Existing Function Apps found in resource group:"
+        for i in "${!existing_function_apps[@]}"; do
+            echo "  [$i] ${existing_function_apps[$i]}"
+        done
+        echo "  [n] Create new"
+        read -p "Select option (0-$((${#existing_function_apps[@]}-1)) or 'n' for new): " fa_choice
+        
+        if [[ "$fa_choice" =~ ^[0-9]+$ ]] && [ "$fa_choice" -lt "${#existing_function_apps[@]}" ]; then
+            FUNCTION_APP_NAME="${existing_function_apps[$fa_choice]}"
+            print_success "Using existing Function App: $FUNCTION_APP_NAME"
+        else
+            read -p "Enter Function App name for backend API [pa-gcloud15-api]: " FUNCTION_APP_NAME
+            FUNCTION_APP_NAME=${FUNCTION_APP_NAME:-pa-gcloud15-api}
+        fi
+    else
+        read -p "Enter Function App name for backend API [pa-gcloud15-api]: " FUNCTION_APP_NAME
+        FUNCTION_APP_NAME=${FUNCTION_APP_NAME:-pa-gcloud15-api}
+    fi
     
     # Prompt for Static Web App / App Service name
     print_info "Step 3: Frontend Configuration"
-    read -p "Enter Static Web App name [pa-gcloud15-web]: " WEB_APP_NAME
-    WEB_APP_NAME=${WEB_APP_NAME:-pa-gcloud15-web}
+    existing_web_apps=($(search_web_apps "$RESOURCE_GROUP"))
+    
+    if [ ${#existing_web_apps[@]} -gt 0 ]; then
+        echo "Existing Web Apps found in resource group:"
+        for i in "${!existing_web_apps[@]}"; do
+            echo "  [$i] ${existing_web_apps[$i]}"
+        done
+        echo "  [n] Create new"
+        read -p "Select option (0-$((${#existing_web_apps[@]}-1)) or 'n' for new): " wa_choice
+        
+        if [[ "$wa_choice" =~ ^[0-9]+$ ]] && [ "$wa_choice" -lt "${#existing_web_apps[@]}" ]; then
+            WEB_APP_NAME="${existing_web_apps[$wa_choice]}"
+            print_success "Using existing Web App: $WEB_APP_NAME"
+        else
+            read -p "Enter Static Web App name [pa-gcloud15-web]: " WEB_APP_NAME
+            WEB_APP_NAME=${WEB_APP_NAME:-pa-gcloud15-web}
+        fi
+    else
+        read -p "Enter Static Web App name [pa-gcloud15-web]: " WEB_APP_NAME
+        WEB_APP_NAME=${WEB_APP_NAME:-pa-gcloud15-web}
+    fi
     
     # Prompt for Key Vault
     print_info "Step 4: Key Vault Configuration"

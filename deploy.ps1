@@ -64,6 +64,28 @@ function Search-ResourceGroups {
     return @()
 }
 
+function Search-FunctionApps {
+    param([string]$ResourceGroup)
+    try {
+        $apps = az functionapp list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $apps) {
+            return $apps -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
+function Search-WebApps {
+    param([string]$ResourceGroup)
+    try {
+        $apps = az webapp list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $apps) {
+            return $apps -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
 function Search-StorageAccounts {
     param([string]$ResourceGroup)
     try {
@@ -290,16 +312,58 @@ function Start-Deployment {
     
     # Prompt for Function App name
     Write-Info "Step 2: Function App Configuration"
-    $FUNCTION_APP_NAME = Read-Host "Enter Function App name for backend API [pa-gcloud15-api]"
-    if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
-        $FUNCTION_APP_NAME = "pa-gcloud15-api"
+    $existingFunctionApps = Search-FunctionApps -ResourceGroup $RESOURCE_GROUP
+    
+    if ($existingFunctionApps.Count -gt 0) {
+        Write-Host "Existing Function Apps found in resource group:"
+        for ($i = 0; $i -lt $existingFunctionApps.Count; $i++) {
+            Write-Host "  [$i] $($existingFunctionApps[$i])"
+        }
+        Write-Host "  [n] Create new"
+        $faChoice = Read-Host "Select option (0-$($existingFunctionApps.Count - 1)) or 'n' for new"
+        
+        if ($faChoice -match '^\d+$' -and [int]$faChoice -lt $existingFunctionApps.Count) {
+            $FUNCTION_APP_NAME = $existingFunctionApps[[int]$faChoice]
+            Write-Success "Using existing Function App: $FUNCTION_APP_NAME"
+        } else {
+            $FUNCTION_APP_NAME = Read-Host "Enter Function App name for backend API [pa-gcloud15-api]"
+            if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
+                $FUNCTION_APP_NAME = "pa-gcloud15-api"
+            }
+        }
+    } else {
+        $FUNCTION_APP_NAME = Read-Host "Enter Function App name for backend API [pa-gcloud15-api]"
+        if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
+            $FUNCTION_APP_NAME = "pa-gcloud15-api"
+        }
     }
     
     # Prompt for Static Web App / App Service name
     Write-Info "Step 3: Frontend Configuration"
-    $WEB_APP_NAME = Read-Host "Enter Static Web App name [pa-gcloud15-web]"
-    if ([string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
-        $WEB_APP_NAME = "pa-gcloud15-web"
+    $existingWebApps = Search-WebApps -ResourceGroup $RESOURCE_GROUP
+    
+    if ($existingWebApps.Count -gt 0) {
+        Write-Host "Existing Web Apps found in resource group:"
+        for ($i = 0; $i -lt $existingWebApps.Count; $i++) {
+            Write-Host "  [$i] $($existingWebApps[$i])"
+        }
+        Write-Host "  [n] Create new"
+        $waChoice = Read-Host "Select option (0-$($existingWebApps.Count - 1)) or 'n' for new"
+        
+        if ($waChoice -match '^\d+$' -and [int]$waChoice -lt $existingWebApps.Count) {
+            $WEB_APP_NAME = $existingWebApps[[int]$waChoice]
+            Write-Success "Using existing Web App: $WEB_APP_NAME"
+        } else {
+            $WEB_APP_NAME = Read-Host "Enter Static Web App name [pa-gcloud15-web]"
+            if ([string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
+                $WEB_APP_NAME = "pa-gcloud15-web"
+            }
+        }
+    } else {
+        $WEB_APP_NAME = Read-Host "Enter Static Web App name [pa-gcloud15-web]"
+        if ([string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
+            $WEB_APP_NAME = "pa-gcloud15-web"
+        }
     }
     
     # Prompt for Key Vault

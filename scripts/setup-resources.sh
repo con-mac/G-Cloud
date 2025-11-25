@@ -78,8 +78,8 @@ else
     print_warning "Key Vault already exists: $KEY_VAULT_NAME"
 fi
 
-# Create Function App (Consumption plan for serverless)
-print_info "Creating Function App for backend API..."
+# Create or update Function App (Consumption plan for serverless)
+print_info "Setting up Function App for backend API..."
 if ! az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
     # Create storage account for function app (required)
     FUNC_STORAGE=$(echo "${FUNCTION_APP_NAME}func" | tr '[:upper:]' '[:lower:]' | sed 's/-//g' | cut -c1-24)
@@ -108,12 +108,13 @@ if ! az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE
     
     print_success "Function App created: $FUNCTION_APP_NAME"
 else
-    print_warning "Function App already exists: $FUNCTION_APP_NAME"
+    print_success "Using existing Function App: $FUNCTION_APP_NAME"
+    print_info "Function App will be updated with new configuration during deployment"
 fi
 
-# Create Static Web App (or App Service for private hosting)
-print_info "Creating Static Web App for frontend..."
-if ! az staticwebapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
+# Create or update Static Web App (or App Service for private hosting)
+print_info "Setting up Web App for frontend..."
+if ! az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
     # Note: Static Web Apps have limited private endpoint support
     # May need to use App Service instead for full private access
     print_warning "Static Web Apps have limited private endpoint support"
@@ -132,19 +133,16 @@ if ! az staticwebapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GRO
     fi
     
     # Create Web App
-    if ! az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
-        az webapp create \
-            --name "$WEB_APP_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --plan "$APP_SERVICE_PLAN" \
-            --runtime "NODE:18-lts"
-        
-        print_success "Web App created: $WEB_APP_NAME"
-    else
-        print_warning "Web App already exists: $WEB_APP_NAME"
-    fi
+    az webapp create \
+        --name "$WEB_APP_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --plan "$APP_SERVICE_PLAN" \
+        --runtime "NODE:18-lts"
+    
+    print_success "Web App created: $WEB_APP_NAME"
 else
-    print_warning "Static Web App already exists: $WEB_APP_NAME"
+    print_success "Using existing Web App: $WEB_APP_NAME"
+    print_info "Web App will be updated with new configuration during deployment"
 fi
 
 # Handle Application Insights
