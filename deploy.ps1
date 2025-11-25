@@ -240,8 +240,10 @@ function Start-Deployment {
                 $RESOURCE_GROUP = "pa-gcloud15-rg"
             }
             
-            # Check if name already exists (suppress error if not found)
-            $rgExists = az group show --name $RESOURCE_GROUP 2>&1 | Out-Null
+            # Check if name already exists (suppress errors)
+            $ErrorActionPreference = 'SilentlyContinue'
+            $rgCheck = az group show --name $RESOURCE_GROUP 2>&1
+            $ErrorActionPreference = 'Stop'
             if ($LASTEXITCODE -eq 0) {
                 Write-Error "Resource group '$RESOURCE_GROUP' already exists. Please choose a different name."
                 exit 1
