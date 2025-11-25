@@ -241,7 +241,26 @@ main() {
     # Prompt for SharePoint configuration
     print_info "Step 5: SharePoint Configuration"
     read -p "Enter SharePoint site URL (e.g., https://paconsulting.sharepoint.com/sites/GCloud15): " SHAREPOINT_SITE_URL
-    read -p "Enter SharePoint site ID (leave empty to auto-detect): " SHAREPOINT_SITE_ID
+    
+    if [ -n "$SHAREPOINT_SITE_URL" ]; then
+        read -p "Enter SharePoint site ID (leave empty to auto-detect): " SHAREPOINT_SITE_ID
+        
+        # Auto-detect site ID if not provided
+        if [ -z "$SHAREPOINT_SITE_ID" ]; then
+            print_info "Attempting to auto-detect SharePoint site ID..."
+            SHAREPOINT_SITE_ID=$(az rest --method GET \
+                --uri "https://graph.microsoft.com/v1.0/sites/${SHAREPOINT_SITE_URL#https://}" \
+                --query "id" -o tsv 2>/dev/null || echo "")
+            
+            if [ -n "$SHAREPOINT_SITE_ID" ]; then
+                print_success "Auto-detected Site ID: $SHAREPOINT_SITE_ID"
+            else
+                print_warning "Could not auto-detect Site ID. You can find it later in SharePoint site settings."
+            fi
+        fi
+    else
+        SHAREPOINT_SITE_ID=""
+    fi
     
     # Prompt for App Registration
     print_info "Step 6: App Registration Configuration"

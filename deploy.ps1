@@ -312,7 +312,34 @@ function Start-Deployment {
     # Prompt for SharePoint configuration
     Write-Info "Step 5: SharePoint Configuration"
     $SHAREPOINT_SITE_URL = Read-Host "Enter SharePoint site URL (e.g., https://paconsulting.sharepoint.com/sites/GCloud15)"
-    $SHAREPOINT_SITE_ID = Read-Host "Enter SharePoint site ID (leave empty to auto-detect)"
+    
+    if (-not [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_URL)) {
+        $SHAREPOINT_SITE_ID = Read-Host "Enter SharePoint site ID (leave empty to auto-detect)"
+        
+        # Auto-detect site ID if not provided
+        if ([string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
+            Write-Info "Attempting to auto-detect SharePoint site ID..."
+            try {
+                $siteUrl = $SHAREPOINT_SITE_URL -replace '^https://', ''
+                $siteId = az rest --method GET `
+                    --uri "https://graph.microsoft.com/v1.0/sites/$siteUrl" `
+                    --query "id" -o tsv 2>&1
+                
+                if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($siteId)) {
+                    $SHAREPOINT_SITE_ID = $siteId
+                    Write-Success "Auto-detected Site ID: $SHAREPOINT_SITE_ID"
+                } else {
+                    Write-Warning "Could not auto-detect Site ID. You can find it later in SharePoint site settings."
+                    $SHAREPOINT_SITE_ID = ""
+                }
+            } catch {
+                Write-Warning "Could not auto-detect Site ID. You can find it later in SharePoint site settings."
+                $SHAREPOINT_SITE_ID = ""
+            }
+        }
+    } else {
+        $SHAREPOINT_SITE_ID = ""
+    }
     
     # Prompt for App Registration
     Write-Info "Step 6: App Registration Configuration"

@@ -22,6 +22,8 @@ $KEY_VAULT_NAME = $config.KEY_VAULT_NAME
 $RESOURCE_GROUP = $config.RESOURCE_GROUP
 $FUNCTION_APP_NAME = $config.FUNCTION_APP_NAME
 $WEB_APP_NAME = $config.WEB_APP_NAME
+$SHAREPOINT_SITE_URL = $config.SHAREPOINT_SITE_URL
+$SHAREPOINT_SITE_ID = $config.SHAREPOINT_SITE_ID
 
 function Write-Info { param([string]$msg) Write-Host "[INFO] $msg" -ForegroundColor Blue }
 function Write-Success { param([string]$msg) Write-Host "[SUCCESS] $msg" -ForegroundColor Green }
@@ -53,12 +55,45 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     az ad sp create --id $APP_ID --output none | Out-Null
     
     # Add API permissions for SharePoint/Graph
-    Write-Info "Adding API permissions..."
-    Write-Warning "NOTE: The following permissions need to be added manually in Azure Portal:"
-    Write-Warning "  - Microsoft Graph: User.Read"
-    Write-Warning "  - Microsoft Graph: Files.ReadWrite.All (or Sites.ReadWrite.All)"
-    Write-Warning "  - Microsoft Graph: offline_access"
-    Write-Warning "Admin consent will be required for these permissions"
+    Write-Info "Adding API permissions for SharePoint/Graph API..."
+    
+    # Microsoft Graph API ID
+    $GRAPH_API_ID = "00000003-0000-0000-c000-000000000000"
+    
+    # Add User.Read permission
+    Write-Info "Adding User.Read permission..."
+    az ad app permission add `
+        --id $APP_ID `
+        --api $GRAPH_API_ID `
+        --api-permissions "e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope" `
+        --output none 2>&1 | Out-Null
+    
+    # Add Sites.ReadWrite.All permission (for SharePoint)
+    Write-Info "Adding Sites.ReadWrite.All permission..."
+    az ad app permission add `
+        --id $APP_ID `
+        --api $GRAPH_API_ID `
+        --api-permissions "205e70e5-aba6-4c52-a976-6d2d8c5c5e77=Scope" `
+        --output none 2>&1 | Out-Null
+    
+    # Add offline_access permission
+    Write-Info "Adding offline_access permission..."
+    az ad app permission add `
+        --id $APP_ID `
+        --api $GRAPH_API_ID `
+        --api-permissions "7427e0e9-2fba-42fe-b0c0-848c9e6a8182=Scope" `
+        --output none 2>&1 | Out-Null
+    
+    # Grant admin consent
+    Write-Info "Granting admin consent for API permissions..."
+    $grantConsent = Read-Host "Grant admin consent now? (y/n) [y]"
+    if ([string]::IsNullOrWhiteSpace($grantConsent) -or $grantConsent -eq "y") {
+        az ad app permission admin-consent --id $APP_ID --output none | Out-Null
+        Write-Success "Admin consent granted"
+    } else {
+        Write-Warning "Admin consent not granted. You'll need to grant it manually in Azure Portal."
+        Write-Warning "Go to: App Registration -> API permissions -> Grant admin consent"
+    }
 } else {
     Write-Success "App Registration found: $APP_ID"
 }
@@ -113,7 +148,49 @@ az webapp config appsettings set `
         "VITE_AZURE_AD_REDIRECT_URI=${WEB_APP_URL}/auth/callback" `
     --output none | Out-Null
 
+# Configure SharePoint site permissions (if SharePoint is configured)
+if (-not [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_URL) -and -not [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
+    Write-Info "Configuring SharePoint site permissions..."
+    $grantSharePoint = Read-Host "Grant App Registration access to SharePoint site? (y/n) [y]"
+    if ([string]::IsNullOrWhiteSpace($grantSharePoint) -or $grantSharePoint -eq "y") {
+        Write-Info "Attempting to grant SharePoint permissions via Graph API..."
+        try {
+            $token = az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv
+            $body = @{
+                roles = @("write")
+                grantedToIdentities = @(@{
+                    application = @{
+                        id = $APP_ID
+                        displayName = $APP_REGISTRATION_NAME
+                    }
+                })
+            } | ConvertTo-Json -Depth 10
+            
+            az rest --method POST `
+                --uri "https://graph.microsoft.com/v1.0/sites/$SHAREPOINT_SITE_ID/permissions" `
+                --headers "Authorization=Bearer $token" "Content-Type=application/json" `
+                --body $body 2>&1 | Out-Null
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "SharePoint permissions granted via Graph API"
+            } else {
+                Write-Warning "Could not grant permissions via API. Please grant manually:"
+                Write-Info "1. Go to SharePoint site: $SHAREPOINT_SITE_URL"
+                Write-Info "2. Settings -> Site permissions -> Grant permissions"
+                Write-Info "3. Add App Registration: $APP_REGISTRATION_NAME"
+                Write-Info "4. Grant 'Edit' or 'Full Control' permissions"
+            }
+        } catch {
+            Write-Warning "Could not grant SharePoint permissions automatically. Please grant manually:"
+            Write-Info "1. Go to SharePoint site: $SHAREPOINT_SITE_URL"
+            Write-Info "2. Settings -> Site permissions -> Grant permissions"
+            Write-Info "3. Add App Registration: $APP_REGISTRATION_NAME"
+        }
+    }
+}
+
 Write-Success "Authentication configuration complete!"
-Write-Warning "IMPORTANT: Grant admin consent for API permissions in Azure Portal"
-Write-Warning "IMPORTANT: Configure SharePoint site permissions for the App Registration"
+if ([string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_URL) -or [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
+    Write-Warning "SharePoint not configured. Configure SharePoint site permissions manually if needed."
+}
 
