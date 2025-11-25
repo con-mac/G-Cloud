@@ -79,15 +79,30 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
     $storageExists = az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
-        az storage account create `
+        $ErrorActionPreference = 'SilentlyContinue'
+        $createOutput = az storage account create `
             --name "$STORAGE_ACCOUNT_NAME" `
             --resource-group "$RESOURCE_GROUP" `
             --location "$LOCATION" `
             --sku Standard_LRS `
             --kind StorageV2 `
             --allow-blob-public-access false `
-            --min-tls-version TLS1_2 | Out-Null
-        Write-Success "Storage Account created: $STORAGE_ACCOUNT_NAME"
+            --min-tls-version TLS1_2 2>&1 | Where-Object { $_ -notmatch 'WARNING:' } | Out-Null
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Storage Account created: $STORAGE_ACCOUNT_NAME"
+        } else {
+            # Check if it exists globally
+            $ErrorActionPreference = 'SilentlyContinue'
+            $globalCheck = az storage account show --name "$STORAGE_ACCOUNT_NAME" --query id -o tsv 2>&1 | Out-Null
+            $ErrorActionPreference = 'Stop'
+            if ($LASTEXITCODE -eq 0) {
+                Write-Info "Storage Account '$STORAGE_ACCOUNT_NAME' exists globally. Using existing account."
+            } else {
+                Write-Warning "Could not create Storage Account '$STORAGE_ACCOUNT_NAME'."
+            }
+        }
     } else {
         Write-Success "Using existing Storage Account: $STORAGE_ACCOUNT_NAME"
     }
