@@ -32,7 +32,7 @@ function Write-Warning { param([string]$msg) Write-Host "[WARNING] $msg" -Foregr
 Write-Info "Setting up Azure resources..."
 
 # Set subscription
-az account set --subscription $SUBSCRIPTION_ID | Out-Null
+az account set --subscription "$SUBSCRIPTION_ID" | Out-Null
 
 # Handle Storage Account
 $STORAGE_ACCOUNT_CHOICE = $config.STORAGE_ACCOUNT_CHOICE
@@ -43,12 +43,12 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
     if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
         $STORAGE_ACCOUNT_NAME = ($FUNCTION_APP_NAME -replace '-', '').ToLower().Substring(0, [Math]::Min(24, ($FUNCTION_APP_NAME -replace '-', '').Length)) + "st"
     }
-    $storageExists = az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $RESOURCE_GROUP 2>&1
+    $storageExists = az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
     if ($LASTEXITCODE -ne 0) {
         az storage account create `
-            --name $STORAGE_ACCOUNT_NAME `
-            --resource-group $RESOURCE_GROUP `
-            --location $LOCATION `
+            --name "$STORAGE_ACCOUNT_NAME" `
+            --resource-group "$RESOURCE_GROUP" `
+            --location "$LOCATION" `
             --sku Standard_LRS `
             --kind StorageV2 `
             --allow-blob-public-access false `
@@ -59,7 +59,7 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
     }
 } elseif ($STORAGE_ACCOUNT_CHOICE -eq "existing") {
     if (-not [string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
-        $storageExists = az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $RESOURCE_GROUP 2>&1
+        $storageExists = az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Using existing Storage Account: $STORAGE_ACCOUNT_NAME"
         } else {
@@ -77,12 +77,12 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
 
 # Create Key Vault
 Write-Info "Creating Key Vault..."
-$kvExists = az keyvault show --name $KEY_VAULT_NAME --resource-group $RESOURCE_GROUP 2>&1
+$kvExists = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
 if ($LASTEXITCODE -ne 0) {
     az keyvault create `
-        --name $KEY_VAULT_NAME `
-        --resource-group $RESOURCE_GROUP `
-        --location $LOCATION `
+        --name "$KEY_VAULT_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --location "$LOCATION" `
         --sku standard `
         --enable-rbac-authorization true | Out-Null
     Write-Success "Key Vault created: $KEY_VAULT_NAME"
@@ -92,28 +92,28 @@ if ($LASTEXITCODE -ne 0) {
 
 # Create or update Function App (Consumption plan for serverless)
 Write-Info "Setting up Function App for backend API..."
-$funcExists = az functionapp show --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP 2>&1
+$funcExists = az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
 if ($LASTEXITCODE -ne 0) {
     # Create storage account for function app (required)
     $FUNC_STORAGE = ($FUNCTION_APP_NAME -replace '-', '').ToLower().Substring(0, [Math]::Min(24, ($FUNCTION_APP_NAME -replace '-', '').Length)) + "func"
-    $funcStorageExists = az storage account show --name $FUNC_STORAGE --resource-group $RESOURCE_GROUP 2>&1
+    $funcStorageExists = az storage account show --name "$FUNC_STORAGE" --resource-group "$RESOURCE_GROUP" 2>&1
     if ($LASTEXITCODE -ne 0) {
         az storage account create `
-            --name $FUNC_STORAGE `
-            --resource-group $RESOURCE_GROUP `
-            --location $LOCATION `
+            --name "$FUNC_STORAGE" `
+            --resource-group "$RESOURCE_GROUP" `
+            --location "$LOCATION" `
             --sku Standard_LRS | Out-Null
     }
     
     # Create Function App
     az functionapp create `
-        --name $FUNCTION_APP_NAME `
-        --resource-group $RESOURCE_GROUP `
-        --consumption-plan-location $LOCATION `
+        --name "$FUNCTION_APP_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --consumption-plan-location "$LOCATION" `
         --runtime python `
         --runtime-version 3.11 `
         --functions-version 4 `
-        --storage-account $FUNC_STORAGE `
+        --storage-account "$FUNC_STORAGE" `
         --os-type Linux | Out-Null
     
     Write-Warning "NOTE: Private endpoint configuration requires VNet integration"
@@ -127,28 +127,28 @@ if ($LASTEXITCODE -ne 0) {
 
 # Create or update Static Web App (or App Service for private hosting)
 Write-Info "Setting up Web App for frontend..."
-$webAppExists = az webapp show --name $WEB_APP_NAME --resource-group $RESOURCE_GROUP 2>&1
+$webAppExists = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Static Web Apps have limited private endpoint support"
     Write-Warning "Consider using App Service with private endpoints for full private access"
     
     # Create App Service Plan
     $APP_SERVICE_PLAN = "$WEB_APP_NAME-plan"
-    $planExists = az appservice plan show --name $APP_SERVICE_PLAN --resource-group $RESOURCE_GROUP 2>&1
+    $planExists = az appservice plan show --name "$APP_SERVICE_PLAN" --resource-group "$RESOURCE_GROUP" 2>&1
     if ($LASTEXITCODE -ne 0) {
         az appservice plan create `
-            --name $APP_SERVICE_PLAN `
-            --resource-group $RESOURCE_GROUP `
-            --location $LOCATION `
+            --name "$APP_SERVICE_PLAN" `
+            --resource-group "$RESOURCE_GROUP" `
+            --location "$LOCATION" `
             --sku B1 `
             --is-linux | Out-Null
     }
     
     # Create Web App
     az webapp create `
-        --name $WEB_APP_NAME `
-        --resource-group $RESOURCE_GROUP `
-        --plan $APP_SERVICE_PLAN `
+        --name "$WEB_APP_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --plan "$APP_SERVICE_PLAN" `
         --runtime "NODE:18-lts" | Out-Null
     
     Write-Success "Web App created: $WEB_APP_NAME"
@@ -166,12 +166,12 @@ if ([string]::IsNullOrWhiteSpace($APP_INSIGHTS_CHOICE) -or $APP_INSIGHTS_CHOICE 
     if ([string]::IsNullOrWhiteSpace($APP_INSIGHTS_NAME)) {
         $APP_INSIGHTS_NAME = "$FUNCTION_APP_NAME-insights"
     }
-    $aiExists = az monitor app-insights component show --app $APP_INSIGHTS_NAME --resource-group $RESOURCE_GROUP 2>&1
+    $aiExists = az monitor app-insights component show --app "$APP_INSIGHTS_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
     if ($LASTEXITCODE -ne 0) {
         az monitor app-insights component create `
-            --app $APP_INSIGHTS_NAME `
-            --location $LOCATION `
-            --resource-group $RESOURCE_GROUP `
+            --app "$APP_INSIGHTS_NAME" `
+            --location "$LOCATION" `
+            --resource-group "$RESOURCE_GROUP" `
             --application-type web | Out-Null
         Write-Success "Application Insights created: $APP_INSIGHTS_NAME"
     } else {
@@ -179,7 +179,7 @@ if ([string]::IsNullOrWhiteSpace($APP_INSIGHTS_CHOICE) -or $APP_INSIGHTS_CHOICE 
     }
 } elseif ($APP_INSIGHTS_CHOICE -eq "existing") {
     if (-not [string]::IsNullOrWhiteSpace($APP_INSIGHTS_NAME)) {
-        $aiExists = az monitor app-insights component show --app $APP_INSIGHTS_NAME --resource-group $RESOURCE_GROUP 2>&1
+        $aiExists = az monitor app-insights component show --app "$APP_INSIGHTS_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Using existing Application Insights: $APP_INSIGHTS_NAME"
         } else {
@@ -198,15 +198,15 @@ if ([string]::IsNullOrWhiteSpace($APP_INSIGHTS_CHOICE) -or $APP_INSIGHTS_CHOICE 
 # Store App Insights connection string (if created/using existing)
 if (-not [string]::IsNullOrWhiteSpace($APP_INSIGHTS_NAME)) {
     $APP_INSIGHTS_CONNECTION = az monitor app-insights component show `
-        --app $APP_INSIGHTS_NAME `
-        --resource-group $RESOURCE_GROUP `
+        --app "$APP_INSIGHTS_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
         --query connectionString -o tsv
     
     # Save to Key Vault
     az keyvault secret set `
-        --vault-name $KEY_VAULT_NAME `
+        --vault-name "$KEY_VAULT_NAME" `
         --name "AppInsightsConnectionString" `
-        --value $APP_INSIGHTS_CONNECTION `
+        --value "$APP_INSIGHTS_CONNECTION" `
         --output none | Out-Null
 }
 
@@ -219,18 +219,18 @@ if ([string]::IsNullOrWhiteSpace($PRIVATE_DNS_CHOICE) -or $PRIVATE_DNS_CHOICE -e
     if ([string]::IsNullOrWhiteSpace($PRIVATE_DNS_ZONE_NAME)) {
         $PRIVATE_DNS_ZONE_NAME = "privatelink.azurewebsites.net"
     }
-    $dnsExists = az network private-dns zone show --name $PRIVATE_DNS_ZONE_NAME --resource-group $RESOURCE_GROUP 2>&1
+    $dnsExists = az network private-dns zone show --name "$PRIVATE_DNS_ZONE_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
     if ($LASTEXITCODE -ne 0) {
         az network private-dns zone create `
-            --name $PRIVATE_DNS_ZONE_NAME `
-            --resource-group $RESOURCE_GROUP | Out-Null
+            --name "$PRIVATE_DNS_ZONE_NAME" `
+            --resource-group "$RESOURCE_GROUP" | Out-Null
         Write-Success "Private DNS Zone created: $PRIVATE_DNS_ZONE_NAME"
     } else {
         Write-Warning "Private DNS Zone already exists: $PRIVATE_DNS_ZONE_NAME"
     }
 } elseif ($PRIVATE_DNS_CHOICE -eq "existing") {
     if (-not [string]::IsNullOrWhiteSpace($PRIVATE_DNS_ZONE_NAME)) {
-        $dnsExists = az network private-dns zone show --name $PRIVATE_DNS_ZONE_NAME --resource-group $RESOURCE_GROUP 2>&1
+        $dnsExists = az network private-dns zone show --name "$PRIVATE_DNS_ZONE_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Using existing Private DNS Zone: $PRIVATE_DNS_ZONE_NAME"
         } else {
