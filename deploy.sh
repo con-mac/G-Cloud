@@ -47,6 +47,10 @@ check_prerequisites() {
 }
 
 # Search for existing resources
+search_resource_groups() {
+    az group list --query "[].name" -o tsv 2>/dev/null || echo ""
+}
+
 search_storage_accounts() {
     local rg=$1
     az storage account list --resource-group "$rg" --query "[].name" -o tsv 2>/dev/null || echo ""
@@ -164,23 +168,59 @@ main() {
     
     # Prompt for resource group
     print_info "Step 1: Resource Group Configuration"
-    read -p "Enter resource group name [pa-gcloud15-rg]: " RESOURCE_GROUP
-    RESOURCE_GROUP=${RESOURCE_GROUP:-pa-gcloud15-rg}
     
-    # Check if resource group exists
-    if az group show --name "$RESOURCE_GROUP" &> /dev/null; then
-        print_warning "Resource group '$RESOURCE_GROUP' already exists"
-        read -p "Use existing resource group? (y/n) [y]: " use_existing
-        if [[ "${use_existing:-y}" != "y" ]]; then
-            print_error "Please choose a different resource group name"
-            exit 1
+    # Search for existing resource groups
+    existing_rgs=($(search_resource_groups))
+    
+    if [ ${#existing_rgs[@]} -gt 0 ]; then
+        echo "Existing resource groups found:"
+        for i in "${!existing_rgs[@]}"; do
+            echo "  [$i] ${existing_rgs[$i]}"
+        done
+        echo "  [n] Create new"
+        read -p "Select option (0-$((${#existing_rgs[@]}-1)) or 'n' for new): " rg_choice
+        
+        if [[ "$rg_choice" =~ ^[0-9]+$ ]] && [ "$rg_choice" -lt "${#existing_rgs[@]}" ]; then
+            RESOURCE_GROUP="${existing_rgs[$rg_choice]}"
+            print_success "Using existing resource group: $RESOURCE_GROUP"
+            # Get location from existing RG
+            LOCATION=$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)
+        else
+            read -p "Enter resource group name [pa-gcloud15-rg]: " RESOURCE_GROUP
+            RESOURCE_GROUP=${RESOURCE_GROUP:-pa-gcloud15-rg}
+            
+            # Check if name already exists
+            if az group show --name "$RESOURCE_GROUP" &> /dev/null; then
+                print_error "Resource group '$RESOURCE_GROUP' already exists. Please choose a different name."
+                exit 1
+            fi
+            
+            read -p "Enter location for resource group [uksouth]: " LOCATION
+            LOCATION=${LOCATION:-uksouth}
+            print_info "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
+            az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+            print_success "Resource group created"
         fi
     else
-        read -p "Enter location for resource group [uksouth]: " LOCATION
-        LOCATION=${LOCATION:-uksouth}
-        print_info "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
-        az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
-        print_success "Resource group created"
+        read -p "Enter resource group name [pa-gcloud15-rg]: " RESOURCE_GROUP
+        RESOURCE_GROUP=${RESOURCE_GROUP:-pa-gcloud15-rg}
+        
+        # Check if resource group exists
+        if az group show --name "$RESOURCE_GROUP" &> /dev/null; then
+            print_warning "Resource group '$RESOURCE_GROUP' already exists"
+            read -p "Use existing resource group? (y/n) [y]: " use_existing
+            if [[ "${use_existing:-y}" != "y" ]]; then
+                print_error "Please choose a different resource group name"
+                exit 1
+            fi
+            LOCATION=$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)
+        else
+            read -p "Enter location for resource group [uksouth]: " LOCATION
+            LOCATION=${LOCATION:-uksouth}
+            print_info "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
+            az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+            print_success "Resource group created"
+        fi
     fi
     
     # Prompt for Function App name

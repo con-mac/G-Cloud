@@ -54,6 +54,16 @@ function Test-Prerequisites {
 }
 
 # Search for existing resources
+function Search-ResourceGroups {
+    try {
+        $rgs = az group list --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $rgs) {
+            return $rgs -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
 function Search-StorageAccounts {
     param([string]$ResourceGroup)
     try {
@@ -207,30 +217,71 @@ function Start-Deployment {
     
     # Prompt for resource group
     Write-Info "Step 1: Resource Group Configuration"
-    $RESOURCE_GROUP = Read-Host "Enter resource group name [pa-gcloud15-rg]"
-    if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
-        $RESOURCE_GROUP = "pa-gcloud15-rg"
-    }
     
-    # Check if resource group exists
-    $rgExists = az group show --name $RESOURCE_GROUP 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-Warning "Resource group '$RESOURCE_GROUP' already exists"
-        $useExisting = Read-Host "Use existing resource group? (y/n) [y]"
-        if ([string]::IsNullOrWhiteSpace($useExisting) -or $useExisting -ne "n") {
-            # Use existing
+    # Search for existing resource groups
+    $existingRGs = Search-ResourceGroups
+    
+    if ($existingRGs.Count -gt 0) {
+        Write-Host "Existing resource groups found:"
+        for ($i = 0; $i -lt $existingRGs.Count; $i++) {
+            Write-Host "  [$i] $($existingRGs[$i])"
+        }
+        Write-Host "  [n] Create new"
+        $rgChoice = Read-Host "Select option (0-$($existingRGs.Count - 1)) or 'n' for new"
+        
+        if ($rgChoice -match '^\d+$' -and [int]$rgChoice -lt $existingRGs.Count) {
+            $RESOURCE_GROUP = $existingRGs[[int]$rgChoice]
+            Write-Success "Using existing resource group: $RESOURCE_GROUP"
+            # Get location from existing RG
+            $LOCATION = az group show --name $RESOURCE_GROUP --query location -o tsv
         } else {
-            Write-Error "Please choose a different resource group name"
-            exit 1
+            $RESOURCE_GROUP = Read-Host "Enter resource group name [pa-gcloud15-rg]"
+            if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
+                $RESOURCE_GROUP = "pa-gcloud15-rg"
+            }
+            
+            # Check if name already exists
+            $rgExists = az group show --name $RESOURCE_GROUP 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Error "Resource group '$RESOURCE_GROUP' already exists. Please choose a different name."
+                exit 1
+            }
+            
+            $LOCATION = Read-Host "Enter location for resource group [uksouth]"
+            if ([string]::IsNullOrWhiteSpace($LOCATION)) {
+                $LOCATION = "uksouth"
+            }
+            Write-Info "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
+            az group create --name $RESOURCE_GROUP --location $LOCATION | Out-Null
+            Write-Success "Resource group created"
         }
     } else {
-        $LOCATION = Read-Host "Enter location for resource group [uksouth]"
-        if ([string]::IsNullOrWhiteSpace($LOCATION)) {
-            $LOCATION = "uksouth"
+        $RESOURCE_GROUP = Read-Host "Enter resource group name [pa-gcloud15-rg]"
+        if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
+            $RESOURCE_GROUP = "pa-gcloud15-rg"
         }
-        Write-Info "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
-        az group create --name $RESOURCE_GROUP --location $LOCATION | Out-Null
-        Write-Success "Resource group created"
+        
+        # Check if resource group exists
+        $rgExists = az group show --name $RESOURCE_GROUP 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Warning "Resource group '$RESOURCE_GROUP' already exists"
+            $useExisting = Read-Host "Use existing resource group? (y/n) [y]"
+            if ([string]::IsNullOrWhiteSpace($useExisting) -or $useExisting -ne "n") {
+                # Use existing - get location
+                $LOCATION = az group show --name $RESOURCE_GROUP --query location -o tsv
+            } else {
+                Write-Error "Please choose a different resource group name"
+                exit 1
+            }
+        } else {
+            $LOCATION = Read-Host "Enter location for resource group [uksouth]"
+            if ([string]::IsNullOrWhiteSpace($LOCATION)) {
+                $LOCATION = "uksouth"
+            }
+            Write-Info "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
+            az group create --name $RESOURCE_GROUP --location $LOCATION | Out-Null
+            Write-Success "Resource group created"
+        }
     }
     
     # Prompt for Function App name
