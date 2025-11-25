@@ -38,6 +38,15 @@ az account set --subscription "$SUBSCRIPTION_ID" | Out-Null
 $STORAGE_ACCOUNT_CHOICE = $config.STORAGE_ACCOUNT_CHOICE
 $STORAGE_ACCOUNT_NAME = $config.STORAGE_ACCOUNT_NAME
 
+# Clean storage account name if it contains invalid characters or expressions
+if (-not [string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
+    # Remove any PowerShell expressions that might have been saved literally
+    if ($STORAGE_ACCOUNT_NAME -match '\.ToLower\(\)|\.Substring\(|\[Math\]') {
+        Write-Warning "Storage account name contains invalid expression, regenerating..."
+        $STORAGE_ACCOUNT_NAME = ""
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_CHOICE -eq "new") {
     Write-Info "Creating Storage Account (for temporary files)..."
     if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
