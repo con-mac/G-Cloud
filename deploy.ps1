@@ -421,7 +421,12 @@ function Start-Deployment {
     
     # Prompt for Storage Account
     Write-Info "Step 8: Storage Account Configuration"
-    $storageChoice = Get-ResourceChoice -ResourceType "Storage Account" -DefaultName "$($FUNCTION_APP_NAME -replace '-','').ToLower()st" -ResourceGroup $RESOURCE_GROUP -SearchFunction ${function:Search-StorageAccounts}
+    $defaultStorageName = (($FUNCTION_APP_NAME -replace '-', '') -replace '_', '').ToLower()
+    if ($defaultStorageName.Length -gt 22) {
+        $defaultStorageName = $defaultStorageName.Substring(0, 22)
+    }
+    $defaultStorageName = $defaultStorageName + "st"
+    $storageChoice = Get-ResourceChoice -ResourceType "Storage Account" -DefaultName $defaultStorageName -ResourceGroup $RESOURCE_GROUP -SearchFunction ${function:Search-StorageAccounts}
     $STORAGE_CHOICE_TYPE = ($storageChoice -split ':')[0]
     $STORAGE_ACCOUNT_NAME = ($storageChoice -split ':', 2)[1]
     

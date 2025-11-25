@@ -41,9 +41,26 @@ $STORAGE_ACCOUNT_NAME = $config.STORAGE_ACCOUNT_NAME
 if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_CHOICE -eq "new") {
     Write-Info "Creating Storage Account (for temporary files)..."
     if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
-        $STORAGE_ACCOUNT_NAME = ($FUNCTION_APP_NAME -replace '-', '').ToLower().Substring(0, [Math]::Min(24, ($FUNCTION_APP_NAME -replace '-', '').Length)) + "st"
+        # Generate storage account name: remove hyphens/underscores, lowercase, max 22 chars + "st"
+        $cleanName = ($FUNCTION_APP_NAME -replace '-', '' -replace '_', '').ToLower()
+        $maxLength = [Math]::Min(22, $cleanName.Length)
+        $STORAGE_ACCOUNT_NAME = $cleanName.Substring(0, $maxLength) + "st"
     }
+    # Validate storage account name (alphanumeric only, 3-24 chars)
+    $STORAGE_ACCOUNT_NAME = $STORAGE_ACCOUNT_NAME -replace '[^a-z0-9]', ''
+    if ($STORAGE_ACCOUNT_NAME.Length -lt 3 -or $STORAGE_ACCOUNT_NAME.Length -gt 24) {
+        Write-Error "Invalid storage account name: $STORAGE_ACCOUNT_NAME (must be 3-24 alphanumeric characters)"
+        exit 1
+    }
+    # Ensure variable is properly set and doesn't contain problematic characters
+    if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
+        Write-Error "Storage account name is empty or invalid"
+        exit 1
+    }
+    Write-Info "Checking for Storage Account: $STORAGE_ACCOUNT_NAME"
+    $ErrorActionPreference = 'SilentlyContinue'
     $storageExists = az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
         az storage account create `
             --name "$STORAGE_ACCOUNT_NAME" `
@@ -95,8 +112,18 @@ Write-Info "Setting up Function App for backend API..."
 $funcExists = az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
 if ($LASTEXITCODE -ne 0) {
     # Create storage account for function app (required)
-    $FUNC_STORAGE = ($FUNCTION_APP_NAME -replace '-', '').ToLower().Substring(0, [Math]::Min(24, ($FUNCTION_APP_NAME -replace '-', '').Length)) + "func"
+    $cleanFuncName = ($FUNCTION_APP_NAME -replace '-', '' -replace '_', '').ToLower()
+    $maxFuncLength = [Math]::Min(20, $cleanFuncName.Length)
+    $FUNC_STORAGE = $cleanFuncName.Substring(0, $maxFuncLength) + "func"
+    # Validate function storage account name
+    $FUNC_STORAGE = $FUNC_STORAGE -replace '[^a-z0-9]', ''
+    if ([string]::IsNullOrWhiteSpace($FUNC_STORAGE)) {
+        Write-Error "Function storage account name is empty or invalid"
+        exit 1
+    }
+    $ErrorActionPreference = 'SilentlyContinue'
     $funcStorageExists = az storage account show --name "$FUNC_STORAGE" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
         az storage account create `
             --name "$FUNC_STORAGE" `
