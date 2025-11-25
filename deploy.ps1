@@ -313,6 +313,11 @@ function Start-Deployment {
             New-Item -ItemType Directory -Path "config" | Out-Null
         }
         
+        # Set default location if not set
+        if ([string]::IsNullOrWhiteSpace($LOCATION)) {
+            $LOCATION = 'uksouth'
+        }
+        
         $configContent = @"
 RESOURCE_GROUP=$RESOURCE_GROUP
 FUNCTION_APP_NAME=$FUNCTION_APP_NAME
@@ -322,7 +327,7 @@ SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL
 SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID
 APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME
 CUSTOM_DOMAIN=$CUSTOM_DOMAIN
-LOCATION=$($LOCATION ?? 'uksouth')
+LOCATION=$LOCATION
 SUBSCRIPTION_ID=$SUBSCRIPTION_ID
 STORAGE_ACCOUNT_CHOICE=$STORAGE_CHOICE_TYPE
 STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME
