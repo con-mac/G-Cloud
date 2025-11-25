@@ -103,7 +103,9 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
 
 # Create Key Vault
 Write-Info "Creating Key Vault..."
+$ErrorActionPreference = 'SilentlyContinue'
 $kvExists = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+$ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
     az keyvault create `
         --name "$KEY_VAULT_NAME" `
@@ -118,7 +120,9 @@ if ($LASTEXITCODE -ne 0) {
 
 # Create or update Function App (Consumption plan for serverless)
 Write-Info "Setting up Function App for backend API..."
+$ErrorActionPreference = 'SilentlyContinue'
 $funcExists = az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+$ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
     # Create storage account for function app (required)
     $cleanFuncName = ($FUNCTION_APP_NAME -replace '-', '' -replace '_', '').ToLower()
@@ -163,14 +167,18 @@ if ($LASTEXITCODE -ne 0) {
 
 # Create or update Static Web App (or App Service for private hosting)
 Write-Info "Setting up Web App for frontend..."
+$ErrorActionPreference = 'SilentlyContinue'
 $webAppExists = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+$ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Static Web Apps have limited private endpoint support"
     Write-Warning "Consider using App Service with private endpoints for full private access"
     
     # Create App Service Plan
     $APP_SERVICE_PLAN = "$WEB_APP_NAME-plan"
+    $ErrorActionPreference = 'SilentlyContinue'
     $planExists = az appservice plan show --name "$APP_SERVICE_PLAN" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
         az appservice plan create `
             --name "$APP_SERVICE_PLAN" `
@@ -202,7 +210,9 @@ if ([string]::IsNullOrWhiteSpace($APP_INSIGHTS_CHOICE) -or $APP_INSIGHTS_CHOICE 
     if ([string]::IsNullOrWhiteSpace($APP_INSIGHTS_NAME)) {
         $APP_INSIGHTS_NAME = "$FUNCTION_APP_NAME-insights"
     }
+    $ErrorActionPreference = 'SilentlyContinue'
     $aiExists = az monitor app-insights component show --app "$APP_INSIGHTS_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
         az monitor app-insights component create `
             --app "$APP_INSIGHTS_NAME" `
@@ -215,7 +225,9 @@ if ([string]::IsNullOrWhiteSpace($APP_INSIGHTS_CHOICE) -or $APP_INSIGHTS_CHOICE 
     }
 } elseif ($APP_INSIGHTS_CHOICE -eq "existing") {
     if (-not [string]::IsNullOrWhiteSpace($APP_INSIGHTS_NAME)) {
+        $ErrorActionPreference = 'SilentlyContinue'
         $aiExists = az monitor app-insights component show --app "$APP_INSIGHTS_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+        $ErrorActionPreference = 'Stop'
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Using existing Application Insights: $APP_INSIGHTS_NAME"
         } else {
@@ -233,17 +245,24 @@ if ([string]::IsNullOrWhiteSpace($APP_INSIGHTS_CHOICE) -or $APP_INSIGHTS_CHOICE 
 
 # Store App Insights connection string (if created/using existing)
 if (-not [string]::IsNullOrWhiteSpace($APP_INSIGHTS_NAME)) {
+    $ErrorActionPreference = 'SilentlyContinue'
     $APP_INSIGHTS_CONNECTION = az monitor app-insights component show `
         --app "$APP_INSIGHTS_NAME" `
         --resource-group "$RESOURCE_GROUP" `
         --query connectionString -o tsv
+    $ErrorActionPreference = 'Stop'
     
-    # Save to Key Vault
-    az keyvault secret set `
-        --vault-name "$KEY_VAULT_NAME" `
-        --name "AppInsightsConnectionString" `
-        --value "$APP_INSIGHTS_CONNECTION" `
-        --output none | Out-Null
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($APP_INSIGHTS_CONNECTION)) {
+        # Save to Key Vault
+        az keyvault secret set `
+            --vault-name "$KEY_VAULT_NAME" `
+            --name "AppInsightsConnectionString" `
+            --value "$APP_INSIGHTS_CONNECTION" `
+            --output none | Out-Null
+        Write-Success "Application Insights connection string saved to Key Vault"
+    } else {
+        Write-Warning "Could not retrieve Application Insights connection string"
+    }
 }
 
 # Handle Private DNS Zone
@@ -255,7 +274,9 @@ if ([string]::IsNullOrWhiteSpace($PRIVATE_DNS_CHOICE) -or $PRIVATE_DNS_CHOICE -e
     if ([string]::IsNullOrWhiteSpace($PRIVATE_DNS_ZONE_NAME)) {
         $PRIVATE_DNS_ZONE_NAME = "privatelink.azurewebsites.net"
     }
+    $ErrorActionPreference = 'SilentlyContinue'
     $dnsExists = az network private-dns zone show --name "$PRIVATE_DNS_ZONE_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
         az network private-dns zone create `
             --name "$PRIVATE_DNS_ZONE_NAME" `
@@ -266,7 +287,9 @@ if ([string]::IsNullOrWhiteSpace($PRIVATE_DNS_CHOICE) -or $PRIVATE_DNS_CHOICE -e
     }
 } elseif ($PRIVATE_DNS_CHOICE -eq "existing") {
     if (-not [string]::IsNullOrWhiteSpace($PRIVATE_DNS_ZONE_NAME)) {
+        $ErrorActionPreference = 'SilentlyContinue'
         $dnsExists = az network private-dns zone show --name "$PRIVATE_DNS_ZONE_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+        $ErrorActionPreference = 'Stop'
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Using existing Private DNS Zone: $PRIVATE_DNS_ZONE_NAME"
         } else {
