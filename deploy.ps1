@@ -53,6 +53,113 @@ function Test-Prerequisites {
     Write-Success "Prerequisites check passed"
 }
 
+# Search for existing resources
+function Search-StorageAccounts {
+    param([string]$ResourceGroup)
+    try {
+        $accounts = az storage account list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $accounts) {
+            return $accounts -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
+function Search-PrivateDnsZones {
+    param([string]$ResourceGroup)
+    try {
+        $zones = az network private-dns zone list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $zones) {
+            return $zones -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
+function Search-AppInsights {
+    param([string]$ResourceGroup)
+    try {
+        $insights = az resource list --resource-group $ResourceGroup --resource-type "Microsoft.Insights/components" --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $insights) {
+            return $insights -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
+# Prompt for resource choice: existing, new, or skip
+function Get-ResourceChoice {
+    param(
+        [string]$ResourceType,
+        [string]$DefaultName,
+        [string]$ResourceGroup,
+        [scriptblock]$SearchFunction
+    )
+    
+    Write-Host ""
+    Write-Info "Configuring $ResourceType"
+    
+    # Search for existing resources
+    $existingResources = @()
+    if (-not [string]::IsNullOrWhiteSpace($ResourceGroup)) {
+        try {
+            $rgCheck = az group show --name $ResourceGroup 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $existingResources = & $SearchFunction $ResourceGroup
+            }
+        } catch {}
+    }
+    
+    # Build options
+    $options = @()
+    $optionCount = 0
+    
+    if ($existingResources.Count -gt 0) {
+        Write-Host "Existing $ResourceType resources found:"
+        foreach ($resource in $existingResources) {
+            Write-Host "  [$optionCount] Use existing: $resource"
+            $options += "existing:$resource"
+            $optionCount++
+        }
+    }
+    
+    Write-Host "  [$optionCount] Create new"
+    $options += "new"
+    $optionCount++
+    
+    Write-Host "  [$optionCount] Skip"
+    $options += "skip"
+    
+    # Get user choice
+    $choice = Read-Host "Select option (0-$optionCount) [0]"
+    if ([string]::IsNullOrWhiteSpace($choice)) {
+        $choice = 0
+    }
+    
+    if ($choice -match '^\d+$' -and [int]$choice -le $optionCount) {
+        $selected = $options[[int]$choice]
+        
+        if ($selected -like "existing:*") {
+            return "existing:$($selected -replace 'existing:','')"
+        } elseif ($selected -eq "new") {
+            $name = Read-Host "Enter $ResourceType name [$DefaultName]"
+            if ([string]::IsNullOrWhiteSpace($name)) {
+                $name = $DefaultName
+            }
+            return "new:$name"
+        } else {
+            return "skip:"
+        }
+    } else {
+        Write-Warning "Invalid choice, defaulting to create new"
+        $name = Read-Host "Enter $ResourceType name [$DefaultName]"
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            $name = $DefaultName
+        }
+        return "new:$name"
+    }
+}
+
 # Prompt for resource name with option to select existing
 function Get-ResourceName {
     param(
@@ -166,6 +273,24 @@ function Start-Deployment {
         $CUSTOM_DOMAIN = "PA-G-Cloud15"
     }
     
+    # Prompt for Storage Account
+    Write-Info "Step 8: Storage Account Configuration"
+    $storageChoice = Get-ResourceChoice -ResourceType "Storage Account" -DefaultName "$($FUNCTION_APP_NAME -replace '-','').ToLower()st" -ResourceGroup $RESOURCE_GROUP -SearchFunction ${function:Search-StorageAccounts}
+    $STORAGE_CHOICE_TYPE = ($storageChoice -split ':')[0]
+    $STORAGE_ACCOUNT_NAME = ($storageChoice -split ':', 2)[1]
+    
+    # Prompt for Private DNS Zone
+    Write-Info "Step 9: Private DNS Zone Configuration"
+    $dnsChoice = Get-ResourceChoice -ResourceType "Private DNS Zone" -DefaultName "privatelink.azurewebsites.net" -ResourceGroup $RESOURCE_GROUP -SearchFunction ${function:Search-PrivateDnsZones}
+    $PRIVATE_DNS_CHOICE_TYPE = ($dnsChoice -split ':')[0]
+    $PRIVATE_DNS_ZONE_NAME = ($dnsChoice -split ':', 2)[1]
+    
+    # Prompt for Application Insights
+    Write-Info "Step 10: Application Insights Configuration"
+    $aiChoice = Get-ResourceChoice -ResourceType "Application Insights" -DefaultName "$FUNCTION_APP_NAME-insights" -ResourceGroup $RESOURCE_GROUP -SearchFunction ${function:Search-AppInsights}
+    $APP_INSIGHTS_CHOICE_TYPE = ($aiChoice -split ':')[0]
+    $APP_INSIGHTS_NAME = ($aiChoice -split ':', 2)[1]
+    
     # Summary
     Write-Host ""
     Write-Info "Deployment Configuration Summary:"
@@ -176,6 +301,9 @@ function Start-Deployment {
     Write-Host "  SharePoint Site: $SHAREPOINT_SITE_URL"
     Write-Host "  App Registration: $APP_REGISTRATION_NAME"
     Write-Host "  Custom Domain: $CUSTOM_DOMAIN"
+    Write-Host "  Storage Account: $STORAGE_CHOICE_TYPE ($STORAGE_ACCOUNT_NAME)"
+    Write-Host "  Private DNS Zone: $PRIVATE_DNS_CHOICE_TYPE ($PRIVATE_DNS_ZONE_NAME)"
+    Write-Host "  Application Insights: $APP_INSIGHTS_CHOICE_TYPE ($APP_INSIGHTS_NAME)"
     Write-Host ""
     
     $confirm = Read-Host "Proceed with deployment? (y/n) [y]"
@@ -196,6 +324,12 @@ APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME
 CUSTOM_DOMAIN=$CUSTOM_DOMAIN
 LOCATION=$($LOCATION ?? 'uksouth')
 SUBSCRIPTION_ID=$SUBSCRIPTION_ID
+STORAGE_ACCOUNT_CHOICE=$STORAGE_CHOICE_TYPE
+STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME
+PRIVATE_DNS_CHOICE=$PRIVATE_DNS_CHOICE_TYPE
+PRIVATE_DNS_ZONE_NAME=$PRIVATE_DNS_ZONE_NAME
+APP_INSIGHTS_CHOICE=$APP_INSIGHTS_CHOICE_TYPE
+APP_INSIGHTS_NAME=$APP_INSIGHTS_NAME
 "@
         
         $configContent | Out-File -FilePath "config\deployment-config.env" -Encoding utf8

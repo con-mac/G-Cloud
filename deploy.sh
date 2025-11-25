@@ -46,6 +46,82 @@ check_prerequisites() {
     print_success "Prerequisites check passed"
 }
 
+# Search for existing resources
+search_storage_accounts() {
+    local rg=$1
+    az storage account list --resource-group "$rg" --query "[].name" -o tsv 2>/dev/null || echo ""
+}
+
+search_private_dns_zones() {
+    local rg=$1
+    az network private-dns zone list --resource-group "$rg" --query "[].name" -o tsv 2>/dev/null || echo ""
+}
+
+search_app_insights() {
+    local rg=$1
+    az resource list --resource-group "$rg" --resource-type "Microsoft.Insights/components" --query "[].name" -o tsv 2>/dev/null || echo ""
+}
+
+# Prompt for resource choice: existing, new, or skip
+prompt_resource_choice() {
+    local resource_type=$1
+    local default_name=$2
+    local resource_group=$3
+    local search_func=$4
+    
+    echo ""
+    print_info "Configuring $resource_type"
+    
+    # Search for existing resources
+    local existing_resources
+    if [ -n "$resource_group" ] && az group show --name "$resource_group" &> /dev/null; then
+        existing_resources=($($search_func "$resource_group"))
+    else
+        existing_resources=()
+    fi
+    
+    # Build options array
+    local options=()
+    local option_count=0
+    
+    if [ ${#existing_resources[@]} -gt 0 ]; then
+        echo "Existing $resource_type resources found:"
+        for i in "${!existing_resources[@]}"; do
+            echo "  [$option_count] Use existing: ${existing_resources[$i]}"
+            options+=("existing:${existing_resources[$i]}")
+            ((option_count++))
+        done
+    fi
+    
+    echo "  [$option_count] Create new"
+    options+=("new")
+    ((option_count++))
+    
+    echo "  [$option_count] Skip"
+    options+=("skip")
+    
+    # Get user choice
+    read -p "Select option (0-$option_count) [0]: " choice
+    choice=${choice:-0}
+    
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -le "$option_count" ]; then
+        local selected="${options[$choice]}"
+        
+        if [[ "$selected" == "existing:"* ]]; then
+            echo "existing:${selected#existing:}"
+        elif [[ "$selected" == "new" ]]; then
+            read -p "Enter $resource_type name [$default_name]: " name
+            echo "new:${name:-$default_name}"
+        else
+            echo "skip:"
+        fi
+    else
+        print_warning "Invalid choice, defaulting to create new"
+        read -p "Enter $resource_type name [$default_name]: " name
+        echo "new:${name:-$default_name}"
+    fi
+}
+
 # Prompt for resource name with option to select existing
 prompt_resource() {
     local resource_type=$1
@@ -137,6 +213,24 @@ main() {
     read -p "Enter custom domain name [PA-G-Cloud15] (for private DNS): " CUSTOM_DOMAIN
     CUSTOM_DOMAIN=${CUSTOM_DOMAIN:-PA-G-Cloud15}
     
+    # Prompt for Storage Account
+    print_info "Step 8: Storage Account Configuration"
+    STORAGE_CHOICE=$(prompt_resource_choice "Storage Account" "${FUNCTION_APP_NAME}st" "$RESOURCE_GROUP" "search_storage_accounts")
+    STORAGE_CHOICE_TYPE=$(echo "$STORAGE_CHOICE" | cut -d: -f1)
+    STORAGE_ACCOUNT_NAME=$(echo "$STORAGE_CHOICE" | cut -d: -f2-)
+    
+    # Prompt for Private DNS Zone
+    print_info "Step 9: Private DNS Zone Configuration"
+    PRIVATE_DNS_CHOICE=$(prompt_resource_choice "Private DNS Zone" "privatelink.azurewebsites.net" "$RESOURCE_GROUP" "search_private_dns_zones")
+    PRIVATE_DNS_CHOICE_TYPE=$(echo "$PRIVATE_DNS_CHOICE" | cut -d: -f1)
+    PRIVATE_DNS_ZONE_NAME=$(echo "$PRIVATE_DNS_CHOICE" | cut -d: -f2-)
+    
+    # Prompt for Application Insights
+    print_info "Step 10: Application Insights Configuration"
+    APP_INSIGHTS_CHOICE=$(prompt_resource_choice "Application Insights" "${FUNCTION_APP_NAME}-insights" "$RESOURCE_GROUP" "search_app_insights")
+    APP_INSIGHTS_CHOICE_TYPE=$(echo "$APP_INSIGHTS_CHOICE" | cut -d: -f1)
+    APP_INSIGHTS_NAME=$(echo "$APP_INSIGHTS_CHOICE" | cut -d: -f2-)
+    
     # Summary
     echo ""
     print_info "Deployment Configuration Summary:"
@@ -147,6 +241,9 @@ main() {
     echo "  SharePoint Site: $SHAREPOINT_SITE_URL"
     echo "  App Registration: $APP_REGISTRATION_NAME"
     echo "  Custom Domain: $CUSTOM_DOMAIN"
+    echo "  Storage Account: $STORAGE_CHOICE_TYPE ($STORAGE_ACCOUNT_NAME)"
+    echo "  Private DNS Zone: $PRIVATE_DNS_CHOICE_TYPE ($PRIVATE_DNS_ZONE_NAME)"
+    echo "  Application Insights: $APP_INSIGHTS_CHOICE_TYPE ($APP_INSIGHTS_NAME)"
     echo ""
     
     read -p "Proceed with deployment? (y/n) [y]: " confirm
@@ -168,6 +265,12 @@ APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME
 CUSTOM_DOMAIN=$CUSTOM_DOMAIN
 LOCATION=${LOCATION:-uksouth}
 SUBSCRIPTION_ID=$SUBSCRIPTION_ID
+STORAGE_ACCOUNT_CHOICE=$STORAGE_CHOICE_TYPE
+STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME
+PRIVATE_DNS_CHOICE=$PRIVATE_DNS_CHOICE_TYPE
+PRIVATE_DNS_ZONE_NAME=$PRIVATE_DNS_ZONE_NAME
+APP_INSIGHTS_CHOICE=$APP_INSIGHTS_CHOICE_TYPE
+APP_INSIGHTS_NAME=$APP_INSIGHTS_NAME
 EOF
     
     print_success "Configuration saved to config/deployment-config.env"
