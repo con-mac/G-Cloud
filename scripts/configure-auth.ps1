@@ -76,6 +76,14 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
         --api-permissions "205e70e5-aba6-4c52-a976-6d2d8c5c5e77=Scope" `
         --output none 2>&1 | Out-Null
     
+    # Add Files.ReadWrite.All permission (alternative/additional for file operations)
+    Write-Info "Adding Files.ReadWrite.All permission..."
+    az ad app permission add `
+        --id $APP_ID `
+        --api $GRAPH_API_ID `
+        --api-permissions "75359482-378d-4052-8f01-80520e7db3cd=Scope" `
+        --output none 2>&1 | Out-Null
+    
     # Add offline_access permission
     Write-Info "Adding offline_access permission..."
     az ad app permission add `
