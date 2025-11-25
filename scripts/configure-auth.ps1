@@ -42,10 +42,10 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     # Get Web App URL
     $WEB_APP_URL = "https://${WEB_APP_NAME}.azurewebsites.net"
     
-    # Create App Registration
+    # Create App Registration with redirect URIs (production and localhost for development)
     $appJson = az ad app create `
         --display-name $APP_REGISTRATION_NAME `
-        --web-redirect-uris "${WEB_APP_URL}/auth/callback" | ConvertFrom-Json
+        --web-redirect-uris "${WEB_APP_URL}/auth/callback" "http://localhost:3000/auth/callback" "http://localhost:5173/auth/callback" | ConvertFrom-Json
     
     $APP_ID = $appJson.appId
     

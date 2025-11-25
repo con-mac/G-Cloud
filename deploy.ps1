@@ -119,6 +119,28 @@ function Search-AppInsights {
     return @()
 }
 
+function Search-VNets {
+    param([string]$ResourceGroup)
+    try {
+        $vnets = az network vnet list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $vnets) {
+            return $vnets -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
+function Search-Subnets {
+    param([string]$VNetName, [string]$ResourceGroup)
+    try {
+        $subnets = az network vnet subnet list --vnet-name $VNetName --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $subnets) {
+            return $subnets -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
 # Prompt for resource choice: existing, new, or skip
 function Get-ResourceChoice {
     param(
@@ -442,6 +464,84 @@ function Start-Deployment {
     $APP_INSIGHTS_CHOICE_TYPE = ($aiChoice -split ':')[0]
     $APP_INSIGHTS_NAME = ($aiChoice -split ':', 2)[1]
     
+    # Prompt for VNet and Private Endpoint Configuration
+    Write-Info "Step 11: VNet and Private Endpoint Configuration"
+    Write-Host ""
+    Write-Info "Private endpoints are required for private-only access"
+    Write-Host "  [0] Configure private endpoints (recommended)"
+    Write-Host "  [1] Skip (configure later)"
+    $vnetChoice = Read-Host "Select option (0-1) [0]"
+    if ([string]::IsNullOrWhiteSpace($vnetChoice)) {
+        $vnetChoice = "0"
+    }
+    
+    $CONFIGURE_PRIVATE_ENDPOINTS = "false"
+    $VNET_NAME = ""
+    $SUBNET_NAME = ""
+    
+    if ($vnetChoice -eq "0") {
+        $CONFIGURE_PRIVATE_ENDPOINTS = "true"
+        # Search for existing VNets
+        $existingVNets = Search-VNets -ResourceGroup $RESOURCE_GROUP
+        if ($existingVNets.Count -gt 0) {
+            Write-Host "Existing VNets found:"
+            for ($i = 0; $i -lt $existingVNets.Count; $i++) {
+                Write-Host "  [$i] $($existingVNets[$i])"
+            }
+            Write-Host "  [n] Create new"
+            $vnetSelect = Read-Host "Select option (0-$($existingVNets.Count - 1)) or 'n' for new"
+            
+            if ($vnetSelect -match '^\d+$' -and [int]$vnetSelect -lt $existingVNets.Count) {
+                $VNET_NAME = $existingVNets[[int]$vnetSelect]
+                Write-Success "Using existing VNet: $VNET_NAME"
+                
+                # Get subnets in this VNet
+                $subnets = Search-Subnets -VNetName $VNET_NAME -ResourceGroup $RESOURCE_GROUP
+                if ($subnets.Count -gt 0) {
+                    Write-Host "Existing subnets found:"
+                    for ($i = 0; $i -lt $subnets.Count; $i++) {
+                        Write-Host "  [$i] $($subnets[$i])"
+                    }
+                    Write-Host "  [n] Create new"
+                    $subnetSelect = Read-Host "Select option (0-$($subnets.Count - 1)) or 'n' for new"
+                    
+                    if ($subnetSelect -match '^\d+$' -and [int]$subnetSelect -lt $subnets.Count) {
+                        $SUBNET_NAME = $subnets[[int]$subnetSelect]
+                        Write-Success "Using existing subnet: $SUBNET_NAME"
+                    } else {
+                        $SUBNET_NAME = Read-Host "Enter subnet name [functions-subnet]"
+                        if ([string]::IsNullOrWhiteSpace($SUBNET_NAME)) {
+                            $SUBNET_NAME = "functions-subnet"
+                        }
+                    }
+                } else {
+                    $SUBNET_NAME = Read-Host "Enter subnet name [functions-subnet]"
+                    if ([string]::IsNullOrWhiteSpace($SUBNET_NAME)) {
+                        $SUBNET_NAME = "functions-subnet"
+                    }
+                }
+            } else {
+                $VNET_NAME = Read-Host "Enter VNet name [pa-gcloud15-vnet]"
+                if ([string]::IsNullOrWhiteSpace($VNET_NAME)) {
+                    $VNET_NAME = "pa-gcloud15-vnet"
+                }
+                $SUBNET_NAME = Read-Host "Enter subnet name [functions-subnet]"
+                if ([string]::IsNullOrWhiteSpace($SUBNET_NAME)) {
+                    $SUBNET_NAME = "functions-subnet"
+                }
+            }
+        } else {
+            $VNET_NAME = Read-Host "Enter VNet name [pa-gcloud15-vnet]"
+            if ([string]::IsNullOrWhiteSpace($VNET_NAME)) {
+                $VNET_NAME = "pa-gcloud15-vnet"
+            }
+            $SUBNET_NAME = Read-Host "Enter subnet name [functions-subnet]"
+            if ([string]::IsNullOrWhiteSpace($SUBNET_NAME)) {
+                $SUBNET_NAME = "functions-subnet"
+            }
+        }
+    }
+    
     # Summary
     Write-Host ""
     Write-Info "Deployment Configuration Summary:"
@@ -455,6 +555,13 @@ function Start-Deployment {
     Write-Host "  Storage Account: $STORAGE_CHOICE_TYPE ($STORAGE_ACCOUNT_NAME)"
     Write-Host "  Private DNS Zone: $PRIVATE_DNS_CHOICE_TYPE ($PRIVATE_DNS_ZONE_NAME)"
     Write-Host "  Application Insights: $APP_INSIGHTS_CHOICE_TYPE ($APP_INSIGHTS_NAME)"
+    if ($CONFIGURE_PRIVATE_ENDPOINTS -eq "true") {
+        Write-Host "  VNet: $VNET_NAME"
+        Write-Host "  Subnet: $SUBNET_NAME"
+        Write-Host "  Private Endpoints: Enabled"
+    } else {
+        Write-Host "  Private Endpoints: Disabled (will be configured later)"
+    }
     Write-Host ""
     
     $confirm = Read-Host "Proceed with deployment? (y/n) [y]"
@@ -486,6 +593,9 @@ PRIVATE_DNS_CHOICE=$PRIVATE_DNS_CHOICE_TYPE
 PRIVATE_DNS_ZONE_NAME=$PRIVATE_DNS_ZONE_NAME
 APP_INSIGHTS_CHOICE=$APP_INSIGHTS_CHOICE_TYPE
 APP_INSIGHTS_NAME=$APP_INSIGHTS_NAME
+CONFIGURE_PRIVATE_ENDPOINTS=$CONFIGURE_PRIVATE_ENDPOINTS
+VNET_NAME=$VNET_NAME
+SUBNET_NAME=$SUBNET_NAME
 "@
         
         $configContent | Out-File -FilePath "config\deployment-config.env" -Encoding utf8

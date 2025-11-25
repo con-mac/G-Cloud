@@ -77,19 +77,23 @@ try {
 Write-Info "Configuring Function App settings..."
 
 # Get Key Vault reference
-$KEY_VAULT_URI = az keyvault show --name $KEY_VAULT_NAME --resource-group $RESOURCE_GROUP --query properties.vaultUri -o tsv
+$KEY_VAULT_URI = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" --query properties.vaultUri -o tsv
+
+# Build settings array to avoid PowerShell parsing issues
+$appSettings = @(
+    "AZURE_KEY_VAULT_URL=$KEY_VAULT_URI",
+    "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL",
+    "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID",
+    "USE_SHAREPOINT=true",
+    "AZURE_STORAGE_CONNECTION_STRING=@Microsoft.KeyVault(SecretUri=$KEY_VAULT_URI/secrets/StorageConnectionString/)",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING=@Microsoft.KeyVault(SecretUri=$KEY_VAULT_URI/secrets/AppInsightsConnectionString/)"
+)
 
 # Set app settings
 az functionapp config appsettings set `
-    --name $FUNCTION_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --settings `
-        "AZURE_KEY_VAULT_URL=$KEY_VAULT_URI" `
-        "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL" `
-        "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID" `
-        "USE_SHAREPOINT=true" `
-        "AZURE_STORAGE_CONNECTION_STRING=@Microsoft.KeyVault(SecretUri=$KEY_VAULT_URI/secrets/StorageConnectionString/)" `
-        "APPLICATIONINSIGHTS_CONNECTION_STRING=@Microsoft.KeyVault(SecretUri=$KEY_VAULT_URI/secrets/AppInsightsConnectionString/)" `
+    --name "$FUNCTION_APP_NAME" `
+    --resource-group "$RESOURCE_GROUP" `
+    --settings $appSettings `
     --output none | Out-Null
 
 Write-Success "Backend deployment complete!"

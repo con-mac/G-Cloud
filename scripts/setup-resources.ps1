@@ -113,6 +113,21 @@ if ($LASTEXITCODE -ne 0) {
         --location "$LOCATION" `
         --sku standard `
         --enable-rbac-authorization true | Out-Null
+    
+    # Grant current user Key Vault Secrets Officer role for RBAC
+    Write-Info "Granting Key Vault permissions to current user..."
+    $currentUser = az ad signed-in-user show --query id -o tsv
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($currentUser)) {
+        az role assignment create `
+            --role "Key Vault Secrets Officer" `
+            --assignee "$currentUser" `
+            --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME" `
+            --output none | Out-Null
+        Write-Success "Key Vault permissions granted"
+    } else {
+        Write-Warning "Could not grant Key Vault permissions automatically. Please grant 'Key Vault Secrets Officer' role manually."
+    }
+    
     Write-Success "Key Vault created: $KEY_VAULT_NAME"
 } else {
     Write-Warning "Key Vault already exists: $KEY_VAULT_NAME"
@@ -188,12 +203,12 @@ if ($LASTEXITCODE -ne 0) {
             --is-linux | Out-Null
     }
     
-    # Create Web App
+    # Create Web App (use node 20 as it's more widely supported)
     az webapp create `
         --name "$WEB_APP_NAME" `
         --resource-group "$RESOURCE_GROUP" `
         --plan "$APP_SERVICE_PLAN" `
-        --runtime "NODE:18-lts" | Out-Null
+        --runtime "NODE:20-lts" | Out-Null
     
     Write-Success "Web App created: $WEB_APP_NAME"
 } else {
@@ -305,7 +320,147 @@ if ([string]::IsNullOrWhiteSpace($PRIVATE_DNS_CHOICE) -or $PRIVATE_DNS_CHOICE -e
     $PRIVATE_DNS_ZONE_NAME = ""
 }
 
+# Handle VNet and Private Endpoint Configuration
+$CONFIGURE_PRIVATE_ENDPOINTS = $config.CONFIGURE_PRIVATE_ENDPOINTS
+$VNET_NAME = $config.VNET_NAME
+$SUBNET_NAME = $config.SUBNET_NAME
+
+if ($CONFIGURE_PRIVATE_ENDPOINTS -eq "true" -and -not [string]::IsNullOrWhiteSpace($VNET_NAME)) {
+    Write-Info "Configuring VNet and Private Endpoints..."
+    
+    # Check if VNet exists
+    $ErrorActionPreference = 'SilentlyContinue'
+    $vnetExists = az network vnet show --name "$VNET_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Info "Creating VNet: $VNET_NAME"
+        az network vnet create `
+            --name "$VNET_NAME" `
+            --resource-group "$RESOURCE_GROUP" `
+            --location "$LOCATION" `
+            --address-prefix "10.0.0.0/16" `
+            --output none | Out-Null
+        Write-Success "VNet created: $VNET_NAME"
+    } else {
+        Write-Success "Using existing VNet: $VNET_NAME"
+    }
+    
+    # Check if subnet exists
+    $ErrorActionPreference = 'SilentlyContinue'
+    $subnetExists = az network vnet subnet show --vnet-name "$VNET_NAME" --name "$SUBNET_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Info "Creating subnet: $SUBNET_NAME"
+        az network vnet subnet create `
+            --vnet-name "$VNET_NAME" `
+            --name "$SUBNET_NAME" `
+            --resource-group "$RESOURCE_GROUP" `
+            --address-prefix "10.0.1.0/24" `
+            --output none | Out-Null
+        Write-Success "Subnet created: $SUBNET_NAME"
+    } else {
+        Write-Success "Using existing subnet: $SUBNET_NAME"
+    }
+    
+    # Get subnet ID
+    $SUBNET_ID = az network vnet subnet show --vnet-name "$VNET_NAME" --name "$SUBNET_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv
+    
+    # Configure VNet integration for Function App
+    Write-Info "Configuring VNet integration for Function App..."
+    az functionapp vnet-integration add `
+        --name "$FUNCTION_APP_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --subnet "$SUBNET_ID" `
+        --output none | Out-Null
+    Write-Success "VNet integration configured for Function App"
+    
+    # Configure VNet integration for Web App
+    Write-Info "Configuring VNet integration for Web App..."
+    az webapp vnet-integration add `
+        --name "$WEB_APP_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --subnet "$SUBNET_ID" `
+        --output none | Out-Null
+    Write-Success "VNet integration configured for Web App"
+    
+    # Create private endpoint for Function App
+    Write-Info "Creating private endpoint for Function App..."
+    $funcPeName = "$FUNCTION_APP_NAME-pe"
+    $ErrorActionPreference = 'SilentlyContinue'
+    $funcPeExists = az network private-endpoint show --name "$funcPeName" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0) {
+        # Get Function App resource ID
+        $FUNC_APP_ID = az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv
+        
+        az network private-endpoint create `
+            --name "$funcPeName" `
+            --resource-group "$RESOURCE_GROUP" `
+            --vnet-name "$VNET_NAME" `
+            --subnet "$SUBNET_NAME" `
+            --private-connection-resource-id "$FUNC_APP_ID" `
+            --group-id "sites" `
+            --connection-name "$FUNCTION_APP_NAME-connection" `
+            --output none | Out-Null
+        Write-Success "Private endpoint created for Function App"
+    } else {
+        Write-Success "Private endpoint already exists for Function App"
+    }
+    
+    # Create private endpoint for Web App
+    Write-Info "Creating private endpoint for Web App..."
+    $webPeName = "$WEB_APP_NAME-pe"
+    $ErrorActionPreference = 'SilentlyContinue'
+    $webPeExists = az network private-endpoint show --name "$webPeName" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0) {
+        # Get Web App resource ID
+        $WEB_APP_ID = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv
+        
+        az network private-endpoint create `
+            --name "$webPeName" `
+            --resource-group "$RESOURCE_GROUP" `
+            --vnet-name "$VNET_NAME" `
+            --subnet "$SUBNET_NAME" `
+            --private-connection-resource-id "$WEB_APP_ID" `
+            --group-id "sites" `
+            --connection-name "$WEB_APP_NAME-connection" `
+            --output none | Out-Null
+        Write-Success "Private endpoint created for Web App"
+    } else {
+        Write-Success "Private endpoint already exists for Web App"
+    }
+    
+    # Link Private DNS Zone to VNet (if DNS zone was created)
+    if (-not [string]::IsNullOrWhiteSpace($PRIVATE_DNS_ZONE_NAME) -and $PRIVATE_DNS_CHOICE -ne "skip") {
+        Write-Info "Linking Private DNS Zone to VNet..."
+        $ErrorActionPreference = 'SilentlyContinue'
+        $dnsLinkExists = az network private-dns link vnet show --name "$VNET_NAME-link" --zone-name "$PRIVATE_DNS_ZONE_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -ne 0) {
+            az network private-dns link vnet create `
+                --name "$VNET_NAME-link" `
+                --zone-name "$PRIVATE_DNS_ZONE_NAME" `
+                --resource-group "$RESOURCE_GROUP" `
+                --virtual-network "$VNET_NAME" `
+                --registration-enabled false `
+                --output none | Out-Null
+            Write-Success "Private DNS Zone linked to VNet"
+        } else {
+            Write-Success "Private DNS Zone already linked to VNet"
+        }
+    }
+    
+    Write-Success "Private endpoint configuration complete!"
+} else {
+    Write-Info "Skipping private endpoint configuration (can be configured later)"
+}
+
 Write-Success "Resources setup complete!"
-Write-Info "Next: Configure private endpoints and VNet integration"
 Write-Info "Next: Run deploy-functions.ps1 to deploy backend code"
 
