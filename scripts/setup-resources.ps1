@@ -55,8 +55,16 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
         $maxLength = [Math]::Min(22, $cleanName.Length)
         $STORAGE_ACCOUNT_NAME = $cleanName.Substring(0, $maxLength) + "st"
     }
-    # Validate storage account name (alphanumeric only, 3-24 chars)
+    # Validate and fix storage account name (alphanumeric only, 3-24 chars)
     $STORAGE_ACCOUNT_NAME = $STORAGE_ACCOUNT_NAME -replace '[^a-z0-9]', ''
+    # Ensure minimum length of 3 characters
+    if ($STORAGE_ACCOUNT_NAME.Length -lt 3) {
+        $STORAGE_ACCOUNT_NAME = $STORAGE_ACCOUNT_NAME.PadRight(3, '0')
+    }
+    # Ensure maximum length of 24 characters
+    if ($STORAGE_ACCOUNT_NAME.Length -gt 24) {
+        $STORAGE_ACCOUNT_NAME = $STORAGE_ACCOUNT_NAME.Substring(0, 24)
+    }
     if ($STORAGE_ACCOUNT_NAME.Length -lt 3 -or $STORAGE_ACCOUNT_NAME.Length -gt 24) {
         Write-Error "Invalid storage account name: $STORAGE_ACCOUNT_NAME (must be 3-24 alphanumeric characters)"
         exit 1
@@ -118,20 +126,51 @@ if ($LASTEXITCODE -ne 0) {
     Write-Info "Granting Key Vault permissions to current user..."
     $currentUser = az ad signed-in-user show --query id -o tsv
     if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($currentUser)) {
-        az role assignment create `
-            --role "Key Vault Secrets Officer" `
-            --assignee "$currentUser" `
-            --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME" `
-            --output none | Out-Null
-        Write-Success "Key Vault permissions granted"
+        $kvScope = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
+        # Check if role assignment already exists
+        $ErrorActionPreference = 'SilentlyContinue'
+        $existingRole = az role assignment list --assignee "$currentUser" --scope "$kvScope" --role "Key Vault Secrets Officer" --query "[].id" -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ([string]::IsNullOrWhiteSpace($existingRole)) {
+            az role assignment create `
+                --role "Key Vault Secrets Officer" `
+                --assignee "$currentUser" `
+                --scope "$kvScope" `
+                --output none 2>&1 | Out-Null
+            Write-Success "Key Vault permissions granted"
+            # Wait a moment for propagation
+            Start-Sleep -Seconds 5
+        } else {
+            Write-Success "Key Vault permissions already granted"
+        }
     } else {
         Write-Warning "Could not grant Key Vault permissions automatically. Please grant 'Key Vault Secrets Officer' role manually."
     }
     
     Write-Success "Key Vault created: $KEY_VAULT_NAME"
-} else {
-    Write-Warning "Key Vault already exists: $KEY_VAULT_NAME"
-}
+    } else {
+        Write-Success "Using existing Key Vault: $KEY_VAULT_NAME"
+        # Ensure permissions are granted even for existing Key Vault
+        Write-Info "Ensuring Key Vault permissions..."
+        $currentUser = az ad signed-in-user show --query id -o tsv
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($currentUser)) {
+            $kvScope = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
+            $ErrorActionPreference = 'SilentlyContinue'
+            $existingRole = az role assignment list --assignee "$currentUser" --scope "$kvScope" --role "Key Vault Secrets Officer" --query "[].id" -o tsv 2>&1
+            $ErrorActionPreference = 'Stop'
+            
+            if ([string]::IsNullOrWhiteSpace($existingRole)) {
+                az role assignment create `
+                    --role "Key Vault Secrets Officer" `
+                    --assignee "$currentUser" `
+                    --scope "$kvScope" `
+                    --output none 2>&1 | Out-Null
+                Write-Success "Key Vault permissions granted"
+                Start-Sleep -Seconds 5
+            }
+        }
+    }
 
 # Create or update Function App (Consumption plan for serverless)
 Write-Info "Setting up Function App for backend API..."
@@ -141,23 +180,47 @@ $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
     # Create storage account for function app (required)
     $cleanFuncName = ($FUNCTION_APP_NAME -replace '-', '' -replace '_', '').ToLower()
+    # Ensure minimum length
+    if ($cleanFuncName.Length -lt 3) {
+        $cleanFuncName = $cleanFuncName.PadRight(3, '0')
+    }
     $maxFuncLength = [Math]::Min(20, $cleanFuncName.Length)
     $FUNC_STORAGE = $cleanFuncName.Substring(0, $maxFuncLength) + "func"
     # Validate function storage account name
     $FUNC_STORAGE = $FUNC_STORAGE -replace '[^a-z0-9]', ''
+    # Ensure minimum length of 3
+    if ($FUNC_STORAGE.Length -lt 3) {
+        $FUNC_STORAGE = $FUNC_STORAGE.PadRight(3, '0')
+    }
+    # Ensure maximum length of 24
+    if ($FUNC_STORAGE.Length -gt 24) {
+        $FUNC_STORAGE = $FUNC_STORAGE.Substring(0, 24)
+    }
     if ([string]::IsNullOrWhiteSpace($FUNC_STORAGE)) {
         Write-Error "Function storage account name is empty or invalid"
         exit 1
     }
     $ErrorActionPreference = 'SilentlyContinue'
-    $funcStorageExists = az storage account show --name "$FUNC_STORAGE" --resource-group "$RESOURCE_GROUP" 2>&1
+    $funcStorageExists = az storage account show --name "$FUNC_STORAGE" --resource-group "$RESOURCE_GROUP" 2>&1 | Out-Null
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
-        az storage account create `
+        $ErrorActionPreference = 'SilentlyContinue'
+        $createResult = az storage account create `
             --name "$FUNC_STORAGE" `
             --resource-group "$RESOURCE_GROUP" `
             --location "$LOCATION" `
-            --sku Standard_LRS | Out-Null
+            --sku Standard_LRS 2>&1 | Out-Null
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -ne 0) {
+            # Check if it exists globally
+            $globalCheck = az storage account show --name "$FUNC_STORAGE" --query id -o tsv 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Warning "Function storage account '$FUNC_STORAGE' exists in a different resource group. Using existing account."
+            } else {
+                Write-Warning "Could not create Function storage account '$FUNC_STORAGE'. It may already exist globally."
+            }
+        }
     }
     
     # Create Function App
@@ -364,75 +427,102 @@ if ($CONFIGURE_PRIVATE_ENDPOINTS -eq "true" -and -not [string]::IsNullOrWhiteSpa
         Write-Success "Using existing subnet: $SUBNET_NAME"
     }
     
-    # Get subnet ID
-    $SUBNET_ID = az network vnet subnet show --vnet-name "$VNET_NAME" --name "$SUBNET_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv
-    
-    # Configure VNet integration for Function App
+    # Configure VNet integration for Function App (check if already configured)
     Write-Info "Configuring VNet integration for Function App..."
-    az functionapp vnet-integration add `
-        --name "$FUNCTION_APP_NAME" `
-        --resource-group "$RESOURCE_GROUP" `
-        --subnet "$SUBNET_ID" `
-        --output none | Out-Null
-    Write-Success "VNet integration configured for Function App"
-    
-    # Configure VNet integration for Web App
-    Write-Info "Configuring VNet integration for Web App..."
-    az webapp vnet-integration add `
-        --name "$WEB_APP_NAME" `
-        --resource-group "$RESOURCE_GROUP" `
-        --subnet "$SUBNET_ID" `
-        --output none | Out-Null
-    Write-Success "VNet integration configured for Web App"
-    
-    # Create private endpoint for Function App
-    Write-Info "Creating private endpoint for Function App..."
-    $funcPeName = "$FUNCTION_APP_NAME-pe"
     $ErrorActionPreference = 'SilentlyContinue'
-    $funcPeExists = az network private-endpoint show --name "$funcPeName" --resource-group "$RESOURCE_GROUP" 2>&1
+    $funcVnetCheck = az functionapp vnet-integration list --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" --query "[].name" -o tsv 2>&1
     $ErrorActionPreference = 'Stop'
     
-    if ($LASTEXITCODE -ne 0) {
-        # Get Function App resource ID
-        $FUNC_APP_ID = az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv
-        
-        az network private-endpoint create `
-            --name "$funcPeName" `
+    if ([string]::IsNullOrWhiteSpace($funcVnetCheck)) {
+        az functionapp vnet-integration add `
+            --name "$FUNCTION_APP_NAME" `
             --resource-group "$RESOURCE_GROUP" `
-            --vnet-name "$VNET_NAME" `
+            --vnet "$VNET_NAME" `
             --subnet "$SUBNET_NAME" `
-            --private-connection-resource-id "$FUNC_APP_ID" `
-            --group-id "sites" `
-            --connection-name "$FUNCTION_APP_NAME-connection" `
-            --output none | Out-Null
-        Write-Success "Private endpoint created for Function App"
+            --output none 2>&1 | Out-Null
+        Write-Success "VNet integration configured for Function App"
     } else {
-        Write-Success "Private endpoint already exists for Function App"
+        Write-Success "VNet integration already configured for Function App"
     }
     
-    # Create private endpoint for Web App
-    Write-Info "Creating private endpoint for Web App..."
-    $webPeName = "$WEB_APP_NAME-pe"
+    # Configure VNet integration for Web App (check if already configured)
+    Write-Info "Configuring VNet integration for Web App..."
     $ErrorActionPreference = 'SilentlyContinue'
-    $webPeExists = az network private-endpoint show --name "$webPeName" --resource-group "$RESOURCE_GROUP" 2>&1
+    $webVnetCheck = az webapp vnet-integration list --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query "[].name" -o tsv 2>&1
     $ErrorActionPreference = 'Stop'
     
-    if ($LASTEXITCODE -ne 0) {
-        # Get Web App resource ID
-        $WEB_APP_ID = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv
-        
-        az network private-endpoint create `
-            --name "$webPeName" `
+    if ([string]::IsNullOrWhiteSpace($webVnetCheck)) {
+        az webapp vnet-integration add `
+            --name "$WEB_APP_NAME" `
             --resource-group "$RESOURCE_GROUP" `
-            --vnet-name "$VNET_NAME" `
+            --vnet "$VNET_NAME" `
             --subnet "$SUBNET_NAME" `
-            --private-connection-resource-id "$WEB_APP_ID" `
-            --group-id "sites" `
-            --connection-name "$WEB_APP_NAME-connection" `
-            --output none | Out-Null
-        Write-Success "Private endpoint created for Web App"
+            --output none 2>&1 | Out-Null
+        Write-Success "VNet integration configured for Web App"
     } else {
-        Write-Success "Private endpoint already exists for Web App"
+        Write-Success "VNet integration already configured for Web App"
+    }
+    
+    # Create or use existing private endpoint for Function App
+    Write-Info "Configuring private endpoint for Function App..."
+    $funcPeName = "$FUNCTION_APP_NAME-pe"
+    $ErrorActionPreference = 'SilentlyContinue'
+    $funcPeExists = az network private-endpoint show --name "$funcPeName" --resource-group "$RESOURCE_GROUP" --query id -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($funcPeExists)) {
+        # Get Function App resource ID
+        $ErrorActionPreference = 'SilentlyContinue'
+        $FUNC_APP_ID = az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($FUNC_APP_ID)) {
+            az network private-endpoint create `
+                --name "$funcPeName" `
+                --resource-group "$RESOURCE_GROUP" `
+                --vnet-name "$VNET_NAME" `
+                --subnet "$SUBNET_NAME" `
+                --private-connection-resource-id "$FUNC_APP_ID" `
+                --group-id "sites" `
+                --connection-name "$FUNCTION_APP_NAME-connection" `
+                --output none 2>&1 | Out-Null
+            Write-Success "Private endpoint created for Function App"
+        } else {
+            Write-Warning "Could not create private endpoint for Function App. Function App may not exist yet."
+        }
+    } else {
+        Write-Success "Using existing private endpoint for Function App: $funcPeName"
+    }
+    
+    # Create or use existing private endpoint for Web App
+    Write-Info "Configuring private endpoint for Web App..."
+    $webPeName = "$WEB_APP_NAME-pe"
+    $ErrorActionPreference = 'SilentlyContinue'
+    $webPeExists = az network private-endpoint show --name "$webPeName" --resource-group "$RESOURCE_GROUP" --query id -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($webPeExists)) {
+        # Get Web App resource ID
+        $ErrorActionPreference = 'SilentlyContinue'
+        $WEB_APP_ID = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($WEB_APP_ID)) {
+            az network private-endpoint create `
+                --name "$webPeName" `
+                --resource-group "$RESOURCE_GROUP" `
+                --vnet-name "$VNET_NAME" `
+                --subnet "$SUBNET_NAME" `
+                --private-connection-resource-id "$WEB_APP_ID" `
+                --group-id "sites" `
+                --connection-name "$WEB_APP_NAME-connection" `
+                --output none 2>&1 | Out-Null
+            Write-Success "Private endpoint created for Web App"
+        } else {
+            Write-Warning "Could not create private endpoint for Web App. Web App may not exist yet."
+        }
+    } else {
+        Write-Success "Using existing private endpoint for Web App: $webPeName"
     }
     
     # Link Private DNS Zone to VNet (if DNS zone was created)

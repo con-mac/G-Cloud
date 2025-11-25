@@ -134,26 +134,32 @@ az keyvault secret set `
     --value $TENANT_ID `
     --output none | Out-Null
 
-# Update Function App settings
+# Update Function App settings (build array to avoid PowerShell parsing issues)
 Write-Info "Updating Function App with authentication settings..."
+$funcAuthSettings = @(
+    "AZURE_AD_TENANT_ID=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADTenantId/)",
+    "AZURE_AD_CLIENT_ID=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADClientId/)",
+    "AZURE_AD_CLIENT_SECRET=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADClientSecret/)"
+)
+
 az functionapp config appsettings set `
-    --name $FUNCTION_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --settings `
-        "AZURE_AD_TENANT_ID=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADTenantId/)" `
-        "AZURE_AD_CLIENT_ID=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADClientId/)" `
-        "AZURE_AD_CLIENT_SECRET=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADClientSecret/)" `
+    --name "$FUNCTION_APP_NAME" `
+    --resource-group "$RESOURCE_GROUP" `
+    --settings $funcAuthSettings `
     --output none | Out-Null
 
-# Update Web App settings
+# Update Web App settings (build array to avoid PowerShell parsing issues)
 Write-Info "Updating Web App with authentication settings..."
+$webAuthSettings = @(
+    "VITE_AZURE_AD_TENANT_ID=$TENANT_ID",
+    "VITE_AZURE_AD_CLIENT_ID=$APP_ID",
+    "VITE_AZURE_AD_REDIRECT_URI=${WEB_APP_URL}/auth/callback"
+)
+
 az webapp config appsettings set `
-    --name $WEB_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --settings `
-        "VITE_AZURE_AD_TENANT_ID=$TENANT_ID" `
-        "VITE_AZURE_AD_CLIENT_ID=$APP_ID" `
-        "VITE_AZURE_AD_REDIRECT_URI=${WEB_APP_URL}/auth/callback" `
+    --name "$WEB_APP_NAME" `
+    --resource-group "$RESOURCE_GROUP" `
+    --settings $webAuthSettings `
     --output none | Out-Null
 
 # Configure SharePoint site permissions (if SharePoint is configured)
