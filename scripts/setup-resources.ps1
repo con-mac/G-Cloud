@@ -89,7 +89,7 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
             --min-tls-version TLS1_2 | Out-Null
         Write-Success "Storage Account created: $STORAGE_ACCOUNT_NAME"
     } else {
-        Write-Warning "Storage Account already exists: $STORAGE_ACCOUNT_NAME"
+        Write-Success "Using existing Storage Account: $STORAGE_ACCOUNT_NAME"
     }
 } elseif ($STORAGE_ACCOUNT_CHOICE -eq "existing") {
     if (-not [string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
