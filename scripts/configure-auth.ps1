@@ -59,11 +59,11 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($appListJson)) {
     }
 }
 
+# Get Web App URL (needed for redirect URIs and app settings)
+$WEB_APP_URL = "https://${WEB_APP_NAME}.azurewebsites.net"
+
 if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     Write-Warning "App Registration not found. Creating..."
-    
-    # Get Web App URL
-    $WEB_APP_URL = "https://${WEB_APP_NAME}.azurewebsites.net"
     
     # Create App Registration with redirect URIs (production and localhost for development)
     $appJson = az ad app create `
@@ -160,10 +160,15 @@ az keyvault secret set `
 # Update Function App settings (build array to avoid PowerShell parsing issues)
 Write-Info "Updating Function App with authentication settings..."
 $kvUri = "https://${KEY_VAULT_NAME}.vault.azure.net"
+# Build Key Vault references using string concatenation to avoid PowerShell expansion issues
+$kvTenantRef = '@Microsoft.KeyVault(SecretUri=' + $kvUri + '/secrets/AzureADTenantId/)'
+$kvClientIdRef = '@Microsoft.KeyVault(SecretUri=' + $kvUri + '/secrets/AzureADClientId/)'
+$kvClientSecretRef = '@Microsoft.KeyVault(SecretUri=' + $kvUri + '/secrets/AzureADClientSecret/)'
+
 $funcAuthSettings = @(
-    "AZURE_AD_TENANT_ID=@Microsoft.KeyVault(SecretUri=${kvUri}/secrets/AzureADTenantId/)",
-    "AZURE_AD_CLIENT_ID=@Microsoft.KeyVault(SecretUri=${kvUri}/secrets/AzureADClientId/)",
-    "AZURE_AD_CLIENT_SECRET=@Microsoft.KeyVault(SecretUri=${kvUri}/secrets/AzureADClientSecret/)"
+    "AZURE_AD_TENANT_ID=$kvTenantRef",
+    "AZURE_AD_CLIENT_ID=$kvClientIdRef",
+    "AZURE_AD_CLIENT_SECRET=$kvClientSecretRef"
 )
 
 az functionapp config appsettings set `

@@ -90,14 +90,18 @@ Write-Info "Configuring Function App settings..."
 $KEY_VAULT_URI = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" --query properties.vaultUri -o tsv
 
 # Build settings array to avoid PowerShell parsing issues with @ symbols
-# Build array item by item to prevent PowerShell from misinterpreting @Microsoft.KeyVault
-$appSettings = @()
-$appSettings += "AZURE_KEY_VAULT_URL=$KEY_VAULT_URI"
-$appSettings += "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL"
-$appSettings += "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID"
-$appSettings += "USE_SHAREPOINT=true"
-$appSettings += "AZURE_STORAGE_CONNECTION_STRING=@Microsoft.KeyVault(SecretUri=$KEY_VAULT_URI/secrets/StorageConnectionString/)"
-$appSettings += "APPLICATIONINSIGHTS_CONNECTION_STRING=@Microsoft.KeyVault(SecretUri=$KEY_VAULT_URI/secrets/AppInsightsConnectionString/)"
+# Use single quotes for Key Vault references to prevent PowerShell expansion
+$kvStorageRef = '@Microsoft.KeyVault(SecretUri=' + $KEY_VAULT_URI + '/secrets/StorageConnectionString/)'
+$kvAppInsightsRef = '@Microsoft.KeyVault(SecretUri=' + $KEY_VAULT_URI + '/secrets/AppInsightsConnectionString/)'
+
+$appSettings = @(
+    "AZURE_KEY_VAULT_URL=$KEY_VAULT_URI",
+    "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL",
+    "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID",
+    "USE_SHAREPOINT=true",
+    "AZURE_STORAGE_CONNECTION_STRING=$kvStorageRef",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING=$kvAppInsightsRef"
+)
 
 # Set app settings - pass as array to Azure CLI
 az functionapp config appsettings set `
