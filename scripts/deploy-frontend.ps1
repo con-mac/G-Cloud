@@ -12,8 +12,13 @@ if (-not (Test-Path "config\deployment-config.env")) {
 # Parse environment file
 $config = @{}
 Get-Content "config\deployment-config.env" | ForEach-Object {
-    if ($_ -match '^([^=]+)=(.*)$') {
-        $config[$matches[1]] = $matches[2]
+    $line = $_.Trim()
+    if ($line -and -not $line.StartsWith('#')) {
+        if ($line -match '^([^=]+)=(.*)$') {
+            $key = $matches[1].Trim()
+            $value = $matches[2].Trim()
+            $config[$key] = $value
+        }
     }
 }
 
@@ -27,6 +32,35 @@ function Write-Warning { param([string]$msg) Write-Host "[WARNING] $msg" -Foregr
 function Write-Error { param([string]$msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
 Write-Info "Deploying frontend to Web App using Azure Oryx build (no local Node.js required)..."
+
+# Validate configuration
+if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
+    Write-Error "FUNCTION_APP_NAME is missing or empty in config file!"
+    Write-Info "Please check config\deployment-config.env"
+    Write-Info "Expected format: FUNCTION_APP_NAME=pa-gcloud15-api"
+    Write-Info ""
+    Write-Info "Current config values:"
+    Write-Info "  FUNCTION_APP_NAME: '$FUNCTION_APP_NAME'"
+    Write-Info "  WEB_APP_NAME: '$WEB_APP_NAME'"
+    Write-Info "  RESOURCE_GROUP: '$RESOURCE_GROUP'"
+    exit 1
+}
+
+if ([string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
+    Write-Error "WEB_APP_NAME is missing or empty in config file!"
+    exit 1
+}
+
+if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
+    Write-Error "RESOURCE_GROUP is missing or empty in config file!"
+    exit 1
+}
+
+# Debug output
+Write-Info "Configuration loaded:"
+Write-Info "  Function App: $FUNCTION_APP_NAME"
+Write-Info "  Web App: $WEB_APP_NAME"
+Write-Info "  Resource Group: $RESOURCE_GROUP"
 
 # Check if frontend directory exists
 if (-not (Test-Path "frontend")) {
@@ -54,14 +88,22 @@ if (-not (Test-Path "src") -or -not (Test-Path "src\main.tsx")) {
 Write-Success "Frontend files verified"
 
 # Get Function App URL for API configuration
-Write-Info "Getting Function App URL..."
+Write-Info "Getting Function App URL for: $FUNCTION_APP_NAME..."
+$ErrorActionPreference = 'SilentlyContinue'
 $FUNCTION_APP_URL = az functionapp show `
     --name $FUNCTION_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --query defaultHostName -o tsv
+    --query defaultHostName -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
 
-if (-not $FUNCTION_APP_URL) {
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($FUNCTION_APP_URL)) {
     Write-Error "Could not get Function App URL"
+    Write-Info "Function App name: '$FUNCTION_APP_NAME'"
+    Write-Info "Resource Group: '$RESOURCE_GROUP'"
+    Write-Info ""
+    Write-Info "Please verify:"
+    Write-Info "  1. Function App exists: az functionapp list --resource-group $RESOURCE_GROUP"
+    Write-Info "  2. Config file has correct name: Get-Content config\deployment-config.env"
     Pop-Location
     exit 1
 }
