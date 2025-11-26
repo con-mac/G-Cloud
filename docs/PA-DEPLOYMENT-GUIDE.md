@@ -30,12 +30,18 @@ Run the main deployment script:
 ```bash
 ./deploy.sh
 ```
+or for PowerShell:
+```powershell
+.\deploy.ps1
+```
 
 This will:
 - Check prerequisites
 - Prompt for resource names
 - Create or select existing resources
 - Save configuration to `config/deployment-config.env`
+
+> **📖 Config File Management**: See [CONFIG-FILE-GUIDE.md](CONFIG-FILE-GUIDE.md) for detailed information on how the dev team should handle the `deployment-config.env` file.
 
 ### Step 2: Resource Setup
 
