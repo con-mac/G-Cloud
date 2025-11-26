@@ -136,17 +136,23 @@ if (-not $funcCheck) {
             $filesToZip | Compress-Archive -DestinationPath $deployZip -Force
             
             Write-Info "Deploying zip package to Function App..."
-            az functionapp deployment source config-zip `
+            Write-Info "This may take a few minutes..."
+            
+            $deployOutput = az functionapp deployment source config-zip `
                 --resource-group $RESOURCE_GROUP `
                 --name $FUNCTION_APP_NAME `
                 --src $deployZip `
-                --timeout 1800 `
-                --output none
+                --timeout 1800 2>&1
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "Backend code deployed successfully using zip deploy"
             } else {
-                Write-Warning "Zip deployment failed. Function App will be configured with settings."
+                Write-Warning "Zip deployment failed. Checking deployment logs..."
+                Write-Info "Deployment output: $deployOutput"
+                Write-Info "To view detailed logs, run:"
+                Write-Info "  az webapp log deployment show -n $FUNCTION_APP_NAME -g $RESOURCE_GROUP"
+                Write-Info "Or check in Azure Portal: Function App -> Deployment Center -> Logs"
+                Write-Warning "Function App will be configured with settings, but code deployment may need manual intervention."
             }
             
             # Cleanup
@@ -166,18 +172,18 @@ Write-Info "Configuring Function App settings..."
 $KEY_VAULT_URI = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" --query properties.vaultUri -o tsv
 
 # Build settings array to avoid PowerShell parsing issues with @ symbols
-# Use single quotes for Key Vault references to prevent PowerShell expansion
+# Use string concatenation to prevent PowerShell from misinterpreting @Microsoft.KeyVault
 $kvStorageRef = '@Microsoft.KeyVault(SecretUri=' + $KEY_VAULT_URI + '/secrets/StorageConnectionString/)'
 $kvAppInsightsRef = '@Microsoft.KeyVault(SecretUri=' + $KEY_VAULT_URI + '/secrets/AppInsightsConnectionString/)'
 
-$appSettings = @(
-    "AZURE_KEY_VAULT_URL=$KEY_VAULT_URI",
-    "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL",
-    "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID",
-    "USE_SHAREPOINT=true",
-    "AZURE_STORAGE_CONNECTION_STRING=$kvStorageRef",
-    "APPLICATIONINSIGHTS_CONNECTION_STRING=$kvAppInsightsRef"
-)
+# Build array item by item to ensure proper escaping
+$appSettings = @()
+$appSettings += "AZURE_KEY_VAULT_URL=$KEY_VAULT_URI"
+$appSettings += "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL"
+$appSettings += "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID"
+$appSettings += "USE_SHAREPOINT=true"
+$appSettings += "AZURE_STORAGE_CONNECTION_STRING=$kvStorageRef"
+$appSettings += "APPLICATIONINSIGHTS_CONNECTION_STRING=$kvAppInsightsRef"
 
 # Set app settings - pass as array to Azure CLI
 az functionapp config appsettings set `

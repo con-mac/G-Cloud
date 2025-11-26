@@ -177,7 +177,8 @@ az webapp config set `
 
 # Set startup command - ensure files are in wwwroot and serve them
 # Use a simple command that checks for files and serves them
-$startupCommand = "if [ -d /home/site/wwwroot ] && [ "$(ls -A /home/site/wwwroot)" ]; then npx -y serve -s /home/site/wwwroot -l 8080; elif [ -d /home/site/dist ]; then npx -y serve -s /home/site/dist -l 8080; else echo 'No files found to serve'; exit 1; fi"
+# Escape the $ in bash command to prevent PowerShell from interpreting it
+$startupCommand = 'if [ -d /home/site/wwwroot ] && [ "$(ls -A /home/site/wwwroot)" ]; then npx -y serve -s /home/site/wwwroot -l 8080; elif [ -d /home/site/dist ]; then npx -y serve -s /home/site/dist -l 8080; else echo "No files found to serve"; exit 1; fi'
 
 az webapp config set `
     --name $WEB_APP_NAME `
