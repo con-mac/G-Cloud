@@ -18,22 +18,18 @@ if (-not (Test-Path $configPath)) {
     exit 1
 }
 
-# Read file with explicit encoding and handle line endings
-$lines = Get-Content $configPath -Encoding UTF8 -Raw
-if ($lines) {
-    # Split by line breaks (handles both Windows and Unix)
-    $lines -split "`r?`n" | ForEach-Object {
-        $line = $_.Trim()
-        if ($line -and -not $line.StartsWith('#')) {
-            # Match KEY=VALUE (value can contain anything except newline)
-            if ($line -match '^([^=]+?)=(.*)$') {
-                $key = $matches[1].Trim()
-                $value = $matches[2].Trim()
-                # Remove any trailing whitespace or control characters
-                $value = $value -replace '[`r`n]', ''
-                if ($key -and $value) {
-                    $config[$key] = $value
-                }
+# Read file line by line (more reliable than Raw)
+$fileLines = Get-Content $configPath -Encoding UTF8
+foreach ($line in $fileLines) {
+    $line = $line.Trim()
+    if ($line -and -not $line.StartsWith('#')) {
+        # Find first = sign and split on it
+        $equalsIndex = $line.IndexOf('=')
+        if ($equalsIndex -gt 0) {
+            $key = $line.Substring(0, $equalsIndex).Trim()
+            $value = $line.Substring($equalsIndex + 1).Trim()
+            if ($key -and $value) {
+                $config[$key] = $value
             }
         }
     }
