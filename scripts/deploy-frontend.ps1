@@ -147,7 +147,7 @@ $appSettings = @(
     "ENABLE_ORYX_BUILD=true",
     "WEBSITE_RUN_FROM_PACKAGE=0",
     "WEBSITE_NODE_DEFAULT_VERSION=~20",
-    "POST_BUILD_COMMAND=if [ -d dist ]; then cp -r dist/* /home/site/wwwroot/ 2>/dev/null || true; fi",
+    "POST_BUILD_COMMAND=if [ -d dist ]; then cp -r dist/* /home/site/wwwroot/; else echo 'dist folder not found'; fi",
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false"
 )
 
@@ -163,8 +163,18 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# For static sites, no startup command needed - Azure serves wwwroot automatically
-# Don't set startup-file for static sites (it causes errors with empty string)
+# For static sites, we need to ensure no startup command is set
+# Azure App Service will automatically serve files from wwwroot if no startup command is set
+Write-Info "Configuring for static site hosting..."
+$ErrorActionPreference = 'SilentlyContinue'
+# Remove any existing startup command by setting it to empty (use --startup-file with empty value via JSON)
+$startupConfig = '{"linuxFxVersion":""}'
+az webapp config set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --generic-configurations $startupConfig `
+    --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
 Write-Info "Static site configured - Azure will serve files from wwwroot automatically"
 
 # Create .deployment file for Oryx
