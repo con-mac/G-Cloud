@@ -143,12 +143,30 @@ function Search-Subnets {
 
 function Search-KeyVaults {
     param([string]$ResourceGroup)
+    $ErrorActionPreference = 'SilentlyContinue'
     try {
+        # Key Vaults can be listed by resource group or across all subscriptions
+        # Try resource group first, then all if needed
         $kvList = az keyvault list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
-        if ($LASTEXITCODE -eq 0 -and $kvList) {
-            return $kvList -split "`n" | Where-Object { $_ -ne "" }
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($kvList)) {
+            $results = $kvList -split "`n" | Where-Object { $_ -ne "" -and $_ -ne $null }
+            if ($results.Count -gt 0) {
+                return $results
+            }
         }
-    } catch {}
+        
+        # If no results in resource group, try listing all and filter by resource group
+        $allKVs = az keyvault list --query "[?resourceGroup=='$ResourceGroup'].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allKVs)) {
+            $results = $allKVs -split "`n" | Where-Object { $_ -ne "" -and $_ -ne $null }
+            if ($results.Count -gt 0) {
+                return $results
+            }
+        }
+    } catch {
+        Write-Warning "Error searching for Key Vaults: $_"
+    }
+    $ErrorActionPreference = 'Stop'
     return @()
 }
 
@@ -425,9 +443,10 @@ function Start-Deployment {
     
     # Prompt for Key Vault
     Write-Info "Step 4: Key Vault Configuration"
+    Write-Info "Searching for existing Key Vaults in resource group: $RESOURCE_GROUP"
     $existingKeyVaults = Search-KeyVaults -ResourceGroup $RESOURCE_GROUP
     
-    if ($existingKeyVaults.Count -gt 0) {
+    if ($existingKeyVaults -and $existingKeyVaults.Count -gt 0) {
         Write-Host "Existing Key Vaults found in resource group:"
         for ($i = 0; $i -lt $existingKeyVaults.Count; $i++) {
             Write-Host "  [$i] $($existingKeyVaults[$i])"
