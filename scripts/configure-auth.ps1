@@ -159,10 +159,11 @@ az keyvault secret set `
 
 # Update Function App settings (build array to avoid PowerShell parsing issues)
 Write-Info "Updating Function App with authentication settings..."
+$kvUri = "https://${KEY_VAULT_NAME}.vault.azure.net"
 $funcAuthSettings = @(
-    "AZURE_AD_TENANT_ID=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADTenantId/)",
-    "AZURE_AD_CLIENT_ID=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADClientId/)",
-    "AZURE_AD_CLIENT_SECRET=@Microsoft.KeyVault(SecretUri=https://${KEY_VAULT_NAME}.vault.azure.net/secrets/AzureADClientSecret/)"
+    "AZURE_AD_TENANT_ID=@Microsoft.KeyVault(SecretUri=${kvUri}/secrets/AzureADTenantId/)",
+    "AZURE_AD_CLIENT_ID=@Microsoft.KeyVault(SecretUri=${kvUri}/secrets/AzureADClientId/)",
+    "AZURE_AD_CLIENT_SECRET=@Microsoft.KeyVault(SecretUri=${kvUri}/secrets/AzureADClientSecret/)"
 )
 
 az functionapp config appsettings set `

@@ -147,8 +147,9 @@ $appSettings = @(
     "ENABLE_ORYX_BUILD=true",
     "WEBSITE_RUN_FROM_PACKAGE=0",
     "WEBSITE_NODE_DEFAULT_VERSION=~20",
-    "POST_BUILD_COMMAND=if [ -d dist ]; then cp -r dist/* /home/site/wwwroot/; else echo 'dist folder not found'; fi",
-    "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false"
+    "POST_BUILD_COMMAND=if [ -d dist ]; then mkdir -p /home/site/wwwroot && cp -r dist/* /home/site/wwwroot/; else echo 'dist folder not found'; fi",
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false",
+    "PORT=8080"
 )
 
 az webapp config appsettings set `
@@ -163,24 +164,27 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# For static sites, we need to ensure no startup command is set
-# Azure App Service will automatically serve files from wwwroot if no startup command is set
-Write-Info "Configuring for static site hosting (no startup command needed)..."
-$ErrorActionPreference = 'SilentlyContinue'
-# Clear any startup command - use empty string in JSON format
+# For static sites, we need a simple server to serve files
+# Azure App Service requires a running process, so we'll use a simple Node.js static server
+Write-Info "Configuring for static site hosting with Node.js static server..."
+
+# Set Node.js runtime and startup command to serve static files
 az webapp config set `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --startup-file "" `
-    --output none 2>&1 | Out-Null
-# Also ensure linuxFxVersion is empty for static site
+    --linux-fx-version "NODE:20-lts" `
+    --output none | Out-Null
+
+# Set startup command to serve static files using npx serve
+# This will serve files from /home/site/wwwroot
+$startupCommand = "npx -y serve -s /home/site/wwwroot -l 8080"
 az webapp config set `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --linux-fx-version "" `
-    --output none 2>&1 | Out-Null
-$ErrorActionPreference = 'Stop'
-Write-Info "Static site configured - Azure will serve files from wwwroot automatically"
+    --startup-file "$startupCommand" `
+    --output none | Out-Null
+
+Write-Info "Static site configured - will serve files from wwwroot using serve"
 
 # Create .deployment file for Oryx
 Write-Info "Creating deployment configuration..."
