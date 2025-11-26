@@ -11,9 +11,19 @@ if (-not (Test-Path "config\deployment-config.env")) {
 
 # Parse environment file
 $config = @{}
-Get-Content "config\deployment-config.env" | ForEach-Object {
-    if ($_ -match '^([^=]+)=(.*)$') {
-        $config[$matches[1]] = $matches[2]
+$configPath = "config\deployment-config.env"
+$fileLines = Get-Content $configPath -Encoding UTF8
+foreach ($line in $fileLines) {
+    $line = $line.Trim()
+    if ($line -and -not $line.StartsWith('#')) {
+        $equalsIndex = $line.IndexOf('=')
+        if ($equalsIndex -gt 0) {
+            $key = $line.Substring(0, $equalsIndex).Trim()
+            $value = $line.Substring($equalsIndex + 1).Trim()
+            if ($key -and $value) {
+                $config[$key] = $value
+            }
+        }
     }
 }
 
