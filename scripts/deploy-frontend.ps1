@@ -147,7 +147,7 @@ $appSettings = @(
     "ENABLE_ORYX_BUILD=true",
     "WEBSITE_RUN_FROM_PACKAGE=0",
     "WEBSITE_NODE_DEFAULT_VERSION=~20",
-    "POST_BUILD_COMMAND=cp -r dist/* /home/site/wwwroot/ 2>/dev/null || true",
+    "POST_BUILD_COMMAND=if [ -d dist ]; then cp -r dist/* /home/site/wwwroot/ 2>/dev/null || true; fi",
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false"
 )
 
