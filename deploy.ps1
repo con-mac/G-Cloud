@@ -453,9 +453,59 @@ function Start-Deployment {
     
     # Prompt for App Registration
     Write-Info "Step 6: App Registration Configuration"
-    $APP_REGISTRATION_NAME = Read-Host "Enter App Registration name [pa-gcloud15-app]"
-    if ([string]::IsNullOrWhiteSpace($APP_REGISTRATION_NAME)) {
-        $APP_REGISTRATION_NAME = "pa-gcloud15-app"
+    
+    # Search for existing App Registrations
+    function Search-AppRegistrations {
+        param([string]$Filter = "")
+        $ErrorActionPreference = 'SilentlyContinue'
+        $apps = az ad app list --query "[].{DisplayName:displayName, AppId:appId}" -o json 2>&1 | ConvertFrom-Json
+        $ErrorActionPreference = 'Stop'
+        
+        if ($apps -and $apps.Count -gt 0) {
+            if (-not [string]::IsNullOrWhiteSpace($Filter)) {
+                $apps = $apps | Where-Object { $_.DisplayName -like "*$Filter*" }
+            }
+            return $apps | ForEach-Object { $_.DisplayName }
+        }
+        return @()
+    }
+    
+    $existingAppRegs = Search-AppRegistrations -Filter "pa-gcloud"
+    
+    if ($existingAppRegs.Count -gt 0) {
+        Write-Host "Existing App Registrations found:"
+        for ($i = 0; $i -lt $existingAppRegs.Count; $i++) {
+            Write-Host "  [$i] $($existingAppRegs[$i])"
+        }
+        Write-Host "  [n] Create new"
+        $arChoice = Read-Host "Select option (0-$($existingAppRegs.Count - 1)) or 'n' for new"
+        
+        if ($arChoice -match '^\d+$' -and [int]$arChoice -lt $existingAppRegs.Count) {
+            $APP_REGISTRATION_NAME = $existingAppRegs[[int]$arChoice]
+            Write-Success "Using existing App Registration: $APP_REGISTRATION_NAME"
+        } else {
+            $APP_REGISTRATION_NAME = Read-Host "Enter App Registration name [pa-gcloud15-app]"
+            if ([string]::IsNullOrWhiteSpace($APP_REGISTRATION_NAME)) {
+                $APP_REGISTRATION_NAME = "pa-gcloud15-app"
+            }
+            # Trim and validate
+            $APP_REGISTRATION_NAME = $APP_REGISTRATION_NAME.Trim()
+            if ($APP_REGISTRATION_NAME.Length -lt 3) {
+                Write-Warning "App Registration name too short, using default: pa-gcloud15-app"
+                $APP_REGISTRATION_NAME = "pa-gcloud15-app"
+            }
+        }
+    } else {
+        $APP_REGISTRATION_NAME = Read-Host "Enter App Registration name [pa-gcloud15-app]"
+        if ([string]::IsNullOrWhiteSpace($APP_REGISTRATION_NAME)) {
+            $APP_REGISTRATION_NAME = "pa-gcloud15-app"
+        }
+        # Trim and validate
+        $APP_REGISTRATION_NAME = $APP_REGISTRATION_NAME.Trim()
+        if ($APP_REGISTRATION_NAME.Length -lt 3) {
+            Write-Warning "App Registration name too short, using default: pa-gcloud15-app"
+            $APP_REGISTRATION_NAME = "pa-gcloud15-app"
+        }
     }
     
     # Prompt for custom domain
