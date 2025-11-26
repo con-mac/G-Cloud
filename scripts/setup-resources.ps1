@@ -308,8 +308,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 $webAppExists = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
 $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Static Web Apps have limited private endpoint support"
-    Write-Warning "Consider using App Service with private endpoints for full private access"
+    Write-Info "App Service (Web App) created - supports private endpoints when configured"
     
     # Create App Service Plan
     $APP_SERVICE_PLAN = "$WEB_APP_NAME-plan"

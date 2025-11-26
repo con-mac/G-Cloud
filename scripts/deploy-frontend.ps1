@@ -163,13 +163,9 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Configure startup command to serve static files
-Write-Info "Configuring startup command..."
-az webapp config set `
-    --name $WEB_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --startup-file "" `
-    --output none
+# For static sites, no startup command needed - Azure serves wwwroot automatically
+# Don't set startup-file for static sites (it causes errors with empty string)
+Write-Info "Static site configured - Azure will serve files from wwwroot automatically"
 
 # Create .deployment file for Oryx
 Write-Info "Creating deployment configuration..."

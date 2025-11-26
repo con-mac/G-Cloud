@@ -100,11 +100,11 @@ $appSettings = @(
 )
 
 # Set app settings
-az functionapp config appsettings set `
-    --name "$FUNCTION_APP_NAME" `
-    --resource-group "$RESOURCE_GROUP" `
-    --settings $appSettings `
-    --output none | Out-Null
+    az functionapp config appsettings set `
+        --name "$FUNCTION_APP_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --settings $settingsArray `
+        --output none | Out-Null
 
 Write-Success "Backend deployment complete!"
 Write-Info "Note: SharePoint credentials need to be added to Key Vault"
