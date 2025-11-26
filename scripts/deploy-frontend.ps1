@@ -165,14 +165,19 @@ if ($LASTEXITCODE -ne 0) {
 
 # For static sites, we need to ensure no startup command is set
 # Azure App Service will automatically serve files from wwwroot if no startup command is set
-Write-Info "Configuring for static site hosting..."
+Write-Info "Configuring for static site hosting (no startup command needed)..."
 $ErrorActionPreference = 'SilentlyContinue'
-# Remove any existing startup command by setting it to empty (use --startup-file with empty value via JSON)
-$startupConfig = '{"linuxFxVersion":""}'
+# Clear any startup command - use empty string in JSON format
 az webapp config set `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --generic-configurations $startupConfig `
+    --startup-file "" `
+    --output none 2>&1 | Out-Null
+# Also ensure linuxFxVersion is empty for static site
+az webapp config set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --linux-fx-version "" `
     --output none 2>&1 | Out-Null
 $ErrorActionPreference = 'Stop'
 Write-Info "Static site configured - Azure will serve files from wwwroot automatically"
