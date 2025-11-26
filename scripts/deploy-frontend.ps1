@@ -143,12 +143,14 @@ Write-Info "Configuring App Service for static site hosting..."
 
 # Set app settings for Oryx build
 # POST_BUILD_COMMAND ensures dist files are copied to wwwroot
+# Use more robust copy command with error handling
+$postBuildCmd = 'if [ -d dist ]; then mkdir -p /home/site/wwwroot && cp -r dist/. /home/site/wwwroot/ && echo "Files copied to wwwroot" && ls -la /home/site/wwwroot | head -10; else echo "dist folder not found, checking build output..."; find /home -name "index.html" -type f 2>/dev/null | head -5; fi'
 $appSettings = @(
     "SCM_DO_BUILD_DURING_DEPLOYMENT=true",
     "ENABLE_ORYX_BUILD=true",
     "WEBSITE_RUN_FROM_PACKAGE=0",
     "WEBSITE_NODE_DEFAULT_VERSION=~20",
-    "POST_BUILD_COMMAND=if [ -d dist ]; then mkdir -p /home/site/wwwroot && cp -r dist/* /home/site/wwwroot/ && echo 'Files copied to wwwroot'; else echo 'dist folder not found'; fi",
+    "POST_BUILD_COMMAND=$postBuildCmd",
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false",
     "PORT=8080"
 )
@@ -201,16 +203,41 @@ $deploymentConfig | Out-File -FilePath ".deployment" -Encoding utf8
 $startupScriptContent = @'
 #!/bin/bash
 # Startup script for static site - ensures files are served correctly
-if [ -d /home/site/wwwroot ] && [ -n "$(ls -A /home/site/wwwroot 2>&1)" ]; then
-    echo "Serving from wwwroot..."
-    npx -y serve -s /home/site/wwwroot -l 8080
-elif [ -d /home/site/dist ] && [ -n "$(ls -A /home/site/dist 2>&1)" ]; then
-    echo "Serving from dist..."
-    npx -y serve -s /home/site/dist -l 8080
-else
-    echo "ERROR: No files found to serve in wwwroot or dist"
-    exit 1
+echo "=== Frontend Startup Script ==="
+echo "Checking for files..."
+
+# Check wwwroot first
+if [ -d /home/site/wwwroot ]; then
+    FILE_COUNT=$(find /home/site/wwwroot -type f | wc -l)
+    echo "Found $FILE_COUNT files in wwwroot"
+    if [ "$FILE_COUNT" -gt 0 ]; then
+        echo "Serving from wwwroot..."
+        npx -y serve -s /home/site/wwwroot -l 8080 --host 0.0.0.0
+        exit 0
+    fi
 fi
+
+# Check dist as fallback
+if [ -d /home/site/dist ]; then
+    FILE_COUNT=$(find /home/site/dist -type f | wc -l)
+    echo "Found $FILE_COUNT files in dist"
+    if [ "$FILE_COUNT" -gt 0 ]; then
+        echo "Serving from dist..."
+        npx -y serve -s /home/site/dist -l 8080 --host 0.0.0.0
+        exit 0
+    fi
+fi
+
+# Check if Oryx build output exists
+if [ -d /home/site/wwwroot ]; then
+    echo "wwwroot exists but appears empty"
+    ls -la /home/site/wwwroot
+fi
+
+echo "ERROR: No files found to serve"
+echo "Checking build output locations..."
+ls -la /home/site/ | head -20
+exit 1
 '@
 $startupScriptContent | Out-File -FilePath "startup.sh" -Encoding utf8 -NoNewline
 
