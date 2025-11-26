@@ -160,7 +160,7 @@ if ($LASTEXITCODE -ne 0) {
             --location "$LOCATION" `
             --sku standard `
             --enable-rbac-authorization true 2>&1
-        $ErrorActionPreference = 'Stop
+        $ErrorActionPreference = 'Stop'
         
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Key Vault created after purge: $KEY_VAULT_NAME"
