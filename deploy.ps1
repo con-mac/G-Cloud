@@ -141,6 +141,17 @@ function Search-Subnets {
     return @()
 }
 
+function Search-KeyVaults {
+    param([string]$ResourceGroup)
+    try {
+        $kvList = az keyvault list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $kvList) {
+            return $kvList -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
 # Prompt for resource choice: existing, new, or skip
 function Get-ResourceChoice {
     param(
@@ -414,9 +425,42 @@ function Start-Deployment {
     
     # Prompt for Key Vault
     Write-Info "Step 4: Key Vault Configuration"
-    $KEY_VAULT_NAME = Read-Host "Enter Key Vault name [pa-gcloud15-kv]"
-    if ([string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
-        $KEY_VAULT_NAME = "pa-gcloud15-kv"
+    $existingKeyVaults = Search-KeyVaults -ResourceGroup $RESOURCE_GROUP
+    
+    if ($existingKeyVaults.Count -gt 0) {
+        Write-Host "Existing Key Vaults found in resource group:"
+        for ($i = 0; $i -lt $existingKeyVaults.Count; $i++) {
+            Write-Host "  [$i] $($existingKeyVaults[$i])"
+        }
+        Write-Host "  [n] Create new"
+        $kvChoice = Read-Host "Select option (0-$($existingKeyVaults.Count - 1)) or 'n' for new"
+        
+        if ($kvChoice -match '^\d+$' -and [int]$kvChoice -lt $existingKeyVaults.Count) {
+            $KEY_VAULT_NAME = $existingKeyVaults[[int]$kvChoice]
+            Write-Success "Using existing Key Vault: $KEY_VAULT_NAME"
+        } else {
+            $KEY_VAULT_NAME = Read-Host "Enter Key Vault name [pa-gcloud15-kv]"
+            if ([string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
+                $KEY_VAULT_NAME = "pa-gcloud15-kv"
+            }
+            # Trim and validate
+            $KEY_VAULT_NAME = $KEY_VAULT_NAME.Trim()
+            if ($KEY_VAULT_NAME.Length -lt 3) {
+                Write-Warning "Key Vault name too short, using default: pa-gcloud15-kv"
+                $KEY_VAULT_NAME = "pa-gcloud15-kv"
+            }
+        }
+    } else {
+        $KEY_VAULT_NAME = Read-Host "Enter Key Vault name [pa-gcloud15-kv]"
+        if ([string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
+            $KEY_VAULT_NAME = "pa-gcloud15-kv"
+        }
+        # Trim and validate
+        $KEY_VAULT_NAME = $KEY_VAULT_NAME.Trim()
+        if ($KEY_VAULT_NAME.Length -lt 3) {
+            Write-Warning "Key Vault name too short, using default: pa-gcloud15-kv"
+            $KEY_VAULT_NAME = "pa-gcloud15-kv"
+        }
     }
     
     # Prompt for SharePoint configuration

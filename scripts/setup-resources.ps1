@@ -134,13 +134,14 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
     $STORAGE_ACCOUNT_NAME = ""
 }
 
-# Create Key Vault
-Write-Info "Creating Key Vault..."
+# Create or use existing Key Vault
+Write-Info "Checking for Key Vault: $KEY_VAULT_NAME"
 $ErrorActionPreference = 'SilentlyContinue'
 $kvExists = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
 $kvError = $kvExists | Out-String
 $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
+    Write-Info "Key Vault not found. Creating new Key Vault..."
     # Check if Key Vault is soft-deleted (globally unique name conflict)
     if ($kvError -match "VaultAlreadyExists" -or $kvError -match "already in use") {
         Write-Warning "Key Vault name '$KEY_VAULT_NAME' is already in use (possibly soft-deleted)"
@@ -205,8 +206,8 @@ if ($LASTEXITCODE -ne 0) {
     }
     
     Write-Success "Key Vault created: $KEY_VAULT_NAME"
-    } else {
-        Write-Success "Using existing Key Vault: $KEY_VAULT_NAME"
+} else {
+    Write-Success "Using existing Key Vault: $KEY_VAULT_NAME"
         # Ensure permissions are granted even for existing Key Vault
         Write-Info "Ensuring Key Vault permissions..."
         $currentUser = az ad signed-in-user show --query id -o tsv
