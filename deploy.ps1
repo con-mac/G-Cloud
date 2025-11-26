@@ -449,14 +449,19 @@ function Start-Deployment {
     $existingKeyVaults = @()
     $ErrorActionPreference = 'SilentlyContinue'
     
-    # List all Key Vaults and filter by resource group
-    $allKVs = az keyvault list --query "[?resourceGroup=='$RESOURCE_GROUP'].name" -o tsv 2>&1
+    # List all Key Vaults and filter by resource group using query
+    $kvJson = az keyvault list --query "[?resourceGroup=='$RESOURCE_GROUP']" -o json 2>&1
     $ErrorActionPreference = 'Stop'
     
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allKVs)) {
-        $existingKeyVaults = $allKVs -split "`r?`n" | Where-Object { 
-            $_ -ne $null -and $_.Trim() -ne "" 
-        } | ForEach-Object { $_.Trim() }
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($kvJson)) {
+        try {
+            $kvObjects = $kvJson | ConvertFrom-Json
+            if ($kvObjects -and $kvObjects.Count -gt 0) {
+                $existingKeyVaults = $kvObjects | ForEach-Object { $_.name } | Where-Object { $_ -ne $null }
+            }
+        } catch {
+            Write-Warning "Could not parse Key Vault list: $_"
+        }
     }
     
     if ($existingKeyVaults -and $existingKeyVaults.Count -gt 0) {
