@@ -212,9 +212,35 @@ export default defineConfig({
     Write-Success "Essential config files created"
 }
 
-# Verify src folder exists
-if (-not (Test-Path "src") -or -not (Test-Path "src\main.tsx")) {
-    Write-Error "Frontend src folder or main.tsx not found. Please ensure frontend/src/ directory exists with your React source files."
+# Verify src folder exists and has content
+if (-not (Test-Path "src")) {
+    Write-Error "Frontend src folder not found!"
+    Write-Info "You need to copy the frontend/src/ folder from the main repository."
+    Write-Info "The src folder should contain:"
+    Write-Info "  - main.tsx"
+    Write-Info "  - App.tsx"
+    Write-Info "  - components/"
+    Write-Info "  - pages/"
+    Write-Info "  - services/"
+    Write-Info "  - And other React source files"
+    Pop-Location
+    exit 1
+}
+
+# Check if src folder is empty or missing main.tsx
+$srcFiles = Get-ChildItem -Path "src" -Recurse -File -ErrorAction SilentlyContinue
+if (-not $srcFiles -or $srcFiles.Count -eq 0) {
+    Write-Error "Frontend src folder is empty!"
+    Write-Info "You need to copy the React source files from the main repository."
+    Write-Info "Copy the entire frontend/src/ folder from the main repo to pa-deployment/frontend/src/"
+    Pop-Location
+    exit 1
+}
+
+if (-not (Test-Path "src\main.tsx")) {
+    Write-Error "src/main.tsx not found!"
+    Write-Info "The src folder exists but is missing main.tsx."
+    Write-Info "Please ensure you've copied all files from the main repository's frontend/src/ folder."
     Pop-Location
     exit 1
 }
