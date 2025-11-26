@@ -78,6 +78,7 @@ pa-deployment/
 
 - [Manual Deployment Guide](docs/PA-Manual-Deployment-Guide.md) - **Start here for step-by-step instructions**
 - [Config File Management Guide](docs/CONFIG-FILE-GUIDE.md) - **How the dev team should handle the config file**
+- [Deployment Reliability](docs/DEPLOYMENT-RELIABILITY.md) - **Safeguards and issue prevention for smooth deployments**
 - [Deployment Guide](docs/PA-DEPLOYMENT-GUIDE.md) - Detailed technical guide
 - [Architecture Overview](../PA-Env-Deploy.md)
 - [Files to Copy](COPY_FILES.md)
