@@ -458,19 +458,37 @@ function Start-Deployment {
     function Search-AppRegistrations {
         param([string]$Filter = "")
         $ErrorActionPreference = 'SilentlyContinue'
-        $apps = az ad app list --query "[].{DisplayName:displayName, AppId:appId}" -o json 2>&1 | ConvertFrom-Json
+        $appsJson = az ad app list --query "[].{DisplayName:displayName, AppId:appId}" -o json 2>&1
         $ErrorActionPreference = 'Stop'
         
-        if ($apps -and $apps.Count -gt 0) {
-            if (-not [string]::IsNullOrWhiteSpace($Filter)) {
-                $apps = $apps | Where-Object { $_.DisplayName -like "*$Filter*" }
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($appsJson)) {
+            try {
+                $apps = $appsJson | ConvertFrom-Json
+                if ($apps -and $apps.Count -gt 0) {
+                    $appNames = @()
+                    foreach ($app in $apps) {
+                        if ($app.DisplayName) {
+                            if ([string]::IsNullOrWhiteSpace($Filter) -or $app.DisplayName -like "*$Filter*") {
+                                $appNames += $app.DisplayName
+                            }
+                        }
+                    }
+                    return $appNames
+                }
+            } catch {
+                Write-Warning "Could not parse App Registration list: $_"
             }
-            return $apps | ForEach-Object { $_.DisplayName }
         }
         return @()
     }
     
-    $existingAppRegs = Search-AppRegistrations -Filter "pa-gcloud"
+    # Search for all App Registrations (no filter to see all)
+    $existingAppRegs = Search-AppRegistrations -Filter ""
+    
+    # Also try a more specific search
+    if ($existingAppRegs.Count -eq 0) {
+        $existingAppRegs = Search-AppRegistrations -Filter "gcloud"
+    }
     
     if ($existingAppRegs.Count -gt 0) {
         Write-Host "Existing App Registrations found:"

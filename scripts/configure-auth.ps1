@@ -43,8 +43,21 @@ Write-Info "Configuring Microsoft 365 SSO authentication..."
 
 # Check if App Registration exists
 Write-Info "Checking for App Registration: $APP_REGISTRATION_NAME"
-$appList = az ad app list --display-name $APP_REGISTRATION_NAME | ConvertFrom-Json
-$APP_ID = $appList | Select-Object -First 1 -ExpandProperty appId
+$ErrorActionPreference = 'SilentlyContinue'
+$appListJson = az ad app list --display-name $APP_REGISTRATION_NAME --query "[].{AppId:appId, DisplayName:displayName}" -o json 2>&1
+$ErrorActionPreference = 'Stop'
+
+$APP_ID = ""
+if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($appListJson)) {
+    try {
+        $appList = $appListJson | ConvertFrom-Json
+        if ($appList -and $appList.Count -gt 0) {
+            $APP_ID = $appList[0].AppId
+        }
+    } catch {
+        Write-Warning "Could not parse App Registration response: $_"
+    }
+}
 
 if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     Write-Warning "App Registration not found. Creating..."
