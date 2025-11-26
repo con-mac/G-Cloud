@@ -491,19 +491,22 @@ function Start-Deployment {
     # Prompt for VNet and Private Endpoint Configuration
     Write-Info "Step 11: VNet and Private Endpoint Configuration"
     Write-Host ""
-    Write-Info "Private endpoints are required for private-only access"
-    Write-Host "  [0] Configure private endpoints (recommended)"
-    Write-Host "  [1] Skip (configure later)"
-    $vnetChoice = Read-Host "Select option (0-1) [0]"
-    if ([string]::IsNullOrWhiteSpace($vnetChoice)) {
-        $vnetChoice = "0"
+    Write-Host "Private endpoints enable private-only access (no public internet access)."
+    Write-Host "You can configure them now or add them later for testing."
+    Write-Host ""
+    Write-Host "  [y] Configure private endpoints now (recommended for production)"
+    Write-Host "  [n] Skip for now - configure later (allows public access for testing)"
+    Write-Host ""
+    $peChoice = Read-Host "Configure private endpoints now? (y/n) [n]"
+    if ([string]::IsNullOrWhiteSpace($peChoice)) {
+        $peChoice = "n"
     }
     
     $CONFIGURE_PRIVATE_ENDPOINTS = "false"
     $VNET_NAME = ""
     $SUBNET_NAME = ""
     
-    if ($vnetChoice -eq "0") {
+    if ($peChoice -eq "y" -or $peChoice -eq "Y") {
         $CONFIGURE_PRIVATE_ENDPOINTS = "true"
         # Search for existing VNets
         $existingVNets = Search-VNets -ResourceGroup $RESOURCE_GROUP
@@ -564,6 +567,12 @@ function Start-Deployment {
                 $SUBNET_NAME = "functions-subnet"
             }
         }
+    } else {
+        Write-Info "Skipping private endpoint configuration"
+        Write-Info "You can add private endpoints later by running deploy.ps1 again and selecting 'y'"
+        $CONFIGURE_PRIVATE_ENDPOINTS = "false"
+        $VNET_NAME = ""
+        $SUBNET_NAME = ""
     }
     
     # Summary

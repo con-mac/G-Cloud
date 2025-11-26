@@ -184,20 +184,31 @@ $deploymentConfig | Out-File -FilePath ".deployment" -Encoding utf8
 Write-Info "Deploying source code to App Service..."
 Write-Info "Azure Oryx will build your app automatically (this may take 5-10 minutes)..."
 
-# Create a zip of the frontend source (include everything for Oryx to build)
+# Create a zip of the frontend source (exclude node_modules and dist, Oryx will build)
 Write-Info "Creating deployment package..."
 $tempZip = "..\frontend-deploy-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
 
-# Include source files (exclude node_modules if it exists, Oryx will install)
-$filesToZip = Get-ChildItem -Path . -Exclude "node_modules","dist",".git" -Recurse -File
+# Get all files except node_modules, dist, and .git
+$filesToZip = Get-ChildItem -Path . -Recurse -File | 
+    Where-Object { 
+        $_.FullName -notmatch "\\node_modules\\" -and 
+        $_.FullName -notmatch "\\dist\\" -and
+        $_.FullName -notmatch "\\.git\\" 
+    }
+
+if ($filesToZip.Count -eq 0) {
+    Write-Error "No source files found to deploy"
+    Pop-Location
+    exit 1
+}
+
 $filesToZip | Compress-Archive -DestinationPath $tempZip -Force
 
-Write-Info "Deploying to App Service (Oryx will build automatically)..."
-Write-Info "This will:"
-Write-Info "  1. Upload source code"
-Write-Info "  2. Oryx will run: npm install"
-Write-Info "  3. Oryx will run: npm run build"
-Write-Info "  4. Built files will be served"
+Write-Info "Deploying to App Service..."
+Write-Info "Oryx will:"
+Write-Info "  1. Install dependencies (npm install)"
+Write-Info "  2. Build the app (npm run build)"
+Write-Info "  3. Copy dist/* to wwwroot for serving"
 
 az webapp deployment source config-zip `
     --resource-group $RESOURCE_GROUP `
@@ -206,23 +217,10 @@ az webapp deployment source config-zip `
     --timeout 1800
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Zip deploy failed, trying alternative method..."
-    
-    # Alternative: Use Kudu API for deployment
-    Write-Info "Trying alternative deployment via Kudu API..."
-    
-    # Get publishing credentials
-    $publishCreds = az webapp deployment list-publishing-profiles `
-        --name $WEB_APP_NAME `
-        --resource-group $RESOURCE_GROUP `
-        --xml `
-        --query "[?publishMethod=='MSDeploy'].{userName:publishUrl, password:userPWD}" `
-        -o json | ConvertFrom-Json
-    
-    if ($publishCreds) {
-        Write-Info "Alternative deployment method available, but zip deploy should work."
-        Write-Info "Please check the error above and try again."
-    }
+    Write-Error "Deployment failed. Check the error above."
+    Write-Info "You can check build logs at: https://$WEB_APP_NAME.scm.azurewebsites.net/logstream"
+    Pop-Location
+    exit 1
 }
 
 # Wait a moment for deployment to start

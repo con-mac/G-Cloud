@@ -413,7 +413,9 @@ $CONFIGURE_PRIVATE_ENDPOINTS = $config.CONFIGURE_PRIVATE_ENDPOINTS
 $VNET_NAME = $config.VNET_NAME
 $SUBNET_NAME = $config.SUBNET_NAME
 
+# Only configure private endpoints if explicitly requested
 if ($CONFIGURE_PRIVATE_ENDPOINTS -eq "true" -and -not [string]::IsNullOrWhiteSpace($VNET_NAME)) {
+    Write-Info "Configuring private endpoints as requested..."
     Write-Info "Configuring VNet and Private Endpoints..."
     
     # Check if VNet exists
