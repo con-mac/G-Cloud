@@ -165,7 +165,7 @@ if ($LASTEXITCODE -ne 0) {
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Key Vault created after purge: $KEY_VAULT_NAME"
         } else {
-            Write-Error "Could not create Key Vault. The name '$KEY_VAULT_NAME' is still in use."
+            Write-Error "Could not create Key Vault. The name is still in use."
             Write-Info "Please choose a different name or wait for soft-delete to expire (up to 90 days)"
             Write-Info "You can purge manually: az keyvault purge --name $KEY_VAULT_NAME"
             exit 1
