@@ -1,0 +1,93 @@
+import { Routes, Route, Navigate } from 'react-router-dom';
+import Login from './pages/Login';
+import ProposalFlow from './pages/ProposalFlow';
+import ProposalsList from './pages/ProposalsList';
+import ProposalEditor from './pages/ProposalEditor';
+import CreateProposal from './pages/CreateProposal';
+import ServiceDescriptionForm from './pages/ServiceDescriptionForm';
+import QuestionnairePage from './pages/QuestionnairePage';
+import AdminDashboard from './pages/AdminDashboard';
+import QuestionnaireAnalytics from './pages/QuestionnaireAnalytics';
+
+// Protected route wrapper
+const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
+  const isAuthenticated = sessionStorage.getItem('isAuthenticated') === 'true';
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route
+        path="/proposals/flow"
+        element={
+          <ProtectedRoute>
+            <ProposalFlow />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/proposals"
+        element={
+          <ProtectedRoute>
+            <ProposalsList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/proposals/create"
+        element={
+          <ProtectedRoute>
+            <CreateProposal />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/proposals/create/service-description"
+        element={
+          <ProtectedRoute>
+            <ServiceDescriptionForm />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/proposals/:id"
+        element={
+          <ProtectedRoute>
+            <ProposalEditor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/questionnaire/:serviceName/:lot"
+        element={
+          <ProtectedRoute>
+            <QuestionnairePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/analytics"
+        element={
+          <ProtectedRoute>
+            <QuestionnaireAnalytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
+}
+
+export default App;
+
