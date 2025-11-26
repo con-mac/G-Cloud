@@ -11,13 +11,30 @@ if (-not (Test-Path "config\deployment-config.env")) {
 
 # Parse environment file
 $config = @{}
-Get-Content "config\deployment-config.env" | ForEach-Object {
-    $line = $_.Trim()
-    if ($line -and -not $line.StartsWith('#')) {
-        if ($line -match '^([^=]+)=(.*)$') {
-            $key = $matches[1].Trim()
-            $value = $matches[2].Trim()
-            $config[$key] = $value
+$configPath = "config\deployment-config.env"
+
+if (-not (Test-Path $configPath)) {
+    Write-Error "Config file not found: $configPath"
+    exit 1
+}
+
+# Read file with explicit encoding and handle line endings
+$lines = Get-Content $configPath -Encoding UTF8 -Raw
+if ($lines) {
+    # Split by line breaks (handles both Windows and Unix)
+    $lines -split "`r?`n" | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith('#')) {
+            # Match KEY=VALUE (value can contain anything except newline)
+            if ($line -match '^([^=]+?)=(.*)$') {
+                $key = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                # Remove any trailing whitespace or control characters
+                $value = $value -replace '[`r`n]', ''
+                if ($key -and $value) {
+                    $config[$key] = $value
+                }
+            }
         }
     }
 }
@@ -56,11 +73,14 @@ if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
     exit 1
 }
 
-# Debug output
+# Debug output - show raw values
 Write-Info "Configuration loaded:"
-Write-Info "  Function App: $FUNCTION_APP_NAME"
-Write-Info "  Web App: $WEB_APP_NAME"
-Write-Info "  Resource Group: $RESOURCE_GROUP"
+Write-Info "  Function App: '$FUNCTION_APP_NAME' (length: $($FUNCTION_APP_NAME.Length))"
+Write-Info "  Web App: '$WEB_APP_NAME' (length: $($WEB_APP_NAME.Length))"
+Write-Info "  Resource Group: '$RESOURCE_GROUP' (length: $($RESOURCE_GROUP.Length))"
+
+# Show all config keys for debugging
+Write-Info "All config keys found: $($config.Keys -join ', ')"
 
 # Check if frontend directory exists
 if (-not (Test-Path "frontend")) {
