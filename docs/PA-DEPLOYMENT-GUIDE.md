@@ -14,13 +14,28 @@ This guide provides step-by-step instructions for deploying the G-Cloud 15 autom
 
 ## Quick Start
 
-1. **Clone or copy the pa-deployment folder** to a separate repository
+### For Fresh Deployment (Recommended)
+
+1. **Clean up existing resources** (if any):
+   ```powershell
+   .\scripts\cleanup-resources.ps1
+   ```
+   This will delete all resources in the resource group (App Registration persists).
+
 2. **Run the deployment script**:
-   ```bash
-   ./deploy.sh
+   ```powershell
+   .\deploy.ps1
    ```
 3. **Follow the interactive prompts** to configure resources
 4. **Complete SharePoint integration** (see SharePoint Integration section)
+
+### For Iterative Deployment
+
+If you already have resources deployed and want to update them:
+```powershell
+.\deploy.ps1
+```
+The script will detect existing resources and let you reuse or recreate them.
 
 ## Deployment Steps
 
@@ -151,7 +166,50 @@ SharePoint Site Root
 - [ ] Configure monitoring alerts
 - [ ] Review security settings
 
+## Cleanup and Fresh Start
+
+### Delete All Resources
+
+To start completely fresh:
+
+```powershell
+.\scripts\cleanup-resources.ps1
+```
+
+This script will:
+- Prompt you to confirm deletion (type 'DELETE')
+- Delete the entire resource group and all resources within it
+- **Preserve the App Registration** (it's in Azure AD, not the resource group)
+
+**What Gets Deleted:**
+- Function App
+- Web App
+- Key Vault
+- Storage Account
+- Application Insights
+- Private DNS Zone
+- VNet and Subnets
+- Private Endpoints
+- App Service Plan
+
+**What Persists:**
+- App Registration (in Azure AD - can be reused)
+
+### After Cleanup
+
+1. Wait for deletion to complete (check with `az group show --name <rg-name>`)
+2. Pull latest changes: `git pull origin main`
+3. Run fresh deployment: `.\deploy.ps1`
+4. When prompted for App Registration, choose **existing** and select your App Registration
+
 ## Troubleshooting
+
+### Frontend Not Loading / "Starting the site..."
+
+If the frontend shows "Starting the site..." or doesn't load:
+- The startup command may be incorrectly set
+- Run: `.\scripts\fix-frontend-startup.ps1` to clear it
+- Or redeploy with the latest scripts (they now handle this automatically)
 
 ### Authentication Issues
 
