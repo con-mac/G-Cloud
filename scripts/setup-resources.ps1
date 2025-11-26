@@ -172,40 +172,42 @@ if ($LASTEXITCODE -ne 0) {
             exit 1
         }
     } else {
-    az keyvault create `
-        --name "$KEY_VAULT_NAME" `
-        --resource-group "$RESOURCE_GROUP" `
-        --location "$LOCATION" `
-        --sku standard `
-        --enable-rbac-authorization true | Out-Null
-    
-    # Grant current user Key Vault Secrets Officer role for RBAC
-    Write-Info "Granting Key Vault permissions to current user..."
-    $currentUser = az ad signed-in-user show --query id -o tsv
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($currentUser)) {
-        $kvScope = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
-        # Check if role assignment already exists
-        $ErrorActionPreference = 'SilentlyContinue'
-        $existingRole = az role assignment list --assignee "$currentUser" --scope "$kvScope" --role "Key Vault Secrets Officer" --query "[].id" -o tsv 2>&1
-        $ErrorActionPreference = 'Stop'
+        # Normal Key Vault creation (not soft-deleted)
+        az keyvault create `
+            --name "$KEY_VAULT_NAME" `
+            --resource-group "$RESOURCE_GROUP" `
+            --location "$LOCATION" `
+            --sku standard `
+            --enable-rbac-authorization true | Out-Null
         
-        if ([string]::IsNullOrWhiteSpace($existingRole)) {
-            az role assignment create `
-                --role "Key Vault Secrets Officer" `
-                --assignee "$currentUser" `
-                --scope "$kvScope" `
-                --output none 2>&1 | Out-Null
-            Write-Success "Key Vault permissions granted"
-            # Wait a moment for propagation
-            Start-Sleep -Seconds 5
+        # Grant current user Key Vault Secrets Officer role for RBAC
+        Write-Info "Granting Key Vault permissions to current user..."
+        $currentUser = az ad signed-in-user show --query id -o tsv
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($currentUser)) {
+            $kvScope = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
+            # Check if role assignment already exists
+            $ErrorActionPreference = 'SilentlyContinue'
+            $existingRole = az role assignment list --assignee "$currentUser" --scope "$kvScope" --role "Key Vault Secrets Officer" --query "[].id" -o tsv 2>&1
+            $ErrorActionPreference = 'Stop'
+            
+            if ([string]::IsNullOrWhiteSpace($existingRole)) {
+                az role assignment create `
+                    --role "Key Vault Secrets Officer" `
+                    --assignee "$currentUser" `
+                    --scope "$kvScope" `
+                    --output none 2>&1 | Out-Null
+                Write-Success "Key Vault permissions granted"
+                # Wait a moment for propagation
+                Start-Sleep -Seconds 5
+            } else {
+                Write-Success "Key Vault permissions already granted"
+            }
         } else {
-            Write-Success "Key Vault permissions already granted"
+            Write-Warning "Could not grant Key Vault permissions automatically. Please grant 'Key Vault Secrets Officer' role manually."
         }
-    } else {
-        Write-Warning "Could not grant Key Vault permissions automatically. Please grant 'Key Vault Secrets Officer' role manually."
+        
+        Write-Success "Key Vault created: $KEY_VAULT_NAME"
     }
-    
-    Write-Success "Key Vault created: $KEY_VAULT_NAME"
 } else {
     Write-Success "Using existing Key Vault: $KEY_VAULT_NAME"
         # Ensure permissions are granted even for existing Key Vault
