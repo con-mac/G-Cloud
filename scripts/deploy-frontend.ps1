@@ -24,8 +24,75 @@ $FUNCTION_APP_NAME = $config.FUNCTION_APP_NAME
 function Write-Info { param([string]$msg) Write-Host "[INFO] $msg" -ForegroundColor Blue }
 function Write-Success { param([string]$msg) Write-Host "[SUCCESS] $msg" -ForegroundColor Green }
 function Write-Warning { param([string]$msg) Write-Host "[WARNING] $msg" -ForegroundColor Yellow }
+function Write-Error { param([string]$msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
 Write-Info "Deploying frontend to Web App..."
+
+# Check for Node.js and npm
+Write-Info "Checking prerequisites..."
+
+# Try to find Node.js
+$nodePath = $null
+$npmPath = $null
+
+# Check common Node.js installation paths
+$possibleNodePaths = @(
+    "$env:ProgramFiles\nodejs\node.exe",
+    "$env:ProgramFiles(x86)\nodejs\node.exe",
+    "$env:LOCALAPPDATA\Programs\nodejs\node.exe"
+)
+
+foreach ($path in $possibleNodePaths) {
+    if (Test-Path $path) {
+        $nodePath = $path
+        $npmPath = Join-Path (Split-Path $path) "npm.cmd"
+        break
+    }
+}
+
+# Try to refresh PATH and check again
+if (-not $nodePath) {
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    
+    # Try direct command
+    try {
+        $nodeVersion = & node --version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $nodePath = "node"
+            $npmPath = "npm"
+        }
+    } catch {}
+}
+
+if (-not $nodePath) {
+    Write-Error "Node.js is not installed or not in PATH"
+    Write-Info ""
+    Write-Info "Please install Node.js:"
+    Write-Info "  1. Download from: https://nodejs.org/ (LTS version recommended)"
+    Write-Info "  2. Or install via winget: winget install OpenJS.NodeJS.LTS"
+    Write-Info "  3. IMPORTANT: Restart PowerShell/VS Code after installation"
+    Write-Info ""
+    Write-Info "After installation, verify with: node --version"
+    exit 1
+}
+
+# Verify npm
+try {
+    if ($npmPath -eq "npm") {
+        $npmVersion = & npm --version 2>&1
+    } else {
+        $npmVersion = & $npmPath --version 2>&1
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "npm not found"
+    }
+    Write-Success "Node.js found: $(node --version)"
+    Write-Success "npm found: v$npmVersion"
+} catch {
+    Write-Error "npm is not available"
+    Write-Info "npm should come with Node.js. Please reinstall Node.js and restart PowerShell."
+    exit 1
+}
 
 # Check if frontend directory exists
 if (-not (Test-Path "frontend")) {
