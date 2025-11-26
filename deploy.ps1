@@ -443,8 +443,20 @@ function Start-Deployment {
     
     # Prompt for Key Vault
     Write-Info "Step 4: Key Vault Configuration"
-    Write-Info "Searching for existing Key Vaults in resource group: $RESOURCE_GROUP"
-    $existingKeyVaults = Search-KeyVaults -ResourceGroup $RESOURCE_GROUP
+    
+    # Search for existing Key Vaults
+    $existingKeyVaults = @()
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        # Try listing Key Vaults in the resource group
+        $kvList = az keyvault list --resource-group $RESOURCE_GROUP --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($kvList)) {
+            $existingKeyVaults = $kvList -split "`n" | Where-Object { $_ -ne "" -and $_ -ne $null -and $_.Trim() -ne "" }
+        }
+    } catch {
+        Write-Warning "Could not search for Key Vaults: $_"
+    }
+    $ErrorActionPreference = 'Stop'
     
     if ($existingKeyVaults -and $existingKeyVaults.Count -gt 0) {
         Write-Host "Existing Key Vaults found in resource group:"
