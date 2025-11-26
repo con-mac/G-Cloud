@@ -142,12 +142,13 @@ Write-Success "Environment file created"
 Write-Info "Configuring App Service for static site hosting..."
 
 # Set app settings for Oryx build
+# POST_BUILD_COMMAND ensures dist files are copied to wwwroot
 $appSettings = @(
     "SCM_DO_BUILD_DURING_DEPLOYMENT=true",
     "ENABLE_ORYX_BUILD=true",
     "WEBSITE_RUN_FROM_PACKAGE=0",
     "WEBSITE_NODE_DEFAULT_VERSION=~20",
-    "POST_BUILD_COMMAND=if [ -d dist ]; then mkdir -p /home/site/wwwroot && cp -r dist/* /home/site/wwwroot/; else echo 'dist folder not found'; fi",
+    "POST_BUILD_COMMAND=if [ -d dist ]; then mkdir -p /home/site/wwwroot && cp -r dist/* /home/site/wwwroot/ && echo 'Files copied to wwwroot'; else echo 'dist folder not found'; fi",
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false",
     "PORT=8080"
 )
@@ -164,27 +165,27 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# For static sites, we need a simple server to serve files
-# Azure App Service requires a running process, so we'll use a simple Node.js static server
-Write-Info "Configuring for static site hosting with Node.js static server..."
+# For static sites, use a simple startup command that serves files
+Write-Info "Configuring for static site hosting..."
 
-# Set Node.js runtime and startup command to serve static files
+# Set Node.js runtime
 az webapp config set `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
     --linux-fx-version "NODE:20-lts" `
     --output none | Out-Null
 
-# Set startup command to serve static files using npx serve
-# This will serve files from /home/site/wwwroot
-$startupCommand = "npx -y serve -s /home/site/wwwroot -l 8080"
+# Set startup command - ensure files are in wwwroot and serve them
+# Use a simple command that checks for files and serves them
+$startupCommand = "if [ -d /home/site/wwwroot ] && [ "$(ls -A /home/site/wwwroot)" ]; then npx -y serve -s /home/site/wwwroot -l 8080; elif [ -d /home/site/dist ]; then npx -y serve -s /home/site/dist -l 8080; else echo 'No files found to serve'; exit 1; fi"
+
 az webapp config set `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
     --startup-file "$startupCommand" `
     --output none | Out-Null
 
-Write-Info "Static site configured - will serve files from wwwroot using serve"
+Write-Info "Static site configured - will serve files from wwwroot or dist"
 
 # Create .deployment file for Oryx
 Write-Info "Creating deployment configuration..."

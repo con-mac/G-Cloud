@@ -70,17 +70,93 @@ msgraph-sdk>=1.0.0
 
 # Deploy to Function App
 Write-Info "Deploying to Function App: $FUNCTION_APP_NAME"
-try {
-    $funcCheck = Get-Command func -ErrorAction SilentlyContinue
-    if ($funcCheck) {
-        func azure functionapp publish $FUNCTION_APP_NAME --python
+
+# Check if backend code exists
+if (-not (Test-Path "host.json")) {
+    Write-Warning "host.json not found in backend directory"
+    Write-Info "Checking if we need to copy from main repo..."
+    if (Test-Path "..\..\backend\host.json") {
+        Write-Info "Copying backend files from main repo..."
+        Copy-Item -Path "..\..\backend\*" -Destination . -Recurse -Force -Exclude "*.pyc","__pycache__","*.log",".git"
     } else {
-        Write-Warning "Azure Functions Core Tools not found. Skipping code deployment."
-        Write-Warning "Install with: npm install -g azure-functions-core-tools@4"
-        Write-Info "Function App exists and will be configured, but code deployment skipped."
+        Write-Warning "Backend code not found. Function App will be created but code deployment skipped."
+        Write-Warning "Please ensure backend code is in pa-deployment/backend/ directory"
     }
-} catch {
-    Write-Warning "Code deployment failed or skipped. Function App will be configured with settings."
+}
+
+# Try using Azure Functions Core Tools first
+$funcCheck = Get-Command func -ErrorAction SilentlyContinue
+if ($funcCheck) {
+    Write-Info "Using Azure Functions Core Tools for deployment..."
+    try {
+        func azure functionapp publish $FUNCTION_APP_NAME --python
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Backend code deployed using Functions Core Tools"
+        } else {
+            Write-Warning "Functions Core Tools deployment failed, trying zip deploy..."
+            $funcCheck = $null  # Force zip deploy
+        }
+    } catch {
+        Write-Warning "Functions Core Tools deployment failed: $_"
+        Write-Info "Trying zip deploy instead..."
+        $funcCheck = $null
+    }
+}
+
+# Fallback to zip deploy if Functions Core Tools not available or failed
+if (-not $funcCheck) {
+    Write-Info "Deploying using zip deploy method..."
+    
+    # Verify essential files exist
+    if (-not (Test-Path "host.json")) {
+        Write-Warning "host.json not found. Cannot deploy backend code."
+        Write-Info "Function App will be configured with settings, but code deployment skipped."
+    } elseif (-not (Test-Path "requirements.txt")) {
+        Write-Warning "requirements.txt not found. Cannot deploy backend code."
+        Write-Info "Function App will be configured with settings, but code deployment skipped."
+    } else {
+        # Create deployment zip (exclude unnecessary files)
+        Write-Info "Creating deployment package..."
+        $deployZip = "..\function-deploy-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
+        
+        # Get all files except common exclusions
+        $filesToZip = Get-ChildItem -Path . -Recurse -File | 
+            Where-Object { 
+                $_.FullName -notmatch "\\__pycache__\\" -and
+                $_.FullName -notmatch "\\.git\\" -and
+                $_.FullName -notmatch "\\.pytest_cache\\" -and
+                $_.FullName -notmatch "\\.venv\\" -and
+                $_.FullName -notmatch "\\venv\\" -and
+                $_.FullName -notmatch "\\.env" -and
+                $_.FullName -notmatch "\\.log$" -and
+                $_.FullName -notmatch "\\.pyc$"
+            }
+        
+        if ($filesToZip.Count -gt 0) {
+            $filesToZip | Compress-Archive -DestinationPath $deployZip -Force
+            
+            Write-Info "Deploying zip package to Function App..."
+            az functionapp deployment source config-zip `
+                --resource-group $RESOURCE_GROUP `
+                --name $FUNCTION_APP_NAME `
+                --src $deployZip `
+                --timeout 1800 `
+                --output none
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Backend code deployed successfully using zip deploy"
+            } else {
+                Write-Warning "Zip deployment failed. Function App will be configured with settings."
+            }
+            
+            # Cleanup
+            if (Test-Path $deployZip) {
+                Remove-Item $deployZip -Force -ErrorAction SilentlyContinue
+            }
+        } else {
+            Write-Warning "No files found to deploy"
+        }
+    }
 }
 
 # Configure app settings (updates existing or creates new)
