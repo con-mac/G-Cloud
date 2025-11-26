@@ -171,11 +171,17 @@ $funcAuthSettings = @(
     "AZURE_AD_CLIENT_SECRET=$kvClientSecretRef"
 )
 
-az functionapp config appsettings set `
-    --name "$FUNCTION_APP_NAME" `
-    --resource-group "$RESOURCE_GROUP" `
-    --settings $funcAuthSettings `
-    --output none | Out-Null
+# Set app settings one by one to avoid PowerShell parsing issues
+Write-Info "Setting Function App auth settings one by one..."
+foreach ($setting in $funcAuthSettings) {
+    $ErrorActionPreference = 'SilentlyContinue'
+    az functionapp config appsettings set `
+        --name "$FUNCTION_APP_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --settings "$setting" `
+        --output none 2>&1 | Out-Null
+    $ErrorActionPreference = 'Stop'
+}
 
 # Update Web App settings (build array to avoid PowerShell parsing issues)
 Write-Info "Updating Web App with authentication settings..."
