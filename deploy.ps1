@@ -445,16 +445,16 @@ function Start-Deployment {
     Write-Info "Step 4: Key Vault Configuration"
     
     # Search for existing Key Vaults in the resource group
-    Write-Info "Searching for existing Key Vaults in resource group: $RESOURCE_GROUP"
+    # Note: az keyvault list doesn't support --resource-group, so we list all and filter
     $existingKeyVaults = @()
     $ErrorActionPreference = 'SilentlyContinue'
     
-    # Try listing Key Vaults in the resource group
-    $kvList = az keyvault list --resource-group $RESOURCE_GROUP --query "[].name" -o tsv 2>&1
+    # List all Key Vaults and filter by resource group
+    $allKVs = az keyvault list --query "[?resourceGroup=='$RESOURCE_GROUP'].name" -o tsv 2>&1
     $ErrorActionPreference = 'Stop'
     
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($kvList)) {
-        $existingKeyVaults = $kvList -split "`r?`n" | Where-Object { 
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allKVs)) {
+        $existingKeyVaults = $allKVs -split "`r?`n" | Where-Object { 
             $_ -ne $null -and $_.Trim() -ne "" 
         } | ForEach-Object { $_.Trim() }
     }
