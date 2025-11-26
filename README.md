@@ -80,13 +80,10 @@ pa-deployment/
 
 ## Documentation
 
-- **[START-HERE.md](START-HERE.md)** - **⭐ READ THIS FIRST - Quick deployment steps**
-- [Manual Deployment Guide](docs/PA-Manual-Deployment-Guide.md) - Detailed step-by-step instructions
-- [Config File Management Guide](docs/CONFIG-FILE-GUIDE.md) - How the dev team should handle the config file
-- [Deployment Guide](docs/PA-DEPLOYMENT-GUIDE.md) - Technical deployment guide
-- [Deployment Reliability](docs/DEPLOYMENT-RELIABILITY.md) - Technical details about safeguards (reference only)
-- [Architecture Overview](../PA-Env-Deploy.md)
-- [Files to Copy](COPY_FILES.md)
+- **[PA Deployment Guide](docs/PA-DEPLOYMENT-GUIDE.md)** - **⭐ READ THIS FIRST - Complete deployment instructions**
+- [SharePoint Setup Guide](docs/SharePoint-Setup-Guide.md) - SharePoint integration steps
+- [Manual Deployment Guide](docs/PA-Manual-Deployment-Guide.md) - Alternative manual deployment steps
+- [Files to Copy](COPY_FILES.md) - Files needed from main repository
 
 ## Next Steps
 

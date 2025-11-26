@@ -1,10 +1,8 @@
 # PA Environment Deployment Guide
 
-> **📖 Quick Start**: If you need to deploy right now, start with [START-HERE.md](../START-HERE.md) instead.
-
 ## Overview
 
-This guide provides detailed step-by-step instructions for deploying the G-Cloud 15 automation tool to PA Consulting's Azure dev environment.
+This guide provides step-by-step instructions for deploying the G-Cloud 15 automation tool to PA Consulting's Azure dev environment. The deployment is **iterative** - you can run it multiple times safely, and configure private endpoints now or later.
 
 ## Prerequisites
 
@@ -29,21 +27,22 @@ This guide provides detailed step-by-step instructions for deploying the G-Cloud
 ### Step 1: Initial Configuration
 
 Run the main deployment script:
-```bash
-./deploy.sh
-```
-or for PowerShell:
 ```powershell
 .\deploy.ps1
 ```
 
 This will:
-- Check prerequisites
-- Prompt for resource names
-- Create or select existing resources
+- Check prerequisites (Azure CLI, login status)
+- Prompt for resource names (or use existing)
+- Ask if you want private endpoints now (y) or later (n)
 - Save configuration to `config/deployment-config.env`
+- Run all deployment steps automatically
 
-> **📖 Config File Management**: See [CONFIG-FILE-GUIDE.md](CONFIG-FILE-GUIDE.md) for detailed information on how the dev team should handle the `deployment-config.env` file.
+**Private Endpoints**: 
+- Choose **y** for production (private-only access)
+- Choose **n** for testing (allows public access, can add private endpoints later)
+
+**Config File**: Created automatically at `config/deployment-config.env`. You can run `.\deploy.ps1` again anytime - it will use existing config and let you update it.
 
 ### Step 2: Resource Setup
 
