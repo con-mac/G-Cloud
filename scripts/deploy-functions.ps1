@@ -185,12 +185,17 @@ $appSettings += "USE_SHAREPOINT=true"
 $appSettings += "AZURE_STORAGE_CONNECTION_STRING=$kvStorageRef"
 $appSettings += "APPLICATIONINSIGHTS_CONNECTION_STRING=$kvAppInsightsRef"
 
-# Set app settings - pass as array to Azure CLI
-az functionapp config appsettings set `
-    --name "$FUNCTION_APP_NAME" `
-    --resource-group "$RESOURCE_GROUP" `
-    --settings $appSettings `
-    --output none | Out-Null
+# Set app settings - pass each setting individually to avoid PowerShell parsing issues
+Write-Info "Setting app settings one by one to avoid parsing errors..."
+foreach ($setting in $appSettings) {
+    $ErrorActionPreference = 'SilentlyContinue'
+    az functionapp config appsettings set `
+        --name "$FUNCTION_APP_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --settings "$setting" `
+        --output none 2>&1 | Out-Null
+    $ErrorActionPreference = 'Stop'
+}
 
 Write-Success "Backend deployment complete!"
 Write-Info "Note: SharePoint credentials need to be added to Key Vault"

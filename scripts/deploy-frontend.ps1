@@ -175,10 +175,9 @@ az webapp config set `
     --linux-fx-version "NODE:20-lts" `
     --output none | Out-Null
 
-# Set startup command - ensure files are in wwwroot and serve them
-# Use a simple command that checks for files and serves them
-# Escape the $ in bash command to prevent PowerShell from interpreting it
-$startupCommand = 'if [ -d /home/site/wwwroot ] && [ "$(ls -A /home/site/wwwroot)" ]; then npx -y serve -s /home/site/wwwroot -l 8080; elif [ -d /home/site/dist ]; then npx -y serve -s /home/site/dist -l 8080; else echo "No files found to serve"; exit 1; fi'
+# Set startup command - use the startup.sh script we created
+# This avoids PowerShell parsing issues with bash syntax
+$startupCommand = "bash startup.sh"
 
 az webapp config set `
     --name $WEB_APP_NAME `
@@ -198,20 +197,21 @@ SCM_SCRIPT_GENERATOR_ARGS=--node
 $deploymentConfig | Out-File -FilePath ".deployment" -Encoding utf8
 
 # Create startup.sh that will be included in deployment
-$startupScriptContent = @"
+# Use here-string with proper escaping for bash redirection
+$startupScriptContent = @'
 #!/bin/bash
 # Startup script for static site - ensures files are served correctly
-if [ -d /home/site/wwwroot ] && [ "$(ls -A /home/site/wwwroot 2>/dev/null)" ]; then
+if [ -d /home/site/wwwroot ] && [ -n "$(ls -A /home/site/wwwroot 2>&1)" ]; then
     echo "Serving from wwwroot..."
     npx -y serve -s /home/site/wwwroot -l 8080
-elif [ -d /home/site/dist ] && [ "$(ls -A /home/site/dist 2>/dev/null)" ]; then
+elif [ -d /home/site/dist ] && [ -n "$(ls -A /home/site/dist 2>&1)" ]; then
     echo "Serving from dist..."
     npx -y serve -s /home/site/dist -l 8080
 else
     echo "ERROR: No files found to serve in wwwroot or dist"
     exit 1
 fi
-"@
+'@
 $startupScriptContent | Out-File -FilePath "startup.sh" -Encoding utf8 -NoNewline
 
 # Deploy using Oryx build
