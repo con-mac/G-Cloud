@@ -1,8 +1,10 @@
 # Deployment Reliability & Issue Prevention
 
+> **📖 Note**: This is a technical reference document. For actual deployment steps, see [START-HERE.md](../START-HERE.md) or [PA-DEPLOYMENT-GUIDE.md](PA-DEPLOYMENT-GUIDE.md)
+
 ## Overview
 
-This document explains the safeguards built into the deployment scripts to prevent common issues and ensure a smooth experience for the dev team.
+This document explains the safeguards built into the deployment scripts to prevent common issues and ensure a smooth experience for the dev team. **You don't need to read this unless you're troubleshooting or want to understand the technical details.**
 
 ## ✅ Built-in Safeguards
 

@@ -74,12 +74,17 @@ pa-deployment/
 └── docs/                        # Documentation
 ```
 
+## 🚀 Quick Start
+
+**Need to deploy RIGHT NOW?** → Read [START-HERE.md](START-HERE.md) (2-minute guide)
+
 ## Documentation
 
-- [Manual Deployment Guide](docs/PA-Manual-Deployment-Guide.md) - **Start here for step-by-step instructions**
-- [Config File Management Guide](docs/CONFIG-FILE-GUIDE.md) - **How the dev team should handle the config file**
-- [Deployment Reliability](docs/DEPLOYMENT-RELIABILITY.md) - **Safeguards and issue prevention for smooth deployments**
-- [Deployment Guide](docs/PA-DEPLOYMENT-GUIDE.md) - Detailed technical guide
+- **[START-HERE.md](START-HERE.md)** - **⭐ READ THIS FIRST - Quick deployment steps**
+- [Manual Deployment Guide](docs/PA-Manual-Deployment-Guide.md) - Detailed step-by-step instructions
+- [Config File Management Guide](docs/CONFIG-FILE-GUIDE.md) - How the dev team should handle the config file
+- [Deployment Guide](docs/PA-DEPLOYMENT-GUIDE.md) - Technical deployment guide
+- [Deployment Reliability](docs/DEPLOYMENT-RELIABILITY.md) - Technical details about safeguards (reference only)
 - [Architecture Overview](../PA-Env-Deploy.md)
 - [Files to Copy](COPY_FILES.md)
 

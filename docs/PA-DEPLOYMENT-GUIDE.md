@@ -1,8 +1,10 @@
 # PA Environment Deployment Guide
 
+> **📖 Quick Start**: If you need to deploy right now, start with [START-HERE.md](../START-HERE.md) instead.
+
 ## Overview
 
-This guide provides step-by-step instructions for deploying the G-Cloud 15 automation tool to PA Consulting's Azure dev environment.
+This guide provides detailed step-by-step instructions for deploying the G-Cloud 15 automation tool to PA Consulting's Azure dev environment.
 
 ## Prerequisites
 
