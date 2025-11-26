@@ -2,7 +2,7 @@
 
 ## ✅ Safe to Delete Resource Group
 
-**Yes, it's safe to delete the resource group!** The App Service Environment (ASE) is in a separate resource group, so it won't be affected.
+**Yes, it's safe to delete the resource group!** Your App Registration is in Azure AD (not in the resource group), so it will persist and can be reused.
 
 ## Step 1: Delete the Resource Group
 
@@ -16,14 +16,14 @@ az group delete --name gcloud-azure-ps1-deploy-rg --yes --no-wait
 
 **Note**: The ASE resource group (usually named something like `*-ase-rg` or `*-environment-rg`) should NOT be deleted.
 
-## Step 2: Verify ASE Still Exists
+## Step 2: Verify App Registration Still Exists (Optional)
 
 ```powershell
-# List App Service Environments
-az appservice ase list --query "[].{Name:name, ResourceGroup:resourceGroup}" -o table
+# List App Registrations
+az ad app list --query "[].{DisplayName:displayName, AppId:appId}" -o table
 ```
 
-Make sure your ASE is still there and note which resource group it's in.
+Your App Registration will persist - it's in Azure AD, not the resource group.
 
 ## Step 3: Fresh Deployment
 
@@ -44,6 +44,7 @@ git pull origin main
 - **Storage Account**: Create new
 - **Private DNS**: Create new or use existing
 - **App Insights**: Create new or use existing
+- **App Registration**: **Use existing** (your App Registration will be listed - select it)
 - **Private Endpoints**: Choose **n** for now (test publicly first)
 
 ## Step 4: What Gets Created Fresh
@@ -59,21 +60,17 @@ git pull origin main
 
 ## Step 5: What Persists
 
-- ✅ App Service Environment (ASE) - in separate RG
-- ✅ Any existing App Registrations (if you choose to use existing)
+- ✅ **App Registration** - in Azure AD (will persist, can reuse)
 - ✅ Any existing Private DNS Zones (if you choose to use existing)
 - ✅ Any existing Storage Accounts (if you choose to use existing)
 
 ## Important Notes
 
-1. **ASE**: If your Web App/Function App needs to use the ASE, you'll need to:
-   - Create them in the ASE's resource group, OR
-   - Configure them to use the ASE after creation
-   - The deployment script will create them in the new RG - you may need to move them or recreate in the ASE RG
+1. **App Registration**: Your existing App Registration will persist in Azure AD. When the script asks, choose to **use existing** and select your App Registration from the list.
 
-2. **App Registration**: If you have an existing one, you can reuse it (the script will ask)
+2. **App Registration Permissions**: If your App Registration already has the right permissions (Sites.ReadWrite.All, Files.ReadWrite.All, etc.), you're all set. The script will configure it to work with the new resources.
 
-3. **Clean Slate**: This gives you a completely fresh deployment to test everything works
+3. **Clean Slate**: This gives you a completely fresh deployment to test everything works, while reusing your App Registration.
 
 ## After Fresh Deployment
 
