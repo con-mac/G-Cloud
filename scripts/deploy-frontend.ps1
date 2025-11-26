@@ -147,7 +147,7 @@ $appSettings = @(
     "ENABLE_ORYX_BUILD=true",
     "WEBSITE_RUN_FROM_PACKAGE=0",
     "WEBSITE_NODE_DEFAULT_VERSION=~20",
-    "POST_BUILD_COMMAND=npm run build && cp -r dist/* /home/site/wwwroot/",
+    "POST_BUILD_COMMAND=cp -r dist/* /home/site/wwwroot/ 2>/dev/null || true",
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false"
 )
 
@@ -168,7 +168,7 @@ Write-Info "Configuring startup command..."
 az webapp config set `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --startup-file "npm run build && npx serve -s dist -l 8000" `
+    --startup-file "" `
     --output none
 
 # Create .deployment file for Oryx

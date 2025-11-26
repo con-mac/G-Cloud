@@ -138,8 +138,39 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
 Write-Info "Creating Key Vault..."
 $ErrorActionPreference = 'SilentlyContinue'
 $kvExists = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+$kvError = $kvExists | Out-String
 $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) {
+    # Check if Key Vault is soft-deleted (globally unique name conflict)
+    if ($kvError -match "VaultAlreadyExists" -or $kvError -match "already in use") {
+        Write-Warning "Key Vault name '$KEY_VAULT_NAME' is already in use (possibly soft-deleted)"
+        Write-Info "Attempting to purge soft-deleted Key Vault..."
+        
+        # Try to purge if it's soft-deleted
+        $ErrorActionPreference = 'SilentlyContinue'
+        az keyvault purge --name "$KEY_VAULT_NAME" 2>&1 | Out-Null
+        $ErrorActionPreference = 'Stop'
+        Start-Sleep -Seconds 3
+        
+        # Try creating again
+        $ErrorActionPreference = 'SilentlyContinue'
+        $createResult = az keyvault create `
+            --name "$KEY_VAULT_NAME" `
+            --resource-group "$RESOURCE_GROUP" `
+            --location "$LOCATION" `
+            --sku standard `
+            --enable-rbac-authorization true 2>&1
+        $ErrorActionPreference = 'Stop
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Key Vault created after purge: $KEY_VAULT_NAME"
+        } else {
+            Write-Error "Could not create Key Vault. The name '$KEY_VAULT_NAME' is still in use."
+            Write-Info "Please choose a different name or wait for soft-delete to expire (up to 90 days)"
+            Write-Info "You can purge manually: az keyvault purge --name $KEY_VAULT_NAME"
+            exit 1
+        }
+    } else {
     az keyvault create `
         --name "$KEY_VAULT_NAME" `
         --resource-group "$RESOURCE_GROUP" `
