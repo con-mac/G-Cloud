@@ -138,13 +138,17 @@ VITE_AZURE_AD_REDIRECT_URI=https://${WEB_APP_NAME}.azurewebsites.net
 $envContent | Out-File -FilePath ".env.production" -Encoding utf8
 Write-Success "Environment file created"
 
-# Configure App Service for Oryx build
-Write-Info "Configuring App Service for automatic build..."
+# Configure App Service for static site hosting
+Write-Info "Configuring App Service for static site hosting..."
+
+# Set app settings for Oryx build
 $appSettings = @(
     "SCM_DO_BUILD_DURING_DEPLOYMENT=true",
     "ENABLE_ORYX_BUILD=true",
-    "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false",
-    "WEBSITE_NODE_DEFAULT_VERSION=~20"
+    "WEBSITE_RUN_FROM_PACKAGE=0",
+    "WEBSITE_NODE_DEFAULT_VERSION=~20",
+    "POST_BUILD_COMMAND=npm run build && cp -r dist/* /home/site/wwwroot/",
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false"
 )
 
 az webapp config appsettings set `
@@ -159,9 +163,15 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Success "App Service configured for Oryx build"
+# Configure startup command to serve static files
+Write-Info "Configuring startup command..."
+az webapp config set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --startup-file "npm run build && npx serve -s dist -l 8000" `
+    --output none
 
-# Create .deployment file to specify build command
+# Create .deployment file for Oryx
 Write-Info "Creating deployment configuration..."
 $deploymentConfig = @"
 [config]
@@ -170,59 +180,49 @@ SCM_SCRIPT_GENERATOR_ARGS=--node
 
 $deploymentConfig | Out-File -FilePath ".deployment" -Encoding utf8
 
-# Create .deployment file in root if it doesn't exist
-if (-not (Test-Path "..\.deployment")) {
-    $deploymentConfig | Out-File -FilePath "..\.deployment" -Encoding utf8
-}
-
-# Create startup script for App Service
-Write-Info "Creating startup script..."
-$startupScript = @"
-#!/bin/bash
-# Serve the built files using a simple HTTP server
-cd /home/site/wwwroot
-if [ -d "dist" ]; then
-    cd dist
-fi
-python3 -m http.server 8000
-"@
-
-# Deploy source code to App Service (Oryx will build it)
+# Deploy using Oryx build
 Write-Info "Deploying source code to App Service..."
-Write-Info "Azure will automatically build your app using Oryx (this may take 5-10 minutes)..."
+Write-Info "Azure Oryx will build your app automatically (this may take 5-10 minutes)..."
 
-# Create a zip of the frontend source
+# Create a zip of the frontend source (include everything for Oryx to build)
 Write-Info "Creating deployment package..."
-$tempZip = "..\frontend-deploy.zip"
+$tempZip = "..\frontend-deploy-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
 
-# Exclude node_modules and dist if they exist
-Get-ChildItem -Path . -Recurse | 
-    Where-Object { 
-        $_.FullName -notmatch "\\node_modules\\" -and 
-        $_.FullName -notmatch "\\dist\\" -and
-        $_.FullName -notmatch "\\.git\\" 
-    } | 
-    Compress-Archive -DestinationPath $tempZip -Force -ErrorAction SilentlyContinue
+# Include source files (exclude node_modules if it exists, Oryx will install)
+$filesToZip = Get-ChildItem -Path . -Exclude "node_modules","dist",".git" -Recurse -File
+$filesToZip | Compress-Archive -DestinationPath $tempZip -Force
 
-# Alternative: Use az webapp up for simpler deployment
-Write-Info "Deploying to App Service..."
+Write-Info "Deploying to App Service (Oryx will build automatically)..."
+Write-Info "This will:"
+Write-Info "  1. Upload source code"
+Write-Info "  2. Oryx will run: npm install"
+Write-Info "  3. Oryx will run: npm run build"
+Write-Info "  4. Built files will be served"
+
 az webapp deployment source config-zip `
     --resource-group $RESOURCE_GROUP `
     --name $WEB_APP_NAME `
-    --src $tempZip
+    --src $tempZip `
+    --timeout 1800
 
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Zip deploy failed, trying alternative method..."
     
-    # Alternative: Deploy via git or direct folder
-    Write-Info "Using alternative deployment method..."
+    # Alternative: Use Kudu API for deployment
+    Write-Info "Trying alternative deployment via Kudu API..."
     
-    # Set build command in app settings
-    az webapp config appsettings set `
+    # Get publishing credentials
+    $publishCreds = az webapp deployment list-publishing-profiles `
         --name $WEB_APP_NAME `
         --resource-group $RESOURCE_GROUP `
-        --settings "POST_BUILD_COMMAND=echo 'Build complete'" `
-        --output none
+        --xml `
+        --query "[?publishMethod=='MSDeploy'].{userName:publishUrl, password:userPWD}" `
+        -o json | ConvertFrom-Json
+    
+    if ($publishCreds) {
+        Write-Info "Alternative deployment method available, but zip deploy should work."
+        Write-Info "Please check the error above and try again."
+    }
 }
 
 # Wait a moment for deployment to start

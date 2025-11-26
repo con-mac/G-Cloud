@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "start": "vite preview --port 8000 --host",
+    "serve": "npx serve -s dist -l 8000",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -64,4 +66,5 @@
     "vitest": "^1.0.4"
   }
 }
+
 
