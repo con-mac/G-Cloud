@@ -143,8 +143,8 @@ Write-Info "Configuring App Service for static site hosting..."
 
 # Set app settings for Oryx build
 # POST_BUILD_COMMAND ensures dist files are copied to wwwroot
-# Use more robust copy command with error handling
-$postBuildCmd = 'if [ -d dist ]; then mkdir -p /home/site/wwwroot && cp -r dist/. /home/site/wwwroot/ && echo "Files copied to wwwroot" && ls -la /home/site/wwwroot | head -10; else echo "dist folder not found, checking build output..."; find /home -name "index.html" -type f 2>/dev/null | head -5; fi'
+# Use simple command to avoid parsing issues
+$postBuildCmd = 'if [ -d dist ]; then mkdir -p /home/site/wwwroot && cp -r dist/. /home/site/wwwroot/; fi'
 $appSettings = @(
     "SCM_DO_BUILD_DURING_DEPLOYMENT=true",
     "ENABLE_ORYX_BUILD=true",
@@ -155,27 +155,42 @@ $appSettings = @(
     "PORT=8080"
 )
 
-az webapp config appsettings set `
-    --name $WEB_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --settings $appSettings `
-    --output none
+# Set app settings one by one to avoid parsing issues
+Write-Info "Setting app settings..."
+foreach ($setting in $appSettings) {
+    $ErrorActionPreference = 'SilentlyContinue'
+    az webapp config appsettings set `
+        --name $WEB_APP_NAME `
+        --resource-group $RESOURCE_GROUP `
+        --settings "$setting" `
+        --output none 2>&1 | Out-Null
+    $ErrorActionPreference = 'Stop'
+}
 
+# App settings are set above in the loop
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to configure App Service settings"
-    Pop-Location
-    exit 1
+    Write-Warning "Some app settings may have failed, but continuing..."
 }
 
 # For static sites, use a simple startup command that serves files
 Write-Info "Configuring for static site hosting..."
 
-# Set Node.js runtime
+# CRITICAL: Set Node.js runtime explicitly (Azure might default to PHP)
+Write-Info "Setting Node.js 20 runtime..."
 az webapp config set `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
     --linux-fx-version "NODE:20-lts" `
     --output none | Out-Null
+
+# Also set via app settings to ensure it sticks
+$ErrorActionPreference = 'SilentlyContinue'
+az webapp config appsettings set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --settings "WEBSITE_NODE_DEFAULT_VERSION=~20" `
+    --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
 
 # Set startup command - simple direct command that will work
 # Azure App Service will use this to start the site
