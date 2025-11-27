@@ -221,10 +221,10 @@ Write-Info "  Registry: $acrLoginServer"
 az webapp config container set `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --docker-custom-image-name $dockerImage `
-    --docker-registry-server-url "https://$acrLoginServer" `
-    --docker-registry-server-user $acrUsername `
-    --docker-registry-server-password $acrPassword `
+    --container-image-name $dockerImage `
+    --container-registry-url "https://$acrLoginServer" `
+    --container-registry-user $acrUsername `
+    --container-registry-password $acrPassword `
     --output none
 
 if ($LASTEXITCODE -ne 0) {
