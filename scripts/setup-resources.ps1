@@ -324,14 +324,21 @@ if ($LASTEXITCODE -ne 0) {
             --is-linux | Out-Null
     }
     
-    # Create Web App - DON'T set runtime, we'll configure Docker container later
-    # This matches Terraform approach where Web App is created without runtime,
-    # then Docker container is configured during deployment
+    # Create Web App with a basic runtime first (required by Azure)
+    # We'll configure Docker container during frontend deployment
+    # Using NODE runtime as placeholder - will be replaced with Docker container
     az webapp create `
         --name "$WEB_APP_NAME" `
         --resource-group "$RESOURCE_GROUP" `
         --plan "$APP_SERVICE_PLAN" `
+        --runtime "NODE:20-lts" `
         --output none | Out-Null
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to create Web App: $WEB_APP_NAME"
+        Write-Info "Error: Azure requires a runtime or container configuration"
+        exit 1
+    }
     
     Write-Success "Web App created: $WEB_APP_NAME"
     Write-Info "Web App will be configured with Docker container during frontend deployment"
