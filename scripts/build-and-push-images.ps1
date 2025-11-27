@@ -199,7 +199,70 @@ if (-not (Test-Path $dockerfilePath)) {
 
 Write-Success "Dockerfile verified: $dockerfilePath"
 
-Write-Success "Dockerfile found"
+# Check and create nginx.conf if missing (required by Dockerfile)
+$nginxConfPath = Join-Path $frontendPath "nginx.conf"
+if (-not (Test-Path $nginxConfPath)) {
+    Write-Warning "nginx.conf not found. Attempting to restore from git or create default..."
+    
+    # Try to restore from git
+    $ErrorActionPreference = 'SilentlyContinue'
+    $nginxContent = git show HEAD:frontend/nginx.conf 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($nginxContent)) {
+        Write-Info "Found nginx.conf in git, creating it..."
+        $nginxContent | Out-File -FilePath $nginxConfPath -Encoding utf8 -NoNewline
+        Write-Success "nginx.conf restored from git: $nginxConfPath"
+    } else {
+        # Create default nginx.conf
+        Write-Warning "Could not restore from git. Creating default nginx.conf..."
+        $defaultNginx = @"
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/javascript application/json;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Handle React Router
+    location / {
+        try_files `$uri `$uri/ /index.html;
+    }
+
+    # Health check endpoint
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+}
+"@
+        $defaultNginx | Out-File -FilePath $nginxConfPath -Encoding utf8
+        Write-Success "Default nginx.conf created: $nginxConfPath"
+    }
+}
+
+if (-not (Test-Path $nginxConfPath)) {
+    Write-Error "Failed to create nginx.conf at: $nginxConfPath"
+    exit 1
+}
+Write-Success "nginx.conf verified: $nginxConfPath"
 
 # Login to ACR
 Write-Info "Logging in to Azure Container Registry..."
