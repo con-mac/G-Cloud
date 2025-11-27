@@ -186,10 +186,9 @@ if (-not $funcCheck) {
                 } else {
                     Write-Warning "Zip deployment failed. Checking deployment logs..."
                     Write-Info "Deployment output: $deployOutput"
+                    Write-Info "Or check in Azure Portal: Function App -> Deployment Center -> Logs"
+                    Write-Warning "Function App will be configured with settings, but code deployment may need manual intervention."
                 }
-            }
-                Write-Info "Or check in Azure Portal: Function App -> Deployment Center -> Logs"
-                Write-Warning "Function App will be configured with settings, but code deployment may need manual intervention."
             }
             
             # Cleanup
