@@ -85,16 +85,40 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acrExists)) {
 Write-Success "ACR verified: $ACR_NAME"
 
 # Check if frontend directory exists
-$frontendPath = "..\frontend"
-if (-not (Test-Path $frontendPath)) {
-    # Try relative to pa-deployment
-    $frontendPath = "frontend"
-    if (-not (Test-Path $frontendPath)) {
-        Write-Error "Frontend directory not found!"
-        Write-Info "Expected: $frontendPath"
-        Write-Info "Please ensure you're running from pa-deployment directory"
-        exit 1
+# Try multiple paths: relative to pa-deployment/scripts, relative to pa-deployment, or root
+$frontendPath = $null
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$possiblePaths = @(
+    "$scriptDir\..\frontend",           # From pa-deployment/scripts -> pa-deployment/frontend
+    "$scriptDir\..\..\frontend",        # From pa-deployment/scripts -> root/frontend
+    "..\frontend",                      # Relative from current directory
+    "..\..\frontend",                   # Relative from current directory (if in scripts)
+    "frontend"                          # If frontend is in current directory
+)
+
+foreach ($path in $possiblePaths) {
+    $fullPath = Resolve-Path $path -ErrorAction SilentlyContinue
+    if ($fullPath -and (Test-Path $fullPath)) {
+        $frontendPath = $path
+        Write-Info "Found frontend directory: $path"
+        break
     }
+}
+
+if ($null -eq $frontendPath) {
+    Write-Error "Frontend directory not found!"
+    Write-Info ""
+    Write-Info "Searched in the following locations:"
+    foreach ($path in $possiblePaths) {
+        Write-Info "  - $path"
+    }
+    Write-Info ""
+    Write-Info "Please ensure:"
+    Write-Info "  1. Frontend directory exists (either in root or pa-deployment)"
+    Write-Info "  2. You're running from pa-deployment directory"
+    Write-Info ""
+    Write-Info "Current directory: $(Get-Location)"
+    exit 1
 }
 
 Write-Info "Frontend directory found: $frontendPath"
@@ -167,16 +191,32 @@ if ($buildMethod -eq "2") {
 } else {
     # ACR build method (builds in Azure)
     Write-Info "Using ACR build task (builds in Azure cloud, no local Docker needed)..."
+    
+    # Convert path to absolute and normalize separators for ACR build
+    $absoluteFrontendPath = (Resolve-Path $frontendPath).Path
+    $dockerfilePath = Join-Path $absoluteFrontendPath "Dockerfile"
+    
+    if (-not (Test-Path $dockerfilePath)) {
+        Write-Error "Dockerfile not found at: $dockerfilePath"
+        exit 1
+    }
+    
+    # ACR build uses the directory as context, Dockerfile path is relative to context
+    # Since context is the frontend directory, Dockerfile is just "Dockerfile"
+    Write-Info "Build context: $absoluteFrontendPath"
+    Write-Info "Dockerfile: Dockerfile (relative to context)"
+    
     az acr build `
         --registry "$ACR_NAME" `
         --image "${imageName}:$IMAGE_TAG" `
-        --file "$frontendPath\Dockerfile" `
-        "$frontendPath" `
+        --file "Dockerfile" `
+        "$absoluteFrontendPath" `
         --output none
     
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build frontend image in ACR"
         Write-Info "Check the error above for details"
+        Write-Info "Build context was: $absoluteFrontendPath"
         exit 1
     }
     

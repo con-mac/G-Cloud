@@ -125,18 +125,43 @@ Write-Success "ACR verified: $ACR_NAME"
 # Check if frontend image exists in ACR
 Write-Info "Checking if frontend image exists in ACR..."
 $ErrorActionPreference = 'SilentlyContinue'
+# First check if repository exists
+$repoExists = az acr repository show --name "$ACR_NAME" --repository "frontend" --query "name" -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repoExists)) {
+    Write-Error "Frontend repository not found in ACR '$ACR_NAME'"
+    Write-Info ""
+    Write-Info "The frontend Docker image has not been built and pushed yet."
+    Write-Info ""
+    Write-Info "Next steps:"
+    Write-Info "  1. Build and push the frontend image:"
+    Write-Info "     .\scripts\build-and-push-images.ps1"
+    Write-Info ""
+    Write-Info "  2. Then run deployment again:"
+    Write-Info "     .\deploy.ps1"
+    Write-Info "     OR"
+    Write-Info "     .\scripts\deploy-frontend.ps1"
+    Write-Info ""
+    exit 1
+}
+
+# Repository exists, check for specific tag
+$ErrorActionPreference = 'SilentlyContinue'
 $imageExists = az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --query "[?name=='$IMAGE_TAG'].name" -o tsv 2>&1
 $ErrorActionPreference = 'Stop'
 
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($imageExists)) {
     Write-Warning "Frontend image 'frontend:$IMAGE_TAG' not found in ACR '$ACR_NAME'"
-    Write-Info "Please build and push the image first:"
-    Write-Info "  .\scripts\build-and-push-images.ps1"
     Write-Info ""
-    Write-Info "Or verify the image tag is correct. Available tags:"
+    Write-Info "Available tags in 'frontend' repository:"
     $ErrorActionPreference = 'SilentlyContinue'
     az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output table 2>&1
     $ErrorActionPreference = 'Stop'
+    Write-Info ""
+    Write-Info "Please build and push the image with tag '$IMAGE_TAG':"
+    Write-Info "  .\scripts\build-and-push-images.ps1"
+    Write-Info ""
     exit 1
 }
 
