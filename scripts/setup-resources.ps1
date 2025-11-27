@@ -324,24 +324,20 @@ if ($LASTEXITCODE -ne 0) {
             --is-linux | Out-Null
     }
     
-    # Create Web App (use node 20 as it's more widely supported)
+    # Create Web App - DON'T set runtime, we'll configure Docker container later
+    # This matches Terraform approach where Web App is created without runtime,
+    # then Docker container is configured during deployment
     az webapp create `
         --name "$WEB_APP_NAME" `
         --resource-group "$RESOURCE_GROUP" `
         --plan "$APP_SERVICE_PLAN" `
-        --runtime "NODE:20-lts" | Out-Null
+        --output none | Out-Null
     
     Write-Success "Web App created: $WEB_APP_NAME"
+    Write-Info "Web App will be configured with Docker container during frontend deployment"
 } else {
     Write-Success "Using existing Web App: $WEB_APP_NAME"
-    Write-Info "Ensuring Node.js runtime is set on existing Web App..."
-    # Force update runtime to Node.js (in case it was created with wrong runtime)
-    az webapp config set `
-        --name "$WEB_APP_NAME" `
-        --resource-group "$RESOURCE_GROUP" `
-        --linux-fx-version "NODE:20-lts" `
-        --output none | Out-Null
-    Write-Info "Web App runtime updated to Node.js 20"
+    Write-Info "Web App will be updated with Docker container configuration during deployment"
 }
 
 # Handle Application Insights

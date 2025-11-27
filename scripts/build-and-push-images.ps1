@@ -89,11 +89,11 @@ Write-Success "ACR verified: $ACR_NAME"
 $frontendPath = $null
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $possiblePaths = @(
+    "$scriptDir\..\..\frontend",        # From pa-deployment/scripts -> root/frontend (PREFERRED - has Dockerfile)
     "$scriptDir\..\frontend",           # From pa-deployment/scripts -> pa-deployment/frontend
-    "$scriptDir\..\..\frontend",        # From pa-deployment/scripts -> root/frontend
-    "..\frontend",                      # Relative from current directory
-    "..\..\frontend",                   # Relative from current directory (if in scripts)
-    "frontend"                          # If frontend is in current directory
+    "..\..\frontend",                    # Relative from current directory (if in scripts)
+    "..\frontend",                       # Relative from current directory
+    "frontend"                           # If frontend is in current directory
 )
 
 foreach ($path in $possiblePaths) {
