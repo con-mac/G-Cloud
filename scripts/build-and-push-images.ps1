@@ -59,19 +59,15 @@ if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
     exit 1
 }
 
-# Check if Docker is available
-Write-Info "Checking Docker installation..."
-$ErrorActionPreference = 'SilentlyContinue'
-$dockerVersion = docker --version 2>&1
-$ErrorActionPreference = 'Stop'
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Docker is not installed or not in PATH"
-    Write-Info "Please install Docker Desktop: https://www.docker.com/products/docker-desktop"
-    exit 1
+# Check if Docker is available (only needed for local builds, not ACR builds)
+# ACR build option doesn't require Docker
+$dockerCheck = Get-Command docker -ErrorAction SilentlyContinue
+if ($dockerCheck) {
+    $dockerVersion = docker --version 2>&1
+    Write-Success "Docker found: $dockerVersion (optional - only needed for local builds)"
+} else {
+    Write-Info "Docker not found locally - this is fine! Use ACR build (Option 1) which builds in Azure cloud."
 }
-
-Write-Success "Docker found: $dockerVersion"
 
 # Verify ACR exists
 Write-Info "Verifying Azure Container Registry: $ACR_NAME..."
@@ -296,18 +292,39 @@ if ($buildMethod -eq "2") {
         Write-Info "Attempting build anyway..."
     }
     
-    # ACR build: Dockerfile path is relative to build context
-    # Since build context is the frontend directory, Dockerfile is just "Dockerfile"
-    Write-Info "Starting ACR build (this may take 5-10 minutes)..."
-    Write-Info "Note: ACR will upload the build context and build in Azure cloud"
-    
-    az acr build `
-        --registry "$ACR_NAME" `
-        --image "${imageName}:$IMAGE_TAG" `
-        --file "Dockerfile" `
-        "$frontendPath" `
-        --timeout 1800 `
-        --output table
+    # CRITICAL FIX: Change to frontend directory and use relative paths
+    # This fixes Windows path issues with ACR build
+    $originalLocation = Get-Location
+    try {
+        Write-Info "Changing to frontend directory for ACR build..."
+        Set-Location $frontendPath
+        
+        Write-Info "Build context: . (current directory: $frontendPath)"
+        Write-Info "Dockerfile: Dockerfile (relative to context)"
+        Write-Info "Starting ACR build (this may take 5-10 minutes)..."
+        Write-Info "Note: ACR will upload the build context and build in Azure cloud"
+        
+        # Use "." as build context (current directory) and "Dockerfile" as relative path
+        # This works reliably on both Windows and Linux
+        az acr build `
+            --registry "$ACR_NAME" `
+            --image "${imageName}:$IMAGE_TAG" `
+            --file "Dockerfile" `
+            "." `
+            --timeout 1800 `
+            --output table
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to build frontend image in ACR"
+            Write-Info "Check the error above for details"
+            exit 1
+        }
+        
+        Write-Success "Frontend image built and pushed successfully: ${imageName}:$IMAGE_TAG"
+    } finally {
+        # Always return to original directory
+        Set-Location $originalLocation
+    }
     
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build frontend image in ACR"
