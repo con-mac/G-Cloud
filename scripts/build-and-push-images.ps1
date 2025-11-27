@@ -132,14 +132,73 @@ Write-Info "Frontend directory found: $frontendPath"
 # Check if Dockerfile exists (use absolute path)
 $dockerfilePath = Join-Path $frontendPath "Dockerfile"
 if (-not (Test-Path $dockerfilePath)) {
-    Write-Error "Dockerfile not found in frontend directory!"
-    Write-Info "Expected: $dockerfilePath"
+    Write-Warning "Dockerfile not found in frontend directory. Attempting to restore from git..."
+    
+    # Try to restore from git
+    $ErrorActionPreference = 'SilentlyContinue'
+    $gitContent = git show HEAD:frontend/Dockerfile 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($gitContent)) {
+        Write-Info "Found Dockerfile in git, creating it..."
+        $gitContent | Out-File -FilePath $dockerfilePath -Encoding utf8 -NoNewline
+        Write-Success "Dockerfile restored from git: $dockerfilePath"
+    } else {
+        # If git restore fails, create a default Dockerfile
+        Write-Warning "Could not restore from git. Creating default Dockerfile..."
+        $defaultDockerfile = @"
+# Multi-stage build for React application
+
+# Stage 1: Build
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Stage 2: Production
+FROM nginx:alpine
+
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built assets from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Expose port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
+"@
+        $defaultDockerfile | Out-File -FilePath $dockerfilePath -Encoding utf8
+        Write-Success "Default Dockerfile created: $dockerfilePath"
+    }
+}
+
+# Verify Dockerfile exists now
+if (-not (Test-Path $dockerfilePath)) {
+    Write-Error "Failed to create Dockerfile at: $dockerfilePath"
     Write-Info "Frontend directory contents:"
     Get-ChildItem $frontendPath -Name | Select-Object -First 10 | ForEach-Object { Write-Info "  - $_" }
     exit 1
 }
 
-Write-Success "Dockerfile found: $dockerfilePath"
+Write-Success "Dockerfile verified: $dockerfilePath"
 
 Write-Success "Dockerfile found"
 
