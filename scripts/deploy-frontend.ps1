@@ -198,49 +198,8 @@ SCM_SCRIPT_GENERATOR_ARGS=--node
 
 $deploymentConfig | Out-File -FilePath ".deployment" -Encoding utf8
 
-# Create startup.sh that will be included in deployment
-# Use here-string with proper escaping - write with Unix line endings
-$startupScriptContent = @'
-#!/bin/bash
-# Startup script for static site - ensures files are served correctly
-echo "=== Frontend Startup Script ==="
-echo "Checking for files..."
-
-# Check wwwroot first
-if [ -d /home/site/wwwroot ]; then
-    FILE_COUNT=$(find /home/site/wwwroot -type f 2>/dev/null | wc -l)
-    echo "Found $FILE_COUNT files in wwwroot"
-    if [ "$FILE_COUNT" -gt 0 ]; then
-        echo "Serving from wwwroot..."
-        npx -y serve -s /home/site/wwwroot -l 8080 --host 0.0.0.0
-        exit 0
-    fi
-fi
-
-# Check dist as fallback
-if [ -d /home/site/dist ]; then
-    FILE_COUNT=$(find /home/site/dist -type f 2>/dev/null | wc -l)
-    echo "Found $FILE_COUNT files in dist"
-    if [ "$FILE_COUNT" -gt 0 ]; then
-        echo "Serving from dist..."
-        npx -y serve -s /home/site/dist -l 8080 --host 0.0.0.0
-        exit 0
-    fi
-fi
-
-# Check if Oryx build output exists
-if [ -d /home/site/wwwroot ]; then
-    echo "wwwroot exists but appears empty"
-    ls -la /home/site/wwwroot
-fi
-
-echo "ERROR: No files found to serve"
-echo "Checking build output locations..."
-ls -la /home/site/ | head -20
-exit 1
-'@
-# Write with Unix line endings (LF) to avoid bash syntax errors
-$startupScriptContent -replace "`r`n", "`n" | Out-File -FilePath "startup.sh" -Encoding utf8 -NoNewline
+# Note: We're using a direct startup command (set above) instead of a script file
+# This avoids line ending issues and bash syntax errors that were causing problems
 
 # Deploy using Oryx build
 Write-Info "Deploying source code to App Service..."
