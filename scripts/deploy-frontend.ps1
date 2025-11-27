@@ -125,12 +125,17 @@ Write-Success "ACR verified: $ACR_NAME"
 # Check if frontend image exists in ACR
 Write-Info "Checking if frontend image exists in ACR..."
 $ErrorActionPreference = 'SilentlyContinue'
-# First check if repository exists
-$repoExists = az acr repository show --name "$ACR_NAME" --repository "frontend" --query "name" -o tsv 2>&1
-$ErrorActionPreference = 'Stop'
+# Check if frontend repository and image tag exist
+Write-Info "Checking if frontend image exists in ACR..."
+$ErrorActionPreference = 'SilentlyContinue'
 
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repoExists)) {
-    Write-Error "Frontend repository not found in ACR '$ACR_NAME'"
+# Try to list tags - this will fail if repository doesn't exist, or succeed if it does
+$allTags = az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output tsv 2>&1
+$tagsCheckExitCode = $LASTEXITCODE
+
+if ($tagsCheckExitCode -ne 0) {
+    # Repository might not exist, or there might be a permission issue
+    Write-Error "Frontend repository not found in ACR '$ACR_NAME' or access denied"
     Write-Info ""
     Write-Info "The frontend Docker image has not been built and pushed yet."
     Write-Info ""
@@ -162,6 +167,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($imageExists)) {
     Write-Info "Please build and push the image with tag '$IMAGE_TAG':"
     Write-Info "  .\scripts\build-and-push-images.ps1"
     Write-Info ""
+    Write-Info "Or use an existing tag from the list above"
     exit 1
 }
 
