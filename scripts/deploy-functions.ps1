@@ -136,21 +136,58 @@ if (-not $funcCheck) {
             $filesToZip | Compress-Archive -DestinationPath $deployZip -Force
             
             Write-Info "Deploying zip package to Function App..."
-            Write-Info "This may take a few minutes..."
+            Write-Info "This may take 5-10 minutes (first deployment is slower)..."
+            Write-Info "Monitoring deployment progress..."
             
-            $deployOutput = az functionapp deployment source config-zip `
-                --resource-group $RESOURCE_GROUP `
-                --name $FUNCTION_APP_NAME `
-                --src $deployZip `
-                --timeout 1800 2>&1
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "Backend code deployed successfully using zip deploy"
-            } else {
-                Write-Warning "Zip deployment failed. Checking deployment logs..."
-                Write-Info "Deployment output: $deployOutput"
-                Write-Info "To view detailed logs, run:"
-                Write-Info "  az webapp log deployment show -n $FUNCTION_APP_NAME -g $RESOURCE_GROUP"
+            # Use the newer az webapp deploy command which has better progress reporting
+            # This is the recommended method and shows real-time progress
+            try {
+                Write-Info "Starting deployment (this command shows live progress)..."
+                az webapp deploy `
+                    --resource-group $RESOURCE_GROUP `
+                    --name $FUNCTION_APP_NAME `
+                    --src-path $deployZip `
+                    --type zip `
+                    --timeout 1800 `
+                    --async false
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Backend code deployed successfully using zip deploy"
+                } else {
+                    Write-Warning "Deployment may have failed. Checking status..."
+                    # Fallback to old method if new one fails
+                    Write-Info "Trying alternative deployment method..."
+                    $deployOutput = az functionapp deployment source config-zip `
+                        --resource-group $RESOURCE_GROUP `
+                        --name $FUNCTION_APP_NAME `
+                        --src $deployZip `
+                        --timeout 1800 2>&1
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "Backend code deployed successfully using zip deploy (fallback method)"
+                    } else {
+                        Write-Warning "Zip deployment failed. Checking deployment logs..."
+                        Write-Info "Deployment output: $deployOutput"
+                        Write-Info "To view detailed logs, run:"
+                        Write-Info "  az webapp log deployment show -n $FUNCTION_APP_NAME -g $RESOURCE_GROUP"
+                    }
+                }
+            } catch {
+                Write-Warning "Deployment error: $_"
+                Write-Info "Trying alternative deployment method..."
+                $deployOutput = az functionapp deployment source config-zip `
+                    --resource-group $RESOURCE_GROUP `
+                    --name $FUNCTION_APP_NAME `
+                    --src $deployZip `
+                    --timeout 1800 2>&1
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Backend code deployed successfully using zip deploy (fallback method)"
+                } else {
+                    Write-Warning "Zip deployment failed. Checking deployment logs..."
+                    Write-Info "Deployment output: $deployOutput"
+                }
+            }
                 Write-Info "Or check in Azure Portal: Function App -> Deployment Center -> Logs"
                 Write-Warning "Function App will be configured with settings, but code deployment may need manual intervention."
             }
