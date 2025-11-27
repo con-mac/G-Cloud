@@ -177,8 +177,13 @@ function Search-ContainerRegistries {
         # ACR names are globally unique, so search in resource group first
         $acrs = az acr list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($acrs)) {
-            $results = $acrs -split "`n" | Where-Object { 
-                $_ -ne "" -and $_ -ne $null -and $_.Length -ge 5 -and $_.Length -le 50 
+            $results = @()
+            foreach ($line in ($acrs -split "`n")) {
+                $line = $line.Trim()
+                # Filter: must be 5-50 chars, alphanumeric lowercase only, not empty
+                if ($line -and $line.Length -ge 5 -and $line.Length -le 50 -and $line -match '^[a-z0-9]+$') {
+                    $results += $line
+                }
             }
             if ($results.Count -gt 0) {
                 return $results
@@ -188,8 +193,13 @@ function Search-ContainerRegistries {
         # Also search across all subscriptions (ACR names are globally unique)
         $allACRs = az acr list --query "[].name" -o tsv 2>&1
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allACRs)) {
-            $results = $allACRs -split "`n" | Where-Object { 
-                $_ -ne "" -and $_ -ne $null -and $_.Length -ge 5 -and $_.Length -le 50 
+            $results = @()
+            foreach ($line in ($allACRs -split "`n")) {
+                $line = $line.Trim()
+                # Filter: must be 5-50 chars, alphanumeric lowercase only, not empty
+                if ($line -and $line.Length -ge 5 -and $line.Length -le 50 -and $line -match '^[a-z0-9]+$') {
+                    $results += $line
+                }
             }
             if ($results.Count -gt 0) {
                 return $results
