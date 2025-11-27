@@ -334,7 +334,14 @@ if ($LASTEXITCODE -ne 0) {
     Write-Success "Web App created: $WEB_APP_NAME"
 } else {
     Write-Success "Using existing Web App: $WEB_APP_NAME"
-    Write-Info "Web App will be updated with new configuration during deployment"
+    Write-Info "Ensuring Node.js runtime is set on existing Web App..."
+    # Force update runtime to Node.js (in case it was created with wrong runtime)
+    az webapp config set `
+        --name "$WEB_APP_NAME" `
+        --resource-group "$RESOURCE_GROUP" `
+        --linux-fx-version "NODE:20-lts" `
+        --output none | Out-Null
+    Write-Info "Web App runtime updated to Node.js 20"
 }
 
 # Handle Application Insights
