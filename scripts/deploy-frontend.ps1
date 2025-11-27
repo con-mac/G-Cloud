@@ -177,9 +177,9 @@ az webapp config set `
     --linux-fx-version "NODE:20-lts" `
     --output none | Out-Null
 
-# Set startup command - use the startup.sh script we created
-# Make sure it's executable and use absolute path
-$startupCommand = "bash /home/site/wwwroot/startup.sh || bash /home/site/startup.sh || npx -y serve -s /home/site/wwwroot -l 8080"
+# Set startup command - simple direct command that will work
+# Azure App Service will use this to start the site
+$startupCommand = "npx -y serve -s /home/site/wwwroot -l 8080 --host 0.0.0.0 || npx -y serve -s /home/site/dist -l 8080 --host 0.0.0.0"
 
 az webapp config set `
     --name $WEB_APP_NAME `
