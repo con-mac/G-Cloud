@@ -39,6 +39,9 @@ function Write-Error { param([string]$msg) Write-Host "[ERROR] $msg" -Foreground
 
 Write-Info "Building and pushing Docker images to Azure Container Registry..."
 
+# Note: Docker is only required for local builds (Option 2)
+# ACR build (Option 1) builds in Azure cloud - no local Docker needed
+
 # Validate configuration
 if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
     Write-Error "ACR_NAME is missing in config file!"
