@@ -141,10 +141,26 @@ Write-Success "Environment file created"
 # Configure App Service for static site hosting
 Write-Info "Configuring App Service for static site hosting..."
 
+# CRITICAL: Set Node.js runtime FIRST (Azure might default to PHP)
+Write-Info "Setting Node.js 20 runtime (this must be done first)..."
+az webapp config set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --linux-fx-version "NODE:20-lts" `
+    --output none
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to set Node.js runtime"
+    Pop-Location
+    exit 1
+}
+
+Write-Success "Node.js runtime set"
+
 # Set app settings for Oryx build
 # POST_BUILD_COMMAND ensures dist files are copied to wwwroot
-# Use simple command to avoid parsing issues
-$postBuildCmd = 'if [ -d dist ]; then mkdir -p /home/site/wwwroot && cp -r dist/. /home/site/wwwroot/; fi'
+# Use very simple command to avoid parsing issues
+$postBuildCmd = 'mkdir -p /home/site/wwwroot && cp -r dist/. /home/site/wwwroot/ 2>/dev/null || true'
 $appSettings = @(
     "SCM_DO_BUILD_DURING_DEPLOYMENT=true",
     "ENABLE_ORYX_BUILD=true",
@@ -156,41 +172,27 @@ $appSettings = @(
 )
 
 # Set app settings one by one to avoid parsing issues
-Write-Info "Setting app settings..."
+Write-Info "Setting app settings one by one..."
+$settingsSuccess = $true
 foreach ($setting in $appSettings) {
     $ErrorActionPreference = 'SilentlyContinue'
-    az webapp config appsettings set `
+    $result = az webapp config appsettings set `
         --name $WEB_APP_NAME `
         --resource-group $RESOURCE_GROUP `
         --settings "$setting" `
-        --output none 2>&1 | Out-Null
+        --output none 2>&1
     $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to set: $setting"
+        Write-Warning "Error: $result"
+        $settingsSuccess = $false
+    }
 }
 
-# App settings are set above in the loop
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Some app settings may have failed, but continuing..."
+if (-not $settingsSuccess) {
+    Write-Warning "Some app settings failed, but continuing deployment..."
 }
-
-# For static sites, use a simple startup command that serves files
-Write-Info "Configuring for static site hosting..."
-
-# CRITICAL: Set Node.js runtime explicitly (Azure might default to PHP)
-Write-Info "Setting Node.js 20 runtime..."
-az webapp config set `
-    --name $WEB_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --linux-fx-version "NODE:20-lts" `
-    --output none | Out-Null
-
-# Also set via app settings to ensure it sticks
-$ErrorActionPreference = 'SilentlyContinue'
-az webapp config appsettings set `
-    --name $WEB_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --settings "WEBSITE_NODE_DEFAULT_VERSION=~20" `
-    --output none 2>&1 | Out-Null
-$ErrorActionPreference = 'Stop'
 
 # Set startup command - simple direct command that will work
 # Azure App Service will use this to start the site
