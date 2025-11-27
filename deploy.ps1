@@ -172,13 +172,29 @@ function Search-KeyVaults {
 
 function Search-ContainerRegistries {
     param([string]$ResourceGroup)
+    $ErrorActionPreference = 'SilentlyContinue'
     try {
-        # ACR names are globally unique, so search across all subscriptions
+        # ACR names are globally unique, so search in resource group first
         $acrs = az acr list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
-        if ($LASTEXITCODE -eq 0 -and $acrs) {
-            return $acrs -split "`n" | Where-Object { $_ -ne "" }
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($acrs)) {
+            $results = $acrs -split "`n" | Where-Object { $_ -ne "" -and $_ -ne $null }
+            if ($results.Count -gt 0) {
+                return $results
+            }
         }
-    } catch {}
+        
+        # Also search across all subscriptions (ACR names are globally unique)
+        $allACRs = az acr list --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allACRs)) {
+            $results = $allACRs -split "`n" | Where-Object { $_ -ne "" -and $_ -ne $null }
+            if ($results.Count -gt 0) {
+                return $results
+            }
+        }
+    } catch {
+        Write-Warning "Error searching for Container Registries: $_"
+    }
+    $ErrorActionPreference = 'Stop'
     return @()
 }
 
@@ -641,19 +657,24 @@ function Start-Deployment {
     Write-Info "Step 8.5: Azure Container Registry Configuration"
     Write-Host "Container Registry stores Docker images for the frontend deployment."
     Write-Host ""
+    
+    # Search for existing ACRs (globally, since ACR names are globally unique)
     $existingACRs = Search-ContainerRegistries -ResourceGroup $RESOURCE_GROUP
-    if ($existingACRs.Count -gt 0) {
+    
+    if ($existingACRs -and $existingACRs.Count -gt 0) {
         Write-Host "Existing Container Registries found:"
         for ($i = 0; $i -lt $existingACRs.Count; $i++) {
-            Write-Host "  [$i] $($existingACRs[$i])"
+            Write-Host "  [$i] Use existing: $($existingACRs[$i])"
         }
         Write-Host "  [n] Create new"
+        Write-Host ""
         $acrChoice = Read-Host "Select option (0-$($existingACRs.Count - 1)) or 'n' for new"
         
         if ($acrChoice -match '^\d+$' -and [int]$acrChoice -lt $existingACRs.Count) {
             $ACR_NAME = $existingACRs[[int]$acrChoice]
             Write-Success "Using existing Container Registry: $ACR_NAME"
         } else {
+            # Create new
             $ACR_NAME = Read-Host "Enter Container Registry name (5-50 alphanumeric, lowercase) [pa-gcloud15-acr]"
             if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
                 $ACR_NAME = "pa-gcloud15-acr"
@@ -668,6 +689,7 @@ function Start-Deployment {
             }
         }
     } else {
+        # No existing ACRs found, create new
         $ACR_NAME = Read-Host "Enter Container Registry name (5-50 alphanumeric, lowercase) [pa-gcloud15-acr]"
         if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
             $ACR_NAME = "pa-gcloud15-acr"
