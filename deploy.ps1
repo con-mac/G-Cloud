@@ -996,8 +996,10 @@ function Start-Deployment {
             Write-Info "This will build in Azure cloud (no local Docker needed)..."
             Write-Info ""
             
-            # Call build script - it will use ACR build (Option 1) automatically
+            # Call build script in non-interactive mode (uses ACR build automatically)
+            $env:DEPLOY_NON_INTERACTIVE = "true"
             & ".\scripts\build-and-push-images.ps1"
+            $env:DEPLOY_NON_INTERACTIVE = $null
             
             if ($LASTEXITCODE -ne 0) {
                 Write-Error "Failed to build frontend Docker image"

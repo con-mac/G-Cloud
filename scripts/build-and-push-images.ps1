@@ -284,15 +284,24 @@ $acrLoginServer = "$ACR_NAME.azurecr.io"
 $imageName = "frontend"
 $fullImageName = "$acrLoginServer/${imageName}:$IMAGE_TAG"
 
-# Ask user which build method to use
-Write-Host ""
-Write-Host "Build method:"
-Write-Host "  [1] ACR build (builds in Azure cloud, no local Docker needed) - Recommended for dev team"
-Write-Host "  [2] Local build and push (requires Docker Desktop) - Recommended for initial setup"
-Write-Host ""
-$buildMethod = Read-Host "Select build method (1 or 2) [1]"
-if ([string]::IsNullOrWhiteSpace($buildMethod)) {
+# Check if called non-interactively (from deploy.ps1)
+$nonInteractive = $env:DEPLOY_NON_INTERACTIVE -eq "true"
+
+# Ask user which build method to use (unless non-interactive)
+if (-not $nonInteractive) {
+    Write-Host ""
+    Write-Host "Build method:"
+    Write-Host "  [1] ACR build (builds in Azure cloud, no local Docker needed) - Recommended for dev team"
+    Write-Host "  [2] Local build and push (requires Docker Desktop) - Recommended for initial setup"
+    Write-Host ""
+    $buildMethod = Read-Host "Select build method (1 or 2) [1]"
+    if ([string]::IsNullOrWhiteSpace($buildMethod)) {
+        $buildMethod = "1"
+    }
+} else {
+    # Non-interactive mode: always use ACR build (no Docker needed)
     $buildMethod = "1"
+    Write-Info "Non-interactive mode: Using ACR build (builds in Azure cloud)"
 }
 
 if ($buildMethod -eq "2") {
