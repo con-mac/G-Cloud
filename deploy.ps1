@@ -973,7 +973,48 @@ function Start-Deployment {
         Write-Info "Starting deployment..."
         & ".\scripts\setup-resources.ps1"
         & ".\scripts\deploy-functions.ps1"
+        
+        # Build and push frontend Docker image (if not already built)
+        Write-Info "Checking if frontend Docker image needs to be built..."
+        $ErrorActionPreference = 'SilentlyContinue'
+        $allTagsList = az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        $imageExists = $false
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allTagsList)) {
+            $tags = $allTagsList -split "`n" | Where-Object { $_ -and $_.Trim() -ne "" }
+            foreach ($tag in $tags) {
+                if ($tag.Trim() -eq $IMAGE_TAG) {
+                    $imageExists = $true
+                    break
+                }
+            }
+        }
+        
+        if (-not $imageExists) {
+            Write-Info "Frontend Docker image not found. Building and pushing to ACR..."
+            Write-Info "This will build in Azure cloud (no local Docker needed)..."
+            Write-Info ""
+            
+            # Call build script - it will use ACR build (Option 1) automatically
+            & ".\scripts\build-and-push-images.ps1"
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to build frontend Docker image"
+                Write-Info "You can build it manually later with: .\scripts\build-and-push-images.ps1"
+                Write-Info "Continuing with deployment (frontend will be deployed when image is ready)..."
+            } else {
+                Write-Success "Frontend Docker image built and pushed successfully"
+            }
+        } else {
+            Write-Success "Frontend Docker image already exists in ACR: frontend:$IMAGE_TAG"
+        }
+        
+        # Deploy frontend to Web App
+        Write-Info "Deploying frontend to Web App using Docker container from ACR..."
         & ".\scripts\deploy-frontend.ps1"
+        
+        # Configure authentication
         & ".\scripts\configure-auth.ps1"
         
         Write-Success "Deployment complete!"
