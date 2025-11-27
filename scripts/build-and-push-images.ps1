@@ -97,11 +97,16 @@ $possiblePaths = @(
 )
 
 foreach ($path in $possiblePaths) {
-    $fullPath = Resolve-Path $path -ErrorAction SilentlyContinue
-    if ($fullPath -and (Test-Path $fullPath)) {
-        $frontendPath = $path
-        Write-Info "Found frontend directory: $path"
-        break
+    try {
+        $resolvedPath = Resolve-Path $path -ErrorAction Stop
+        if ($resolvedPath -and (Test-Path $resolvedPath)) {
+            $frontendPath = $resolvedPath.Path
+            Write-Info "Found frontend directory: $frontendPath"
+            break
+        }
+    } catch {
+        # Path doesn't exist, try next
+        continue
     }
 }
 
@@ -115,20 +120,26 @@ if ($null -eq $frontendPath) {
     Write-Info ""
     Write-Info "Please ensure:"
     Write-Info "  1. Frontend directory exists (either in root or pa-deployment)"
-    Write-Info "  2. You're running from pa-deployment directory"
+    Write-Info "  2. You're running from the repository root or pa-deployment directory"
     Write-Info ""
     Write-Info "Current directory: $(Get-Location)"
+    Write-Info "Script location: $scriptDir"
     exit 1
 }
 
 Write-Info "Frontend directory found: $frontendPath"
 
-# Check if Dockerfile exists
-if (-not (Test-Path "$frontendPath\Dockerfile")) {
+# Check if Dockerfile exists (use absolute path)
+$dockerfilePath = Join-Path $frontendPath "Dockerfile"
+if (-not (Test-Path $dockerfilePath)) {
     Write-Error "Dockerfile not found in frontend directory!"
-    Write-Info "Expected: $frontendPath\Dockerfile"
+    Write-Info "Expected: $dockerfilePath"
+    Write-Info "Frontend directory contents:"
+    Get-ChildItem $frontendPath -Name | Select-Object -First 10 | ForEach-Object { Write-Info "  - $_" }
     exit 1
 }
+
+Write-Success "Dockerfile found: $dockerfilePath"
 
 Write-Success "Dockerfile found"
 
@@ -169,7 +180,9 @@ if ($buildMethod -eq "2") {
     
     # Build image locally
     Write-Info "Building Docker image locally..."
-    docker build -t "$fullImageName" -f "$frontendPath\Dockerfile" "$frontendPath"
+    Write-Info "Dockerfile: $dockerfilePath"
+    Write-Info "Build context: $frontendPath"
+    docker build -t "$fullImageName" -f "$dockerfilePath" "$frontendPath"
     
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build Docker image locally"
@@ -192,25 +205,17 @@ if ($buildMethod -eq "2") {
     # ACR build method (builds in Azure)
     Write-Info "Using ACR build task (builds in Azure cloud, no local Docker needed)..."
     
-    # Convert path to absolute and normalize separators for ACR build
-    $absoluteFrontendPath = (Resolve-Path $frontendPath).Path
-    $dockerfilePath = Join-Path $absoluteFrontendPath "Dockerfile"
-    
-    if (-not (Test-Path $dockerfilePath)) {
-        Write-Error "Dockerfile not found at: $dockerfilePath"
-        exit 1
-    }
-    
+    # $frontendPath is already absolute from earlier resolution
     # ACR build uses the directory as context, Dockerfile path is relative to context
     # Since context is the frontend directory, Dockerfile is just "Dockerfile"
-    Write-Info "Build context: $absoluteFrontendPath"
+    Write-Info "Build context: $frontendPath"
     Write-Info "Dockerfile: Dockerfile (relative to context)"
     
     az acr build `
         --registry "$ACR_NAME" `
         --image "${imageName}:$IMAGE_TAG" `
         --file "Dockerfile" `
-        "$absoluteFrontendPath" `
+        "$frontendPath" `
         --output none
     
     if ($LASTEXITCODE -ne 0) {
