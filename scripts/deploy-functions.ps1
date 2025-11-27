@@ -143,15 +143,19 @@ if (-not $funcCheck) {
             # This is the recommended method and shows real-time progress
             try {
                 Write-Info "Starting deployment (this command shows live progress)..."
-                az webapp deploy `
+                $deployOutput = az webapp deploy `
                     --resource-group $RESOURCE_GROUP `
                     --name $FUNCTION_APP_NAME `
                     --src-path $deployZip `
                     --type zip `
                     --timeout 1800 `
-                    --async false
+                    --async false 2>&1
                 
-                if ($LASTEXITCODE -eq 0) {
+                # Check if error is about API not being available (known issue with some Azure CLI versions)
+                if ($deployOutput -match "This API isn't available|not available in this environment") {
+                    Write-Info "New deployment API not available, using fallback method..."
+                    $deployOutput = $null
+                } elseif ($LASTEXITCODE -eq 0) {
                     Write-Success "Backend code deployed successfully using zip deploy"
                 } else {
                     Write-Warning "Deployment may have failed. Checking status..."

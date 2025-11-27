@@ -177,7 +177,9 @@ function Search-ContainerRegistries {
         # ACR names are globally unique, so search in resource group first
         $acrs = az acr list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($acrs)) {
-            $results = $acrs -split "`n" | Where-Object { $_ -ne "" -and $_ -ne $null }
+            $results = $acrs -split "`n" | Where-Object { 
+                $_ -ne "" -and $_ -ne $null -and $_.Length -ge 5 -and $_.Length -le 50 
+            }
             if ($results.Count -gt 0) {
                 return $results
             }
@@ -186,7 +188,9 @@ function Search-ContainerRegistries {
         # Also search across all subscriptions (ACR names are globally unique)
         $allACRs = az acr list --query "[].name" -o tsv 2>&1
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allACRs)) {
-            $results = $allACRs -split "`n" | Where-Object { $_ -ne "" -and $_ -ne $null }
+            $results = $allACRs -split "`n" | Where-Object { 
+                $_ -ne "" -and $_ -ne $null -and $_.Length -ge 5 -and $_.Length -le 50 
+            }
             if ($results.Count -gt 0) {
                 return $results
             }
@@ -904,7 +908,7 @@ function Start-Deployment {
             "WEB_APP_NAME=$WEB_APP_NAME",
             "KEY_VAULT_NAME=$KEY_VAULT_NAME",
             "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL",
-            "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID",
+            "SHAREPOINT_SITE_ID=$($SHAREPOINT_SITE_ID -replace '\?.*$', '')",
             "APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME",
             "CUSTOM_DOMAIN=$CUSTOM_DOMAIN",
             "LOCATION=$LOCATION",
