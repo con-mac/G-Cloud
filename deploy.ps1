@@ -170,6 +170,18 @@ function Search-KeyVaults {
     return @()
 }
 
+function Search-ContainerRegistries {
+    param([string]$ResourceGroup)
+    try {
+        # ACR names are globally unique, so search across all subscriptions
+        $acrs = az acr list --resource-group $ResourceGroup --query "[].name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $acrs) {
+            return $acrs -split "`n" | Where-Object { $_ -ne "" }
+        }
+    } catch {}
+    return @()
+}
+
 # Prompt for resource choice: existing, new, or skip
 function Get-ResourceChoice {
     param(
@@ -625,6 +637,57 @@ function Start-Deployment {
     $STORAGE_CHOICE_TYPE = ($storageChoice -split ':')[0]
     $STORAGE_ACCOUNT_NAME = ($storageChoice -split ':', 2)[1]
     
+    # Prompt for Azure Container Registry
+    Write-Info "Step 8.5: Azure Container Registry Configuration"
+    Write-Host "Container Registry stores Docker images for the frontend deployment."
+    Write-Host ""
+    $existingACRs = Search-ContainerRegistries -ResourceGroup $RESOURCE_GROUP
+    if ($existingACRs.Count -gt 0) {
+        Write-Host "Existing Container Registries found:"
+        for ($i = 0; $i -lt $existingACRs.Count; $i++) {
+            Write-Host "  [$i] $($existingACRs[$i])"
+        }
+        Write-Host "  [n] Create new"
+        $acrChoice = Read-Host "Select option (0-$($existingACRs.Count - 1)) or 'n' for new"
+        
+        if ($acrChoice -match '^\d+$' -and [int]$acrChoice -lt $existingACRs.Count) {
+            $ACR_NAME = $existingACRs[[int]$acrChoice]
+            Write-Success "Using existing Container Registry: $ACR_NAME"
+        } else {
+            $ACR_NAME = Read-Host "Enter Container Registry name (5-50 alphanumeric, lowercase) [pa-gcloud15-acr]"
+            if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
+                $ACR_NAME = "pa-gcloud15-acr"
+            }
+            # Validate ACR name: lowercase alphanumeric, 5-50 chars
+            $ACR_NAME = $ACR_NAME.ToLower() -replace '[^a-z0-9]', ''
+            if ($ACR_NAME.Length -lt 5) {
+                $ACR_NAME = $ACR_NAME.PadRight(5, '0')
+            }
+            if ($ACR_NAME.Length -gt 50) {
+                $ACR_NAME = $ACR_NAME.Substring(0, 50)
+            }
+        }
+    } else {
+        $ACR_NAME = Read-Host "Enter Container Registry name (5-50 alphanumeric, lowercase) [pa-gcloud15-acr]"
+        if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
+            $ACR_NAME = "pa-gcloud15-acr"
+        }
+        # Validate ACR name
+        $ACR_NAME = $ACR_NAME.ToLower() -replace '[^a-z0-9]', ''
+        if ($ACR_NAME.Length -lt 5) {
+            $ACR_NAME = $ACR_NAME.PadRight(5, '0')
+        }
+        if ($ACR_NAME.Length -gt 50) {
+            $ACR_NAME = $ACR_NAME.Substring(0, 50)
+        }
+    }
+    
+    # Prompt for image tag
+    $IMAGE_TAG = Read-Host "Enter Docker image tag [latest]"
+    if ([string]::IsNullOrWhiteSpace($IMAGE_TAG)) {
+        $IMAGE_TAG = "latest"
+    }
+    
     # Prompt for Private DNS Zone
     Write-Info "Step 9: Private DNS Zone Configuration"
     $dnsChoice = Get-ResourceChoice -ResourceType "Private DNS Zone" -DefaultName "privatelink.azurewebsites.net" -ResourceGroup $RESOURCE_GROUP -SearchFunction ${function:Search-PrivateDnsZones}
@@ -735,6 +798,7 @@ function Start-Deployment {
     Write-Host "  App Registration: $APP_REGISTRATION_NAME"
     Write-Host "  Custom Domain: $CUSTOM_DOMAIN"
     Write-Host "  Storage Account: $STORAGE_CHOICE_TYPE ($STORAGE_ACCOUNT_NAME)"
+    Write-Host "  Container Registry: $ACR_NAME (tag: $IMAGE_TAG)"
     Write-Host "  Private DNS Zone: $PRIVATE_DNS_CHOICE_TYPE ($PRIVATE_DNS_ZONE_NAME)"
     Write-Host "  Application Insights: $APP_INSIGHTS_CHOICE_TYPE ($APP_INSIGHTS_NAME)"
     if ($CONFIGURE_PRIVATE_ENDPOINTS -eq "true") {
@@ -795,6 +859,8 @@ function Start-Deployment {
             "SUBSCRIPTION_ID=$SUBSCRIPTION_ID",
             "STORAGE_ACCOUNT_CHOICE=$STORAGE_CHOICE_TYPE",
             "STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME",
+            "ACR_NAME=$ACR_NAME",
+            "IMAGE_TAG=$IMAGE_TAG",
             "PRIVATE_DNS_CHOICE=$PRIVATE_DNS_CHOICE_TYPE",
             "PRIVATE_DNS_ZONE_NAME=$PRIVATE_DNS_ZONE_NAME",
             "APP_INSIGHTS_CHOICE=$APP_INSIGHTS_CHOICE_TYPE",

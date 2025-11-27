@@ -448,6 +448,55 @@ if ([string]::IsNullOrWhiteSpace($PRIVATE_DNS_CHOICE) -or $PRIVATE_DNS_CHOICE -e
     $PRIVATE_DNS_ZONE_NAME = ""
 }
 
+# Handle Azure Container Registry
+$ACR_NAME = $config.ACR_NAME
+$IMAGE_TAG = $config.IMAGE_TAG
+
+if (-not [string]::IsNullOrWhiteSpace($ACR_NAME)) {
+    Write-Info "Setting up Azure Container Registry..."
+    $ErrorActionPreference = 'SilentlyContinue'
+    $acrExists = az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Info "Creating Azure Container Registry: $ACR_NAME"
+        # ACR name must be globally unique, lowercase alphanumeric, 5-50 chars
+        $acrNameClean = $ACR_NAME.ToLower() -replace '[^a-z0-9]', ''
+        if ($acrNameClean.Length -lt 5) {
+            $acrNameClean = $acrNameClean.PadRight(5, '0')
+        }
+        if ($acrNameClean.Length -gt 50) {
+            $acrNameClean = $acrNameClean.Substring(0, 50)
+        }
+        
+        # Create ACR with Basic SKU (sufficient for dev, can upgrade later)
+        az acr create `
+            --name "$acrNameClean" `
+            --resource-group "$RESOURCE_GROUP" `
+            --sku Basic `
+            --admin-enabled true `
+            --location "$LOCATION" `
+            --output none
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Azure Container Registry created: $acrNameClean"
+            $ACR_NAME = $acrNameClean
+        } else {
+            Write-Warning "Failed to create ACR. It may already exist globally or name is taken."
+            Write-Info "Please ensure ACR '$ACR_NAME' exists or choose a different name."
+        }
+    } else {
+        Write-Success "Using existing Azure Container Registry: $ACR_NAME"
+    }
+    
+    # Set default image tag if not provided
+    if ([string]::IsNullOrWhiteSpace($IMAGE_TAG)) {
+        $IMAGE_TAG = "latest"
+    }
+} else {
+    Write-Warning "ACR_NAME not specified in config. Container deployment will require ACR to be configured."
+}
+
 # Handle VNet and Private Endpoint Configuration
 $CONFIGURE_PRIVATE_ENDPOINTS = $config.CONFIGURE_PRIVATE_ENDPOINTS
 $VNET_NAME = $config.VNET_NAME

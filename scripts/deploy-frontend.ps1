@@ -1,5 +1,5 @@
 # Deploy Frontend Script (PowerShell)
-# Deploys React frontend to Azure App Service using Oryx build (no local Node.js required)
+# Deploys React frontend to Azure App Service using Docker container from ACR
 
 $ErrorActionPreference = "Stop"
 
@@ -38,24 +38,20 @@ foreach ($line in $fileLines) {
 $WEB_APP_NAME = $config.WEB_APP_NAME
 $RESOURCE_GROUP = $config.RESOURCE_GROUP
 $FUNCTION_APP_NAME = $config.FUNCTION_APP_NAME
+$ACR_NAME = $config.ACR_NAME
+$IMAGE_TAG = $config.IMAGE_TAG
 
 function Write-Info { param([string]$msg) Write-Host "[INFO] $msg" -ForegroundColor Blue }
 function Write-Success { param([string]$msg) Write-Host "[SUCCESS] $msg" -ForegroundColor Green }
 function Write-Warning { param([string]$msg) Write-Host "[WARNING] $msg" -ForegroundColor Yellow }
 function Write-Error { param([string]$msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
-Write-Info "Deploying frontend to Web App using Azure Oryx build (no local Node.js required)..."
+Write-Info "Deploying frontend to Web App using Docker container from ACR..."
 
 # Validate configuration
 if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
     Write-Error "FUNCTION_APP_NAME is missing or empty in config file!"
     Write-Info "Please check config\deployment-config.env"
-    Write-Info "Expected format: FUNCTION_APP_NAME=pa-gcloud15-api"
-    Write-Info ""
-    Write-Info "Current config values:"
-    Write-Info "  FUNCTION_APP_NAME: '$FUNCTION_APP_NAME'"
-    Write-Info "  WEB_APP_NAME: '$WEB_APP_NAME'"
-    Write-Info "  RESOURCE_GROUP: '$RESOURCE_GROUP'"
     exit 1
 }
 
@@ -69,39 +65,24 @@ if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
     exit 1
 }
 
-# Debug output - show raw values
+if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
+    Write-Error "ACR_NAME is missing in config file!"
+    Write-Info "Please run deploy.ps1 and configure Container Registry"
+    exit 1
+}
+
+if ([string]::IsNullOrWhiteSpace($IMAGE_TAG)) {
+    $IMAGE_TAG = "latest"
+    Write-Warning "IMAGE_TAG not specified, using 'latest'"
+}
+
+# Debug output
 Write-Info "Configuration loaded:"
-Write-Info "  Function App: '$FUNCTION_APP_NAME' (length: $($FUNCTION_APP_NAME.Length))"
-Write-Info "  Web App: '$WEB_APP_NAME' (length: $($WEB_APP_NAME.Length))"
-Write-Info "  Resource Group: '$RESOURCE_GROUP' (length: $($RESOURCE_GROUP.Length))"
-
-# Show all config keys for debugging
-Write-Info "All config keys found: $($config.Keys -join ', ')"
-
-# Check if frontend directory exists
-if (-not (Test-Path "frontend")) {
-    Write-Error "Frontend directory not found!"
-    exit 1
-}
-
-Push-Location frontend
-
-# Verify essential files exist
-Write-Info "Verifying frontend files..."
-
-if (-not (Test-Path "package.json")) {
-    Write-Error "package.json not found. Frontend source files are missing."
-    Pop-Location
-    exit 1
-}
-
-if (-not (Test-Path "src") -or -not (Test-Path "src\main.tsx")) {
-    Write-Error "Frontend src folder or main.tsx not found. Please ensure frontend/src/ directory exists with your React source files."
-    Pop-Location
-    exit 1
-}
-
-Write-Success "Frontend files verified"
+Write-Info "  Function App: '$FUNCTION_APP_NAME'"
+Write-Info "  Web App: '$WEB_APP_NAME'"
+Write-Info "  Resource Group: '$RESOURCE_GROUP'"
+Write-Info "  ACR: '$ACR_NAME'"
+Write-Info "  Image Tag: '$IMAGE_TAG'"
 
 # Get Function App URL for API configuration
 Write-Info "Getting Function App URL for: $FUNCTION_APP_NAME..."
@@ -120,60 +101,100 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($FUNCTION_APP_URL)) {
     Write-Info "Please verify:"
     Write-Info "  1. Function App exists: az functionapp list --resource-group $RESOURCE_GROUP"
     Write-Info "  2. Config file has correct name: Get-Content config\deployment-config.env"
-    Pop-Location
     exit 1
 }
 
 Write-Success "Function App URL: https://$FUNCTION_APP_URL"
 
-# Create .env.production with API URL
-Write-Info "Creating production environment file..."
-$envContent = @"
-VITE_API_BASE_URL=https://${FUNCTION_APP_URL}/api/v1
-VITE_AZURE_AD_TENANT_ID=PLACEHOLDER_TENANT_ID
-VITE_AZURE_AD_CLIENT_ID=PLACEHOLDER_CLIENT_ID
-VITE_AZURE_AD_REDIRECT_URI=https://${WEB_APP_NAME}.azurewebsites.net
-"@
+# Verify ACR exists
+Write-Info "Verifying Azure Container Registry: $ACR_NAME..."
+$ErrorActionPreference = 'SilentlyContinue'
+$acrExists = az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" --query "name" -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
 
-$envContent | Out-File -FilePath ".env.production" -Encoding utf8
-Write-Success "Environment file created"
-
-# Configure App Service for static site hosting
-Write-Info "Configuring App Service for static site hosting..."
-
-# CRITICAL: Set Node.js runtime FIRST (Azure might default to PHP)
-Write-Info "Setting Node.js 20 runtime (this must be done first)..."
-az webapp config set `
-    --name $WEB_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --linux-fx-version "NODE:20-lts" `
-    --output none
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to set Node.js runtime"
-    Pop-Location
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acrExists)) {
+    Write-Error "Azure Container Registry '$ACR_NAME' not found in resource group '$RESOURCE_GROUP'"
+    Write-Info "Please ensure:"
+    Write-Info "  1. ACR exists: az acr list --resource-group $RESOURCE_GROUP"
+    Write-Info "  2. Images are built and pushed: .\scripts\build-and-push-images.ps1"
     exit 1
 }
 
-Write-Success "Node.js runtime set"
+Write-Success "ACR verified: $ACR_NAME"
 
-# Set app settings for Oryx build
-# POST_BUILD_COMMAND ensures dist files are copied to wwwroot
-# Use very simple command to avoid parsing issues
-$postBuildCmd = 'mkdir -p /home/site/wwwroot && cp -r dist/. /home/site/wwwroot/ 2>/dev/null || true'
+# Check if frontend image exists in ACR
+Write-Info "Checking if frontend image exists in ACR..."
+$ErrorActionPreference = 'SilentlyContinue'
+$imageExists = az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --query "[?name=='$IMAGE_TAG'].name" -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($imageExists)) {
+    Write-Warning "Frontend image 'frontend:$IMAGE_TAG' not found in ACR '$ACR_NAME'"
+    Write-Info "Please build and push the image first:"
+    Write-Info "  .\scripts\build-and-push-images.ps1"
+    Write-Info ""
+    Write-Info "Or verify the image tag is correct. Available tags:"
+    $ErrorActionPreference = 'SilentlyContinue'
+    az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output table 2>&1
+    $ErrorActionPreference = 'Stop'
+    exit 1
+}
+
+Write-Success "Frontend image found: frontend:$IMAGE_TAG"
+
+# Get ACR credentials
+Write-Info "Getting ACR credentials..."
+$ErrorActionPreference = 'SilentlyContinue'
+$acrUsername = az acr credential show --name "$ACR_NAME" --query "username" -o tsv 2>&1
+$acrPassword = az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acrUsername) -or [string]::IsNullOrWhiteSpace($acrPassword)) {
+    Write-Error "Failed to get ACR credentials"
+    Write-Info "Please ensure ACR admin user is enabled:"
+    Write-Info "  az acr update --name $ACR_NAME --admin-enabled true"
+    exit 1
+}
+
+Write-Success "ACR credentials retrieved"
+
+# Configure Web App to use Docker container
+Write-Info "Configuring Web App to use Docker container..."
+$acrLoginServer = "$ACR_NAME.azurecr.io"
+$dockerImage = "$acrLoginServer/frontend:$IMAGE_TAG"
+
+Write-Info "Setting container configuration..."
+Write-Info "  Image: $dockerImage"
+Write-Info "  Registry: $acrLoginServer"
+
+az webapp config container set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --docker-custom-image-name $dockerImage `
+    --docker-registry-server-url "https://$acrLoginServer" `
+    --docker-registry-server-user $acrUsername `
+    --docker-registry-server-password $acrPassword `
+    --output none
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to configure Web App container"
+    exit 1
+}
+
+Write-Success "Web App configured to use Docker container"
+
+# Set app settings for API URL and other configuration
+Write-Info "Configuring app settings..."
 $appSettings = @(
-    "SCM_DO_BUILD_DURING_DEPLOYMENT=true",
-    "ENABLE_ORYX_BUILD=true",
-    "WEBSITE_RUN_FROM_PACKAGE=0",
-    "WEBSITE_NODE_DEFAULT_VERSION=~20",
-    "POST_BUILD_COMMAND=$postBuildCmd",
+    "VITE_API_BASE_URL=https://${FUNCTION_APP_URL}/api/v1",
+    "VITE_AZURE_AD_TENANT_ID=PLACEHOLDER_TENANT_ID",
+    "VITE_AZURE_AD_CLIENT_ID=PLACEHOLDER_CLIENT_ID",
+    "VITE_AZURE_AD_REDIRECT_URI=https://${WEB_APP_NAME}.azurewebsites.net",
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false",
-    "PORT=8080"
+    "PORT=80"
 )
 
 # Set app settings one by one to avoid parsing issues
-Write-Info "Setting app settings one by one..."
-$settingsSuccess = $true
 foreach ($setting in $appSettings) {
     $ErrorActionPreference = 'SilentlyContinue'
     $result = az webapp config appsettings set `
@@ -185,113 +206,30 @@ foreach ($setting in $appSettings) {
     
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Failed to set: $setting"
-        Write-Warning "Error: $result"
-        $settingsSuccess = $false
     }
 }
 
-if (-not $settingsSuccess) {
-    Write-Warning "Some app settings failed, but continuing deployment..."
-}
+Write-Success "App settings configured"
 
-# Set startup command - simple direct command that will work
-# Azure App Service will use this to start the site
-$startupCommand = "npx -y serve -s /home/site/wwwroot -l 8080 --host 0.0.0.0 || npx -y serve -s /home/site/dist -l 8080 --host 0.0.0.0"
-
-az webapp config set `
+# Restart the app to apply container changes
+Write-Info "Restarting Web App to apply container configuration..."
+az webapp restart `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --startup-file "$startupCommand" `
-    --output none | Out-Null
-
-Write-Info "Static site configured - will serve files from wwwroot or dist"
-
-# Create .deployment file for Oryx
-Write-Info "Creating deployment configuration..."
-$deploymentConfig = @"
-[config]
-SCM_SCRIPT_GENERATOR_ARGS=--node
-"@
-
-$deploymentConfig | Out-File -FilePath ".deployment" -Encoding utf8
-
-# Note: We're using a direct startup command (set above) instead of a script file
-# This avoids line ending issues and bash syntax errors that were causing problems
-
-# Deploy using Oryx build
-Write-Info "Deploying source code to App Service..."
-Write-Info "Azure Oryx will build your app automatically (this may take 5-10 minutes)..."
-
-# Create a zip of the frontend source (exclude node_modules and dist, Oryx will build)
-Write-Info "Creating deployment package..."
-$tempZip = "..\frontend-deploy-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
-
-# Get all files except node_modules, dist, and .git
-$filesToZip = Get-ChildItem -Path . -Recurse -File | 
-    Where-Object { 
-        $_.FullName -notmatch "\\node_modules\\" -and 
-        $_.FullName -notmatch "\\dist\\" -and
-        $_.FullName -notmatch "\\.git\\" 
-    }
-
-if ($filesToZip.Count -eq 0) {
-    Write-Error "No source files found to deploy"
-    Pop-Location
-    exit 1
-}
-
-$filesToZip | Compress-Archive -DestinationPath $tempZip -Force
-
-Write-Info "Deploying to App Service..."
-Write-Info "Oryx will:"
-Write-Info "  1. Install dependencies (npm install)"
-Write-Info "  2. Build the app (npm run build)"
-Write-Info "  3. Copy dist/* to wwwroot for serving"
-
-az webapp deployment source config-zip `
-    --resource-group $RESOURCE_GROUP `
-    --name $WEB_APP_NAME `
-    --src $tempZip `
-    --timeout 1800
+    --output none
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Deployment failed. Check the error above."
-    Write-Info "You can check build logs at: https://$WEB_APP_NAME.scm.azurewebsites.net/logstream"
-    Pop-Location
-    exit 1
-}
-
-# Wait a moment for deployment to start
-Start-Sleep -Seconds 3
-
-# Check deployment status
-Write-Info "Checking deployment status..."
-$deployments = az webapp deployment list `
-    --name $WEB_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --query "[0].{Status:status, Message:message}" `
-    -o json 2>&1
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Success "Deployment initiated"
+    Write-Warning "Failed to restart Web App, but configuration should still apply"
 } else {
-    Write-Warning "Could not check deployment status, but deployment should be in progress"
+    Write-Success "Web App restarted"
 }
 
-Write-Success "Frontend deployment initiated!"
+Write-Success "Frontend deployment complete!"
 Write-Info ""
 Write-Info "Next steps:"
-Write-Info "  1. Azure is now building your app using Oryx (no local Node.js needed!)"
-Write-Info "  2. This typically takes 5-10 minutes"
-Write-Info "  3. Monitor progress at: https://$WEB_APP_NAME.scm.azurewebsites.net"
-Write-Info "  4. Your app will be available at: https://$WEB_APP_NAME.azurewebsites.net"
+Write-Info "  1. Wait 30-60 seconds for the container to start"
+Write-Info "  2. Check the app: https://$WEB_APP_NAME.azurewebsites.net"
+Write-Info "  3. Check logs: az webapp log tail --name $WEB_APP_NAME --resource-group $RESOURCE_GROUP"
 Write-Info ""
 Write-Info "Note: Azure AD configuration needs to be updated with actual values"
 Write-Info "Note: Private endpoint configuration may be required"
-
-# Cleanup
-if (Test-Path $tempZip) {
-    Remove-Item $tempZip -Force -ErrorAction SilentlyContinue
-}
-
-Pop-Location
