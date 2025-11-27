@@ -561,11 +561,14 @@ function Start-Deployment {
         
         # Prompt for site ID if not already extracted
         if ([string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
-            $SHAREPOINT_SITE_ID = Read-Host "Enter SharePoint site ID (leave empty to auto-detect)"
+            $rawSiteId = Read-Host "Enter SharePoint site ID (leave empty to auto-detect)"
             
-            # Clean site ID if provided (remove query parameters)
-            if (-not [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
-                $SHAREPOINT_SITE_ID = $SHAREPOINT_SITE_ID -replace '\?.*$', ''
+            # Clean site ID immediately if provided (remove query parameters and whitespace)
+            if (-not [string]::IsNullOrWhiteSpace($rawSiteId)) {
+                $SHAREPOINT_SITE_ID = ($rawSiteId -replace '\?.*$', '').Trim()
+                if ($rawSiteId -ne $SHAREPOINT_SITE_ID) {
+                    Write-Info "Cleaned Site ID (removed query parameters): $SHAREPOINT_SITE_ID"
+                }
             }
         }
         
@@ -695,17 +698,22 @@ function Start-Deployment {
     # Search for existing ACRs (globally, since ACR names are globally unique)
     $existingACRs = Search-ContainerRegistries -ResourceGroup $RESOURCE_GROUP
     
-    if ($existingACRs -and $existingACRs.Count -gt 0) {
+    # Additional filtering: ensure we only show valid ACR names (5-50 chars, alphanumeric lowercase)
+    $validACRs = $existingACRs | Where-Object { 
+        $_ -match '^[a-z0-9]{5,50}$' -and $_.Length -ge 5 -and $_.Length -le 50
+    }
+    
+    if ($validACRs -and $validACRs.Count -gt 0) {
         Write-Host "Existing Container Registries found:"
-        for ($i = 0; $i -lt $existingACRs.Count; $i++) {
-            Write-Host "  [$i] Use existing: $($existingACRs[$i])"
+        for ($i = 0; $i -lt $validACRs.Count; $i++) {
+            Write-Host "  [$i] Use existing: $($validACRs[$i])"
         }
         Write-Host "  [n] Create new"
         Write-Host ""
-        $acrChoice = Read-Host "Select option (0-$($existingACRs.Count - 1)) or 'n' for new"
+        $acrChoice = Read-Host "Select option (0-$($validACRs.Count - 1)) or 'n' for new"
         
-        if ($acrChoice -match '^\d+$' -and [int]$acrChoice -lt $existingACRs.Count) {
-            $ACR_NAME = $existingACRs[[int]$acrChoice]
+        if ($acrChoice -match '^\d+$' -and [int]$acrChoice -lt $validACRs.Count) {
+            $ACR_NAME = $validACRs[[int]$acrChoice]
             Write-Success "Using existing Container Registry: $ACR_NAME"
         } else {
             # Create new
