@@ -530,10 +530,40 @@ function Start-Deployment {
     
     # Prompt for SharePoint configuration
     Write-Info "Step 5: SharePoint Configuration"
-    $SHAREPOINT_SITE_URL = Read-Host "Enter SharePoint site URL (e.g., https://paconsulting.sharepoint.com/sites/GCloud15)"
+    Write-Host "Enter SharePoint site URL."
+    Write-Host "  Examples:"
+    Write-Host "    - Site URL: https://conmacdev.sharepoint.com/sites/Gcloud"
+    Write-Host "    - Sharing link: https://conmacdev.sharepoint.com/:u:/s/Gcloud/..."
+    Write-Host ""
+    $SHAREPOINT_SITE_URL = Read-Host "Enter SharePoint site URL or sharing link"
     
     if (-not [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_URL)) {
-        $SHAREPOINT_SITE_ID = Read-Host "Enter SharePoint site ID (leave empty to auto-detect)"
+        # Handle sharing links (format: https://domain.sharepoint.com/:u:/s/SiteName/ID?e=token)
+        if ($SHAREPOINT_SITE_URL -match '^https://([^/]+)\.sharepoint\.com/:u:/s/([^/]+)/([^?]+)') {
+            $domain = $matches[1]
+            $siteName = $matches[2]
+            $siteIdFromUrl = $matches[3]
+            
+            Write-Info "Detected sharing link format. Extracting information..."
+            # Convert sharing link to proper site URL
+            $SHAREPOINT_SITE_URL = "https://$domain.sharepoint.com/sites/$siteName"
+            Write-Info "Converted to site URL: $SHAREPOINT_SITE_URL"
+            
+            # Extract site ID from sharing link (remove query parameters if present)
+            $SHAREPOINT_SITE_ID = $siteIdFromUrl -replace '\?.*$', ''
+            Write-Info "Extracted Site ID from sharing link: $SHAREPOINT_SITE_ID"
+        }
+        # If not a sharing link, use as-is
+        
+        # Prompt for site ID if not already extracted
+        if ([string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
+            $SHAREPOINT_SITE_ID = Read-Host "Enter SharePoint site ID (leave empty to auto-detect)"
+            
+            # Clean site ID if provided (remove query parameters)
+            if (-not [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
+                $SHAREPOINT_SITE_ID = $SHAREPOINT_SITE_ID -replace '\?.*$', ''
+            }
+        }
         
         # Auto-detect site ID if not provided
         if ([string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
