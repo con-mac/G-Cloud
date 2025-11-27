@@ -264,18 +264,38 @@ if ($buildMethod -eq "2") {
     # ACR build method (builds in Azure)
     Write-Info "Using ACR build task (builds in Azure cloud, no local Docker needed)..."
     
-    # $frontendPath is already absolute from earlier resolution
-    # ACR build uses the directory as context, Dockerfile path is relative to context
-    # Since context is the frontend directory, Dockerfile is just "Dockerfile"
-    Write-Info "Build context: $frontendPath"
-    Write-Info "Dockerfile: Dockerfile (relative to context)"
+    # Verify Dockerfile exists before building
+    if (-not (Test-Path $dockerfilePath)) {
+        Write-Error "Dockerfile not found at: $dockerfilePath"
+        Write-Info "Please ensure Dockerfile exists in frontend directory"
+        exit 1
+    }
     
+    # Convert Windows path to forward slashes for ACR build (works better cross-platform)
+    $buildContext = $frontendPath -replace '\\', '/'
+    $dockerfileRelative = "Dockerfile"
+    
+    Write-Info "Build context: $buildContext"
+    Write-Info "Dockerfile: $dockerfileRelative (relative to context)"
+    Write-Info "Verifying Dockerfile exists..."
+    
+    # Verify Dockerfile is readable
+    $dockerfileContent = Get-Content $dockerfilePath -Raw -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrWhiteSpace($dockerfileContent)) {
+        Write-Error "Dockerfile exists but is empty or unreadable: $dockerfilePath"
+        exit 1
+    }
+    Write-Success "Dockerfile verified and readable"
+    
+    # Use absolute path for build context (ACR build handles this better)
+    Write-Info "Starting ACR build (this may take 5-10 minutes)..."
     az acr build `
         --registry "$ACR_NAME" `
         --image "${imageName}:$IMAGE_TAG" `
-        --file "Dockerfile" `
+        --file "$dockerfileRelative" `
         "$frontendPath" `
-        --output none
+        --output none `
+        --timeout 1800
     
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build frontend image in ACR"
