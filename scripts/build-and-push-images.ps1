@@ -264,38 +264,47 @@ if ($buildMethod -eq "2") {
     # ACR build method (builds in Azure)
     Write-Info "Using ACR build task (builds in Azure cloud, no local Docker needed)..."
     
-    # Verify Dockerfile exists before building
+    # Verify Dockerfile exists and is readable before building
     if (-not (Test-Path $dockerfilePath)) {
         Write-Error "Dockerfile not found at: $dockerfilePath"
         Write-Info "Please ensure Dockerfile exists in frontend directory"
         exit 1
     }
     
-    # Convert Windows path to forward slashes for ACR build (works better cross-platform)
-    $buildContext = $frontendPath -replace '\\', '/'
-    $dockerfileRelative = "Dockerfile"
-    
-    Write-Info "Build context: $buildContext"
-    Write-Info "Dockerfile: $dockerfileRelative (relative to context)"
-    Write-Info "Verifying Dockerfile exists..."
-    
-    # Verify Dockerfile is readable
+    # Verify Dockerfile is readable and has content
     $dockerfileContent = Get-Content $dockerfilePath -Raw -ErrorAction SilentlyContinue
     if ([string]::IsNullOrWhiteSpace($dockerfileContent)) {
         Write-Error "Dockerfile exists but is empty or unreadable: $dockerfilePath"
         exit 1
     }
-    Write-Success "Dockerfile verified and readable"
     
-    # Use absolute path for build context (ACR build handles this better)
+    Write-Info "Dockerfile verified: $dockerfilePath"
+    Write-Info "Dockerfile size: $((Get-Item $dockerfilePath).Length) bytes"
+    Write-Info "Build context: $frontendPath"
+    Write-Info "Dockerfile: Dockerfile (relative to context)"
+    
+    # List files in build context to verify Dockerfile is there
+    Write-Info "Verifying build context contents..."
+    $contextFiles = Get-ChildItem $frontendPath -File -Name | Select-Object -First 10
+    Write-Info "Files in build context: $($contextFiles -join ', ')"
+    
+    if ($contextFiles -notcontains "Dockerfile") {
+        Write-Warning "Dockerfile not found in file listing, but path exists. This may be a path issue."
+        Write-Info "Attempting build anyway..."
+    }
+    
+    # ACR build: Dockerfile path is relative to build context
+    # Since build context is the frontend directory, Dockerfile is just "Dockerfile"
     Write-Info "Starting ACR build (this may take 5-10 minutes)..."
+    Write-Info "Note: ACR will upload the build context and build in Azure cloud"
+    
     az acr build `
         --registry "$ACR_NAME" `
         --image "${imageName}:$IMAGE_TAG" `
-        --file "$dockerfileRelative" `
+        --file "Dockerfile" `
         "$frontendPath" `
-        --output none `
-        --timeout 1800
+        --timeout 1800 `
+        --output table
     
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build frontend image in ACR"
