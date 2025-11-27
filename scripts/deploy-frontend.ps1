@@ -153,8 +153,8 @@ if ($tagsCheckExitCode -ne 0) {
 
 # Repository exists, check for specific tag
 $ErrorActionPreference = 'SilentlyContinue'
-# Get all tags and check if our tag exists
-$allTagsOutput = az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output json 2>&1
+# Get all tags as simple text list (most reliable)
+$allTagsList = az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output tsv 2>&1
 $ErrorActionPreference = 'Stop'
 
 if ($LASTEXITCODE -ne 0) {
@@ -162,48 +162,33 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Parse JSON and check if tag exists
-try {
-    $tagsJson = $allTagsOutput | ConvertFrom-Json
-    $tagFound = $false
-    
-    if ($tagsJson -is [array]) {
-        foreach ($tag in $tagsJson) {
-            if ($tag.name -eq $IMAGE_TAG) {
-                $tagFound = $true
-                break
-            }
+# Check if our tag exists in the list
+$tagFound = $false
+if (-not [string]::IsNullOrWhiteSpace($allTagsList)) {
+    # Split by newlines and check each tag
+    $tags = $allTagsList -split "`n" | Where-Object { $_ -and $_.Trim() -ne "" }
+    foreach ($tag in $tags) {
+        $tag = $tag.Trim()
+        if ($tag -eq $IMAGE_TAG) {
+            $tagFound = $true
+            break
         }
-    } elseif ($tagsJson.name -eq $IMAGE_TAG) {
-        $tagFound = $true
     }
-    
-    if (-not $tagFound) {
-        Write-Warning "Frontend image 'frontend:$IMAGE_TAG' not found in ACR '$ACR_NAME'"
-        Write-Info ""
-        Write-Info "Available tags in 'frontend' repository:"
-        $ErrorActionPreference = 'SilentlyContinue'
-        az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output table 2>&1
-        $ErrorActionPreference = 'Stop'
-        Write-Info ""
-        Write-Info "Please build and push the image with tag '$IMAGE_TAG':"
-        Write-Info "  .\scripts\build-and-push-images.ps1"
-        Write-Info ""
-        Write-Info "Or use an existing tag from the list above"
-        exit 1
-    }
-} catch {
-    # Fallback: if JSON parsing fails, try simple text search
-    Write-Info "Checking tags using alternative method..."
-    $tagsList = az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output tsv 2>&1
-    if ($tagsList -match "`n$IMAGE_TAG`n|^$IMAGE_TAG`n|`n$IMAGE_TAG$|^$IMAGE_TAG$") {
-        $tagFound = $true
-    } else {
-        Write-Warning "Frontend image 'frontend:$IMAGE_TAG' not found in ACR '$ACR_NAME'"
-        Write-Info ""
-        Write-Info "Available tags: $tagsList"
-        exit 1
-    }
+}
+
+if (-not $tagFound) {
+    Write-Warning "Frontend image 'frontend:$IMAGE_TAG' not found in ACR '$ACR_NAME'"
+    Write-Info ""
+    Write-Info "Available tags in 'frontend' repository:"
+    $ErrorActionPreference = 'SilentlyContinue'
+    az acr repository show-tags --name "$ACR_NAME" --repository "frontend" --output table 2>&1
+    $ErrorActionPreference = 'Stop'
+    Write-Info ""
+    Write-Info "Please build and push the image with tag '$IMAGE_TAG':"
+    Write-Info "  .\scripts\build-and-push-images.ps1"
+    Write-Info ""
+    Write-Info "Or use an existing tag from the list above"
+    exit 1
 }
 
 Write-Success "Frontend image found: frontend:$IMAGE_TAG"
