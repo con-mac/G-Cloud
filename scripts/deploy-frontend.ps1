@@ -178,8 +178,8 @@ az webapp config set `
     --output none | Out-Null
 
 # Set startup command - use the startup.sh script we created
-# This avoids PowerShell parsing issues with bash syntax
-$startupCommand = "bash startup.sh"
+# Make sure it's executable and use absolute path
+$startupCommand = "bash /home/site/wwwroot/startup.sh || bash /home/site/startup.sh || npx -y serve -s /home/site/wwwroot -l 8080"
 
 az webapp config set `
     --name $WEB_APP_NAME `
@@ -199,7 +199,7 @@ SCM_SCRIPT_GENERATOR_ARGS=--node
 $deploymentConfig | Out-File -FilePath ".deployment" -Encoding utf8
 
 # Create startup.sh that will be included in deployment
-# Use here-string with proper escaping for bash redirection
+# Use here-string with proper escaping - write with Unix line endings
 $startupScriptContent = @'
 #!/bin/bash
 # Startup script for static site - ensures files are served correctly
@@ -208,7 +208,7 @@ echo "Checking for files..."
 
 # Check wwwroot first
 if [ -d /home/site/wwwroot ]; then
-    FILE_COUNT=$(find /home/site/wwwroot -type f | wc -l)
+    FILE_COUNT=$(find /home/site/wwwroot -type f 2>/dev/null | wc -l)
     echo "Found $FILE_COUNT files in wwwroot"
     if [ "$FILE_COUNT" -gt 0 ]; then
         echo "Serving from wwwroot..."
@@ -219,7 +219,7 @@ fi
 
 # Check dist as fallback
 if [ -d /home/site/dist ]; then
-    FILE_COUNT=$(find /home/site/dist -type f | wc -l)
+    FILE_COUNT=$(find /home/site/dist -type f 2>/dev/null | wc -l)
     echo "Found $FILE_COUNT files in dist"
     if [ "$FILE_COUNT" -gt 0 ]; then
         echo "Serving from dist..."
@@ -239,7 +239,8 @@ echo "Checking build output locations..."
 ls -la /home/site/ | head -20
 exit 1
 '@
-$startupScriptContent | Out-File -FilePath "startup.sh" -Encoding utf8 -NoNewline
+# Write with Unix line endings (LF) to avoid bash syntax errors
+$startupScriptContent -replace "`r`n", "`n" | Out-File -FilePath "startup.sh" -Encoding utf8 -NoNewline
 
 # Deploy using Oryx build
 Write-Info "Deploying source code to App Service..."
