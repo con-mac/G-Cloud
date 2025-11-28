@@ -86,57 +86,43 @@ Write-Info "  Image Tag: '$IMAGE_TAG'"
 
 # Get Function App URL for API configuration
 Write-Info "Getting Function App URL for: $FUNCTION_APP_NAME..."
-Write-Info "This may take a few seconds..."
 
-# Use timeout and retry logic for Azure CLI commands
-$maxRetries = 3
-$retryCount = 0
-$FUNCTION_APP_URL = $null
+# First, verify Function App exists quickly
+Write-Info "Verifying Function App exists..."
+$ErrorActionPreference = 'SilentlyContinue'
+$funcExists = az functionapp list --resource-group $RESOURCE_GROUP --query "[?name=='$FUNCTION_APP_NAME'].name" -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
 
-while ($retryCount -lt $maxRetries -and [string]::IsNullOrWhiteSpace($FUNCTION_APP_URL)) {
-    $retryCount++
-    if ($retryCount -gt 1) {
-        Write-Info "Retry attempt $retryCount of $maxRetries..."
-        Start-Sleep -Seconds 2
-    }
-    
+if ([string]::IsNullOrWhiteSpace($funcExists)) {
+    Write-Error "Function App '$FUNCTION_APP_NAME' not found in resource group '$RESOURCE_GROUP'"
+    Write-Info "Please verify the Function App exists:"
+    Write-Info "  az functionapp list --resource-group $RESOURCE_GROUP"
+    exit 1
+}
+
+# Get Function App URL directly (simpler approach)
+Write-Info "Retrieving Function App URL..."
+$ErrorActionPreference = 'SilentlyContinue'
+# Use --output json and parse it - more reliable than tsv
+$funcJson = az functionapp show --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --output json 2>&1
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($funcJson)) {
     try {
-        # Use job with timeout to prevent hanging
-        $job = Start-Job -ScriptBlock {
-            param($name, $rg)
-            az functionapp show --name $name --resource-group $rg --query defaultHostName -o tsv 2>&1
-        } -ArgumentList $FUNCTION_APP_NAME, $RESOURCE_GROUP
-        
-        # Wait for job with 30 second timeout
-        $job | Wait-Job -Timeout 30 | Out-Null
-        
-        if ($job.State -eq 'Running') {
-            Write-Warning "Command timed out, stopping job..."
-            Stop-Job -Job $job
-            Remove-Job -Job $job
-            continue
-        }
-        
-        $result = Receive-Job -Job $job
-        Remove-Job -Job $job
-        
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($result)) {
-            $FUNCTION_APP_URL = $result.Trim()
-        }
+        $funcObj = $funcJson | ConvertFrom-Json
+        $FUNCTION_APP_URL = $funcObj.defaultHostName
     } catch {
-        Write-Warning "Error getting Function App URL: $_"
+        Write-Warning "Could not parse Function App JSON, trying alternative method..."
+        # Fallback: construct URL from name (standard Azure pattern)
+        $FUNCTION_APP_URL = "${FUNCTION_APP_NAME}.azurewebsites.net"
     }
+} else {
+    Write-Warning "Could not get Function App details, using default URL pattern..."
+    $FUNCTION_APP_URL = "${FUNCTION_APP_NAME}.azurewebsites.net"
 }
 
 if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_URL)) {
-    Write-Error "Could not get Function App URL after $maxRetries attempts"
-    Write-Info "Function App name: '$FUNCTION_APP_NAME'"
-    Write-Info "Resource Group: '$RESOURCE_GROUP'"
-    Write-Info ""
-    Write-Info "Please verify:"
-    Write-Info "  1. Function App exists: az functionapp list --resource-group $RESOURCE_GROUP"
-    Write-Info "  2. Config file has correct name: Get-Content config\deployment-config.env"
-    Write-Info "  3. You have proper Azure CLI permissions"
+    Write-Error "Could not determine Function App URL"
     exit 1
 }
 
@@ -281,92 +267,52 @@ $appSettings = @(
     "PORT=80"
 )
 
-# Set app settings in a single batch operation (with timeout)
+# Set app settings in a single batch operation
 Write-Info "Setting app settings in batch..."
-try {
-    $job = Start-Job -ScriptBlock {
-        param($webApp, $rg, $settings)
+$ErrorActionPreference = 'SilentlyContinue'
+az webapp config appsettings set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --settings $appSettings `
+    --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Batch app settings update failed, trying one by one..."
+    # Fallback to one-by-one if batch fails
+    foreach ($setting in $appSettings) {
+        Write-Info "Setting: $setting"
+        $ErrorActionPreference = 'SilentlyContinue'
         az webapp config appsettings set `
-            --name $webApp `
-            --resource-group $rg `
-            --settings $settings `
-            --output none 2>&1
-        return $LASTEXITCODE
-    } -ArgumentList $WEB_APP_NAME, $RESOURCE_GROUP, $appSettings
-    
-    $job | Wait-Job -Timeout 60 | Out-Null
-    
-    if ($job.State -eq 'Running') {
-        Stop-Job -Job $job
-        Remove-Job -Job $job
-        Write-Warning "Timeout setting app settings, trying one by one..."
-        # Fallback to one-by-one if batch times out
-        foreach ($setting in $appSettings) {
-            Write-Info "Setting: $setting"
-            $job2 = Start-Job -ScriptBlock {
-                param($webApp, $rg, $setting)
-                az webapp config appsettings set `
-                    --name $webApp `
-                    --resource-group $rg `
-                    --settings "$setting" `
-                    --output none 2>&1
-                return $LASTEXITCODE
-            } -ArgumentList $WEB_APP_NAME, $RESOURCE_GROUP, $setting
-            
-            $job2 | Wait-Job -Timeout 30 | Out-Null
-            if ($job2.State -eq 'Running') {
-                Stop-Job -Job $job2
-                Remove-Job -Job $job2
-                Write-Warning "Timeout setting: $setting"
-            } else {
-                $exitCode = Receive-Job -Job $job2
-                Remove-Job -Job $job2
-                if ($exitCode -eq 0) {
-                    Write-Info "✓ Set: $setting"
-                } else {
-                    Write-Warning "Failed to set: $setting"
-                }
-            }
-        }
-    } else {
-        $exitCode = Receive-Job -Job $job
-        Remove-Job -Job $job
-        if ($exitCode -ne 0) {
-            Write-Warning "Batch app settings update failed, but continuing..."
+            --name $WEB_APP_NAME `
+            --resource-group $RESOURCE_GROUP `
+            --settings "$setting" `
+            --output none 2>&1 | Out-Null
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Info "✓ Set: $setting"
+        } else {
+            Write-Warning "Failed to set: $setting"
         }
     }
-} catch {
-    Write-Warning "Error setting app settings: $_ (continuing anyway)"
 }
 
 Write-Success "App settings configured"
 
-# Restart the app to apply container changes (with timeout)
+# Restart the app to apply container changes
 Write-Info "Restarting Web App to apply container configuration..."
-try {
-    $job = Start-Job -ScriptBlock {
-        param($webApp, $rg)
-        az webapp restart --name $webApp --resource-group $rg --output none 2>&1
-        return $LASTEXITCODE
-    } -ArgumentList $WEB_APP_NAME, $RESOURCE_GROUP
-    
-    $job | Wait-Job -Timeout 30 | Out-Null
-    
-    if ($job.State -eq 'Running') {
-        Stop-Job -Job $job
-        Remove-Job -Job $job
-        Write-Warning "Timeout restarting Web App, but configuration should still apply"
-    } else {
-        $exitCode = Receive-Job -Job $job
-        Remove-Job -Job $job
-        if ($exitCode -ne 0) {
-            Write-Warning "Failed to restart Web App, but configuration should still apply"
-        } else {
-            Write-Success "Web App restarted"
-        }
-    }
-} catch {
-    Write-Warning "Error restarting Web App: $_ (configuration should still apply)"
+$ErrorActionPreference = 'SilentlyContinue'
+az webapp restart `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Failed to restart Web App, but configuration should still apply"
+} else {
+    Write-Success "Web App restarted"
 }
 
 Write-Success "Frontend deployment complete!"
