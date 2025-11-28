@@ -64,8 +64,9 @@ export default function Login() {
     }
   };
 
-  // Check if SSO is configured (has client ID)
-  const clientId = import.meta.env.VITE_AZURE_AD_CLIENT_ID || '';
+  // Check if SSO is configured (has client ID) - check both runtime and build-time
+  const runtimeConfig = (window as any).__ENV__;
+  const clientId = runtimeConfig?.VITE_AZURE_AD_CLIENT_ID || import.meta.env.VITE_AZURE_AD_CLIENT_ID || '';
   const isSSOConfigured = clientId && clientId !== 'PLACEHOLDER_CLIENT_ID' && clientId.trim() !== '';
 
   return (

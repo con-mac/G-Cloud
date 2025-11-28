@@ -73,8 +73,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check if user is in admin group
   const checkAdminStatus = async (accessToken: string): Promise<boolean> => {
     try {
-      // Get admin group ID from environment or use default
-      const adminGroupId = import.meta.env.VITE_AZURE_AD_ADMIN_GROUP_ID || '';
+      // Get admin group ID from runtime config or build-time env
+      const runtimeConfig = (window as any).__ENV__;
+      const adminGroupId = runtimeConfig?.VITE_AZURE_AD_ADMIN_GROUP_ID || import.meta.env.VITE_AZURE_AD_ADMIN_GROUP_ID || '';
       
       if (!adminGroupId) {
         // If no admin group configured, check for common admin patterns

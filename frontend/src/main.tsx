@@ -15,17 +15,25 @@ import theme from './styles/theme';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/index.css';
 
-// MSAL configuration
-const msalConfig = {
-  auth: {
-    clientId: import.meta.env.VITE_AZURE_AD_CLIENT_ID || '',
-    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_AD_TENANT_ID || 'common'}`,
-    redirectUri: import.meta.env.VITE_AZURE_AD_REDIRECT_URI || window.location.origin,
-  },
-  cache: {
-    cacheLocation: 'localStorage' as const,
-    storeAuthStateInCookie: false,
-  },
+// MSAL configuration - get from runtime window object or build-time env vars
+const getMsalConfig = () => {
+  // Check for runtime config (injected by nginx startup script)
+  const runtimeConfig = (window as any).__ENV__;
+  const clientId = runtimeConfig?.VITE_AZURE_AD_CLIENT_ID || import.meta.env.VITE_AZURE_AD_CLIENT_ID || '';
+  const tenantId = runtimeConfig?.VITE_AZURE_AD_TENANT_ID || import.meta.env.VITE_AZURE_AD_TENANT_ID || '';
+  const redirectUri = runtimeConfig?.VITE_AZURE_AD_REDIRECT_URI || import.meta.env.VITE_AZURE_AD_REDIRECT_URI || window.location.origin;
+  
+  return {
+    auth: {
+      clientId: clientId,
+      authority: `https://login.microsoftonline.com/${tenantId || 'common'}`,
+      redirectUri: redirectUri,
+    },
+    cache: {
+      cacheLocation: 'localStorage' as const,
+      storeAuthStateInCookie: false,
+    },
+  };
 };
 
 const msalConfig = getMsalConfig();

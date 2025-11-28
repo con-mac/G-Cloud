@@ -158,8 +158,50 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
 
 # Create client secret
 Write-Info "Creating client secret..."
-$secretJson = az ad app credential reset --id $APP_ID | ConvertFrom-Json
-$SECRET = $secretJson.password
+Write-Info "Note: This command may take 10-30 seconds..."
+
+# Check if there's an existing secret we can use (optional - we'll create new one anyway)
+# But this helps us understand if the command is hanging
+$ErrorActionPreference = 'SilentlyContinue'
+Write-Info "Calling Azure AD API (this may take a moment)..."
+$secretOutput = az ad app credential reset --id $APP_ID --output json 2>&1
+$secretExitCode = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+
+if ($secretExitCode -ne 0) {
+    Write-Error "Failed to create client secret (exit code: $secretExitCode)"
+    Write-Info "Output: $secretOutput"
+    Write-Info ""
+    Write-Info "Possible issues:"
+    Write-Info "  1. Insufficient Azure AD permissions"
+    Write-Info "  2. App Registration not found"
+    Write-Info "  3. Network connectivity issues"
+    Write-Info ""
+    Write-Info "You can create a secret manually in Azure Portal:"
+    Write-Info "  App Registrations -> $APP_REGISTRATION_NAME -> Certificates & secrets -> New client secret"
+    exit 1
+}
+
+if ([string]::IsNullOrWhiteSpace($secretOutput)) {
+    Write-Error "Client secret command returned empty output"
+    Write-Info "This may indicate a timeout or permission issue"
+    exit 1
+}
+
+try {
+    $secretJson = $secretOutput | ConvertFrom-Json
+    $SECRET = $secretJson.password
+    if ([string]::IsNullOrWhiteSpace($SECRET)) {
+        Write-Error "Client secret was created but password is empty"
+        Write-Info "Full response: $secretOutput"
+        exit 1
+    }
+    Write-Success "Client secret created successfully"
+} catch {
+    Write-Error "Failed to parse client secret response: $_"
+    Write-Info "Raw output: $secretOutput"
+    exit 1
+}
 
 # Get or create admin security group
 Write-Info "Configuring admin security group..."
