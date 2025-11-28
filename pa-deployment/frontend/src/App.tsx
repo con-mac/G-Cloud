@@ -1,5 +1,4 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import ProposalFlow from './pages/ProposalFlow';
 import ProposalsList from './pages/ProposalsList';
@@ -12,32 +11,8 @@ import QuestionnaireAnalytics from './pages/QuestionnaireAnalytics';
 
 // Protected route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return <div>Loading...</div>; // Or a proper loading component
-  }
-  
+  const isAuthenticated = sessionStorage.getItem('isAuthenticated') === 'true';
   return isAuthenticated ? children : <Navigate to="/login" replace />;
-};
-
-// Admin-only route wrapper
-const AdminRoute = ({ children }: { children: React.ReactElement }) => {
-  const { isAuthenticated, isLoading, user } = useAuth();
-  
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  if (!user?.isAdmin) {
-    return <Navigate to="/proposals" replace />;
-  }
-  
-  return children;
 };
 
 function App() {
@@ -96,17 +71,17 @@ function App() {
       <Route
         path="/admin/dashboard"
         element={
-          <AdminRoute>
+          <ProtectedRoute>
             <AdminDashboard />
-          </AdminRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin/analytics"
         element={
-          <AdminRoute>
+          <ProtectedRoute>
             <QuestionnaireAnalytics />
-          </AdminRoute>
+          </ProtectedRoute>
         }
       />
       <Route path="*" element={<Navigate to="/login" replace />} />

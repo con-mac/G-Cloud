@@ -3,9 +3,8 @@
  * Validates @paconsulting.com domain
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import {
   Container,
   Box,
@@ -26,22 +25,10 @@ type LoginType = 'employee' | 'admin';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, isAuthenticated, user } = useAuth();
   const [email, setEmail] = useState('');
   const [loginType, setLoginType] = useState<LoginType>('employee');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      if (user.isAdmin || loginType === 'admin') {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/proposals');
-      }
-    }
-  }, [isAuthenticated, user, navigate, loginType]);
 
   const validateEmail = (emailValue: string): boolean => {
     // Must end with @paconsulting.com
@@ -54,12 +41,33 @@ export default function Login() {
     setError('');
     setLoading(true);
 
+    // Validate email
+    if (!email.trim()) {
+      setError('Email is required');
+      setLoading(false);
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setError('Email must end with @paconsulting.com');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Use MSAL SSO login
-      await login();
-      // Navigation will happen automatically via useEffect when user is authenticated
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign in. Please try again.');
+      // Store email in sessionStorage for authenticated session
+      sessionStorage.setItem('userEmail', email);
+      sessionStorage.setItem('isAuthenticated', 'true');
+      sessionStorage.setItem('loginType', loginType);
+
+      // Navigate based on login type
+      if (loginType === 'admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/proposals/flow');
+      }
+    } catch (err) {
+      setError('An error occurred. Please try again.');
       setLoading(false);
     }
   };
@@ -127,9 +135,9 @@ export default function Login() {
 
           <Box mt={3}>
             <Typography variant="caption" color="text.secondary" align="center" display="block">
-              Sign in with your Microsoft 365 account (PA Consulting).
+              Access is restricted to PA Consulting employees only.
               <br />
-              Admin access requires membership in the admin security group.
+              Future versions will support Microsoft 365 SSO.
             </Typography>
           </Box>
         </CardContent>

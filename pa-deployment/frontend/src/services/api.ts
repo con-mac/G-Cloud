@@ -13,14 +13,8 @@ class ApiService {
   private client: AxiosInstance;
 
   constructor() {
-    // Check if API_BASE_URL already includes /api/v1 (Azure Function App)
-    // If it does, use it as-is; otherwise add /api/v1 prefix
-    let baseURL: string;
-    if (API_BASE_URL.includes('/api/v1')) {
-      baseURL = API_BASE_URL;
-    } else {
-      baseURL = `${API_BASE_URL}/api/${API_VERSION}`;
-    }
+    // API Gateway preserves full path, so always use /api/v1 prefix
+    const baseURL = `${API_BASE_URL}/api/${API_VERSION}`;
     
     this.client = axios.create({
       baseURL: baseURL,
@@ -37,16 +31,10 @@ class ApiService {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
-        // Add authentication token if available (from MSAL)
+        // Add authentication token if available
         const token = localStorage.getItem('access_token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
-        }
-
-        // Add user email header if available (formatted as firstName.LastName@paconsulting.com)
-        const userEmail = sessionStorage.getItem('user_formatted_email');
-        if (userEmail) {
-          config.headers['X-User-Email'] = userEmail;
         }
 
         // Add correlation ID for request tracking

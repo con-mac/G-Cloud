@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide provides step-by-step instructions for deploying the G-Cloud 15 automation tool to PA Consulting's Azure dev environment.
+This guide provides step-by-step instructions for deploying the G-Cloud 15 automation tool to PA Consulting's Azure dev environment. The deployment is **iterative** - you can run it multiple times safely, and configure private endpoints now or later.
 
 ## Prerequisites
 
@@ -14,28 +14,50 @@ This guide provides step-by-step instructions for deploying the G-Cloud 15 autom
 
 ## Quick Start
 
-1. **Clone or copy the pa-deployment folder** to a separate repository
+### For Fresh Deployment (Recommended)
+
+1. **Clean up existing resources** (if any):
+   ```powershell
+   .\scripts\cleanup-resources.ps1
+   ```
+   This will delete all resources in the resource group (App Registration persists).
+
 2. **Run the deployment script**:
-   ```bash
-   ./deploy.sh
+   ```powershell
+   .\deploy.ps1
    ```
 3. **Follow the interactive prompts** to configure resources
 4. **Complete SharePoint integration** (see SharePoint Integration section)
+
+### For Iterative Deployment
+
+If you already have resources deployed and want to update them:
+```powershell
+.\deploy.ps1
+```
+The script will detect existing resources and let you reuse or recreate them.
 
 ## Deployment Steps
 
 ### Step 1: Initial Configuration
 
 Run the main deployment script:
-```bash
-./deploy.sh
+```powershell
+.\deploy.ps1
 ```
 
 This will:
-- Check prerequisites
-- Prompt for resource names
-- Create or select existing resources
+- Check prerequisites (Azure CLI, login status)
+- Prompt for resource names (or use existing)
+- Ask if you want private endpoints now (y) or later (n)
 - Save configuration to `config/deployment-config.env`
+- Run all deployment steps automatically
+
+**Private Endpoints**: 
+- Choose **y** for production (private-only access)
+- Choose **n** for testing (allows public access, can add private endpoints later)
+
+**Config File**: Created automatically at `config/deployment-config.env`. You can run `.\deploy.ps1` again anytime - it will use existing config and let you update it.
 
 ### Step 2: Resource Setup
 
@@ -144,7 +166,50 @@ SharePoint Site Root
 - [ ] Configure monitoring alerts
 - [ ] Review security settings
 
+## Cleanup and Fresh Start
+
+### Delete All Resources
+
+To start completely fresh:
+
+```powershell
+.\scripts\cleanup-resources.ps1
+```
+
+This script will:
+- Prompt you to confirm deletion (type 'DELETE')
+- Delete the entire resource group and all resources within it
+- **Preserve the App Registration** (it's in Azure AD, not the resource group)
+
+**What Gets Deleted:**
+- Function App
+- Web App
+- Key Vault
+- Storage Account
+- Application Insights
+- Private DNS Zone
+- VNet and Subnets
+- Private Endpoints
+- App Service Plan
+
+**What Persists:**
+- App Registration (in Azure AD - can be reused)
+
+### After Cleanup
+
+1. Wait for deletion to complete (check with `az group show --name <rg-name>`)
+2. Pull latest changes: `git pull origin main`
+3. Run fresh deployment: `.\deploy.ps1`
+4. When prompted for App Registration, choose **existing** and select your App Registration
+
 ## Troubleshooting
+
+### Frontend Not Loading / "Starting the site..."
+
+If the frontend shows "Starting the site..." or doesn't load:
+- The startup command may be incorrectly set
+- Run: `.\scripts\fix-frontend-startup.ps1` to clear it
+- Or redeploy with the latest scripts (they now handle this automatically)
 
 ### Authentication Issues
 

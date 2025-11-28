@@ -9,7 +9,6 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider } from '@mui/material/styles';
 
 import App from './App';
-import { AuthProvider } from './contexts/AuthContext';
 import theme from './styles/theme';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -44,28 +43,26 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MsalProvider instance={msalInstance}>
-      <AuthProvider>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <ThemeProvider theme={theme}>
-              <CssBaseline />
-              <App />
-              <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme="light"
-              />
-            </ThemeProvider>
-          </BrowserRouter>
-        </QueryClientProvider>
-      </AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <App />
+            <ToastContainer
+              position="top-right"
+              autoClose={5000}
+              hideProgressBar={false}
+              newestOnTop
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
+          </ThemeProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
     </MsalProvider>
   </React.StrictMode>
 );

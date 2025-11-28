@@ -3,6 +3,11 @@
 .env.local
 *.env
 
+# Deployment configuration (contains environment-specific values)
+config/deployment-config.env
+config/deployment-config.env.*
+!config/deployment-config.env.template
+
 # Python
 __pycache__/
 *.py[cod]
