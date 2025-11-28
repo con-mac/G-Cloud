@@ -538,12 +538,15 @@ async def get_all_proposals(
         List of proposals matching the owner
     """
     try:
-        # If no owner_email provided, return empty list (we require it for security)
-        if not owner_email:
+        # Use X-User-Email header if available (from SSO), otherwise use query param
+        effective_email = x_user_email or owner_email
+        
+        # If no email provided, return empty list (we require it for security)
+        if not effective_email:
             return []
         
         # Extract owner name from email
-        owner_name = extract_name_from_email(owner_email)
+        owner_name = extract_name_from_email(effective_email)
         
         if not owner_name:
             return []
