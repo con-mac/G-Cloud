@@ -1,94 +1,50 @@
+# Environment variables
+.env
+.env.local
+*.env
+
+# Deployment configuration (contains environment-specific values)
+config/deployment-config.env
+config/deployment-config.env.*
+!config/deployment-config.env.template
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 venv/
-.venv/
+env/
 ENV/
-build/
-develop-eggs/
+
+# Node
+node_modules/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+build/
+*.log
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# Azure
+.azure/
+*.publishsettings
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Node
-node_modules/
-npm-debug.log
-yarn-error.log
-.pnp/
-.pnp.js
-
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-
-# Uploaded documents (exclude from repo)
-# docs/*.docx
-docs/*.xlsx
-docs/*.pdf
-docs/*:Zone.Identifier
-
-# Generated documents
-backend/generated_documents/
-# *.docx
-*.pdf
-
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.backup
-.terraform.lock.hcl
-terraform.tfvars
-*.tfvars.backup
-
-# AWS
-.aws/
-*.pem
+# Secrets
+secrets/
 *.key
+*.pem
 
-# Azure
-.azure/
-
-# Misc
-.cache/
+# Temporary files
 tmp/
 temp/
+*.tmp
+
