@@ -85,46 +85,11 @@ Write-Info "  ACR: '$ACR_NAME'"
 Write-Info "  Image Tag: '$IMAGE_TAG'"
 
 # Get Function App URL for API configuration
+# Use standard Azure pattern - Function Apps always follow {name}.azurewebsites.net
+# This avoids hanging on Azure CLI queries
 Write-Info "Getting Function App URL for: $FUNCTION_APP_NAME..."
-
-# First, verify Function App exists quickly
-Write-Info "Verifying Function App exists..."
-$ErrorActionPreference = 'SilentlyContinue'
-$funcExists = az functionapp list --resource-group $RESOURCE_GROUP --query "[?name=='$FUNCTION_APP_NAME'].name" -o tsv 2>&1
-$ErrorActionPreference = 'Stop'
-
-if ([string]::IsNullOrWhiteSpace($funcExists)) {
-    Write-Error "Function App '$FUNCTION_APP_NAME' not found in resource group '$RESOURCE_GROUP'"
-    Write-Info "Please verify the Function App exists:"
-    Write-Info "  az functionapp list --resource-group $RESOURCE_GROUP"
-    exit 1
-}
-
-# Get Function App URL directly (simpler approach)
-Write-Info "Retrieving Function App URL..."
-$ErrorActionPreference = 'SilentlyContinue'
-# Use --output json and parse it - more reliable than tsv
-$funcJson = az functionapp show --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --output json 2>&1
-$ErrorActionPreference = 'Stop'
-
-if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($funcJson)) {
-    try {
-        $funcObj = $funcJson | ConvertFrom-Json
-        $FUNCTION_APP_URL = $funcObj.defaultHostName
-    } catch {
-        Write-Warning "Could not parse Function App JSON, trying alternative method..."
-        # Fallback: construct URL from name (standard Azure pattern)
-        $FUNCTION_APP_URL = "${FUNCTION_APP_NAME}.azurewebsites.net"
-    }
-} else {
-    Write-Warning "Could not get Function App details, using default URL pattern..."
-    $FUNCTION_APP_URL = "${FUNCTION_APP_NAME}.azurewebsites.net"
-}
-
-if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_URL)) {
-    Write-Error "Could not determine Function App URL"
-    exit 1
-}
+$FUNCTION_APP_URL = "${FUNCTION_APP_NAME}.azurewebsites.net"
+Write-Info "Using Function App URL: https://$FUNCTION_APP_URL"
 
 Write-Success "Function App URL: https://$FUNCTION_APP_URL"
 
