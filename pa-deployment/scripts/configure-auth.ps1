@@ -62,6 +62,11 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($appListJson)) {
 # Get Web App URL (needed for redirect URIs and app settings)
 $WEB_APP_URL = "https://${WEB_APP_NAME}.azurewebsites.net"
 
+# Get Tenant ID for frontend configuration
+$ErrorActionPreference = 'SilentlyContinue'
+$TENANT_ID = az account show --query tenantId -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+
 if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     Write-Warning "App Registration not found. Creating..."
     
@@ -155,6 +160,55 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
 Write-Info "Creating client secret..."
 $secretJson = az ad app credential reset --id $APP_ID | ConvertFrom-Json
 $SECRET = $secretJson.password
+
+# Get or create admin security group
+Write-Info "Configuring admin security group..."
+$ADMIN_GROUP_NAME = Read-Host "Enter admin security group name (e.g., G-Cloud-Admins) [G-Cloud-Admins]"
+if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_NAME)) {
+    $ADMIN_GROUP_NAME = "G-Cloud-Admins"
+}
+
+$ErrorActionPreference = 'SilentlyContinue'
+$adminGroup = az ad group list --display-name "$ADMIN_GROUP_NAME" --query "[0].{Id:id, DisplayName:displayName}" -o json 2>&1
+$ErrorActionPreference = 'Stop'
+
+$ADMIN_GROUP_ID = ""
+if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($adminGroup)) {
+    try {
+        $groupObj = $adminGroup | ConvertFrom-Json
+        if ($groupObj -and $groupObj.Id) {
+            $ADMIN_GROUP_ID = $groupObj.Id
+            Write-Success "Using existing admin group: $ADMIN_GROUP_NAME ($ADMIN_GROUP_ID)"
+        }
+    } catch {
+        Write-Warning "Could not parse admin group response"
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID)) {
+    Write-Info "Admin security group '$ADMIN_GROUP_NAME' not found."
+    $createGroup = Read-Host "Create admin security group? (y/n) [y]"
+    if ([string]::IsNullOrWhiteSpace($createGroup) -or $createGroup -eq "y") {
+        Write-Info "Creating admin security group: $ADMIN_GROUP_NAME"
+        $ErrorActionPreference = 'SilentlyContinue'
+        $newGroup = az ad group create --display-name "$ADMIN_GROUP_NAME" --mail-nickname "$($ADMIN_GROUP_NAME -replace ' ', '')" --query "{Id:id, DisplayName:displayName}" -o json 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($newGroup)) {
+            try {
+                $groupObj = $newGroup | ConvertFrom-Json
+                $ADMIN_GROUP_ID = $groupObj.Id
+                Write-Success "Admin security group created: $ADMIN_GROUP_NAME ($ADMIN_GROUP_ID)"
+            } catch {
+                Write-Warning "Could not parse new group response"
+            }
+        } else {
+            Write-Warning "Could not create admin group. You can create it manually in Azure Portal."
+        }
+    } else {
+        Write-Info "Skipping admin group creation. You can create it manually and set VITE_AZURE_AD_ADMIN_GROUP_ID later."
+    }
+}
 
 # Store in Key Vault
 az keyvault secret set `

@@ -519,15 +519,20 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
 
 
 @router.get("/", response_model=List[dict])
-async def get_all_proposals(owner_email: Optional[str] = Query(None, description="Owner email to filter proposals")):
+async def get_all_proposals(
+    owner_email: Optional[str] = Query(None, description="Owner email to filter proposals"),
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email", description="User email from SSO token")
+):
     """
     Get all proposals filtered by owner email.
     
     If owner_email is provided, extracts name from email and filters proposals by owner.
+    If X-User-Email header is present (from SSO), uses that instead.
     Otherwise, returns empty list (for now, we require owner_email for security).
     
     Args:
-        owner_email: Email address in format Firstname.Lastname@paconsulting.com
+        owner_email: Email address in format Firstname.Lastname@paconsulting.com (query param)
+        x_user_email: User email from SSO token (header)
         
     Returns:
         List of proposals matching the owner
