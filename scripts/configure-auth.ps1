@@ -91,20 +91,32 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
         --api-permissions "e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope" `
         --output none 2>&1 | Out-Null
     
-    # Add Sites.ReadWrite.All permission (for SharePoint)
-    Write-Info "Adding Sites.ReadWrite.All permission..."
+    # Add SharePoint permissions - using Application permissions for server-to-server access
+    # Reference: https://learn.microsoft.com/en-us/dynamics365/customerengagement/on-premises/admin/on-prem-server-configure-azure-app-with-sharepoint-access
+    # For Azure App Service (server-to-server), we need Application permissions, not delegated
+    
+    # Sites.FullControl.All - Application permission (for full SharePoint site access)
+    Write-Info "Adding Sites.FullControl.All permission (Application permission for SharePoint)..."
     az ad app permission add `
         --id $APP_ID `
         --api $GRAPH_API_ID `
-        --api-permissions "205e70e5-aba6-4c52-a976-6d2d8c5c5e77=Scope" `
+        --api-permissions "678536fe-1083-478a-9c59-b99265e6b0d3=Role" `
         --output none 2>&1 | Out-Null
     
-    # Add Files.ReadWrite.All permission (alternative/additional for file operations)
-    Write-Info "Adding Files.ReadWrite.All permission..."
+    # Sites.ReadWrite.All - Application permission (alternative, more restrictive)
+    Write-Info "Adding Sites.ReadWrite.All permission (Application permission)..."
     az ad app permission add `
         --id $APP_ID `
         --api $GRAPH_API_ID `
-        --api-permissions "75359482-378d-4052-8f01-80520e7db3cd=Scope" `
+        --api-permissions "0c0bf378-bf22-4481-978f-6afc4c88705c=Role" `
+        --output none 2>&1 | Out-Null
+    
+    # Files.ReadWrite.All - Application permission (for file operations)
+    Write-Info "Adding Files.ReadWrite.All permission (Application permission)..."
+    az ad app permission add `
+        --id $APP_ID `
+        --api $GRAPH_API_ID `
+        --api-permissions "75359482-378d-4052-8f01-80520e7db3cd=Role" `
         --output none 2>&1 | Out-Null
     
     # Add offline_access permission
@@ -117,13 +129,23 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     
     # Grant admin consent
     Write-Info "Granting admin consent for API permissions..."
+    Write-Info "Note: Application permissions (Role) require admin consent - this is required for SharePoint access"
     $grantConsent = Read-Host "Grant admin consent now? (y/n) [y]"
     if ([string]::IsNullOrWhiteSpace($grantConsent) -or $grantConsent -eq "y") {
         az ad app permission admin-consent --id $APP_ID --output none | Out-Null
-        Write-Success "Admin consent granted"
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Admin consent granted for all API permissions"
+        } else {
+            Write-Warning "Could not grant admin consent automatically. This is REQUIRED for SharePoint access."
+            Write-Warning "Please grant manually in Azure Portal:"
+            Write-Warning "  1. Go to Azure Portal -> App Registrations -> $APP_REGISTRATION_NAME"
+            Write-Warning "  2. API permissions -> Grant admin consent for '<tenant name>'"
+            Write-Warning "  3. This is required for Sites.FullControl.All and other Application permissions"
+        }
     } else {
-        Write-Warning "Admin consent not granted. You'll need to grant it manually in Azure Portal."
-        Write-Warning "Go to: App Registration -> API permissions -> Grant admin consent"
+        Write-Warning "Admin consent not granted. This is REQUIRED for SharePoint Application permissions."
+        Write-Warning "Please grant manually in Azure Portal:"
+        Write-Warning "  App Registration -> API permissions -> Grant admin consent"
     }
 } else {
     Write-Success "App Registration found: $APP_ID"
