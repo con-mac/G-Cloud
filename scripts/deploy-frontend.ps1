@@ -237,7 +237,7 @@ Write-Success "Web App configured to use Docker container"
 # Set app settings for API URL and other configuration
 Write-Info "Configuring app settings..."
 $appSettings = @(
-    "VITE_API_BASE_URL=https://${FUNCTION_APP_URL}/api/v1",
+    "VITE_API_BASE_URL=https://${FUNCTION_APP_URL}",
     "VITE_AZURE_AD_TENANT_ID=PLACEHOLDER_TENANT_ID",
     "VITE_AZURE_AD_CLIENT_ID=PLACEHOLDER_CLIENT_ID",
     "VITE_AZURE_AD_REDIRECT_URI=https://${WEB_APP_NAME}.azurewebsites.net",
@@ -245,18 +245,33 @@ $appSettings = @(
     "PORT=80"
 )
 
-# Set app settings one by one to avoid parsing issues
-foreach ($setting in $appSettings) {
-    $ErrorActionPreference = 'SilentlyContinue'
-    $result = az webapp config appsettings set `
-        --name $WEB_APP_NAME `
-        --resource-group $RESOURCE_GROUP `
-        --settings "$setting" `
-        --output none 2>&1
-    $ErrorActionPreference = 'Stop'
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to set: $setting"
+# Set app settings in a single batch operation (more reliable than one-by-one)
+Write-Info "Setting app settings in batch..."
+$ErrorActionPreference = 'SilentlyContinue'
+$result = az webapp config appsettings set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --settings $appSettings `
+    --output none 2>&1
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Batch app settings update failed, trying one by one..."
+    # Fallback to one-by-one if batch fails
+    foreach ($setting in $appSettings) {
+        $ErrorActionPreference = 'SilentlyContinue'
+        $result = az webapp config appsettings set `
+            --name $WEB_APP_NAME `
+            --resource-group $RESOURCE_GROUP `
+            --settings "$setting" `
+            --output none 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to set: $setting"
+        } else {
+            Write-Info "Set: $setting"
+        }
     }
 }
 
