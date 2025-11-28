@@ -85,24 +85,11 @@ Write-Info "  ACR: '$ACR_NAME'"
 Write-Info "  Image Tag: '$IMAGE_TAG'"
 
 # Get Function App URL for API configuration
+# Use standard Azure pattern - Function Apps always follow {name}.azurewebsites.net
+# This avoids hanging on Azure CLI queries
 Write-Info "Getting Function App URL for: $FUNCTION_APP_NAME..."
-$ErrorActionPreference = 'SilentlyContinue'
-$FUNCTION_APP_URL = az functionapp show `
-    --name $FUNCTION_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --query defaultHostName -o tsv 2>&1
-$ErrorActionPreference = 'Stop'
-
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($FUNCTION_APP_URL)) {
-    Write-Error "Could not get Function App URL"
-    Write-Info "Function App name: '$FUNCTION_APP_NAME'"
-    Write-Info "Resource Group: '$RESOURCE_GROUP'"
-    Write-Info ""
-    Write-Info "Please verify:"
-    Write-Info "  1. Function App exists: az functionapp list --resource-group $RESOURCE_GROUP"
-    Write-Info "  2. Config file has correct name: Get-Content config\deployment-config.env"
-    exit 1
-}
+$FUNCTION_APP_URL = "${FUNCTION_APP_NAME}.azurewebsites.net"
+Write-Info "Using Function App URL: https://$FUNCTION_APP_URL"
 
 Write-Success "Function App URL: https://$FUNCTION_APP_URL"
 
@@ -245,18 +232,34 @@ $appSettings = @(
     "PORT=80"
 )
 
-# Set app settings one by one to avoid parsing issues
-foreach ($setting in $appSettings) {
-    $ErrorActionPreference = 'SilentlyContinue'
-    $result = az webapp config appsettings set `
-        --name $WEB_APP_NAME `
-        --resource-group $RESOURCE_GROUP `
-        --settings "$setting" `
-        --output none 2>&1
-    $ErrorActionPreference = 'Stop'
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to set: $setting"
+# Set app settings in a single batch operation
+Write-Info "Setting app settings in batch..."
+$ErrorActionPreference = 'SilentlyContinue'
+az webapp config appsettings set `
+    --name $WEB_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --settings $appSettings `
+    --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Batch app settings update failed, trying one by one..."
+    # Fallback to one-by-one if batch fails
+    foreach ($setting in $appSettings) {
+        Write-Info "Setting: $setting"
+        $ErrorActionPreference = 'SilentlyContinue'
+        az webapp config appsettings set `
+            --name $WEB_APP_NAME `
+            --resource-group $RESOURCE_GROUP `
+            --settings "$setting" `
+            --output none 2>&1 | Out-Null
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Info "✓ Set: $setting"
+        } else {
+            Write-Warning "Failed to set: $setting"
+        }
     }
 }
 
@@ -264,10 +267,12 @@ Write-Success "App settings configured"
 
 # Restart the app to apply container changes
 Write-Info "Restarting Web App to apply container configuration..."
+$ErrorActionPreference = 'SilentlyContinue'
 az webapp restart `
     --name $WEB_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --output none
+    --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
 
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Failed to restart Web App, but configuration should still apply"

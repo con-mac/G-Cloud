@@ -28,6 +28,7 @@ const msalConfig = {
   },
 };
 
+const msalConfig = getMsalConfig();
 const msalInstance = new PublicClientApplication(msalConfig);
 
 // React Query client

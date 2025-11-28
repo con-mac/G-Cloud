@@ -64,6 +64,10 @@ export default function Login() {
     }
   };
 
+  // Check if SSO is configured (has client ID)
+  const clientId = import.meta.env.VITE_AZURE_AD_CLIENT_ID || '';
+  const isSSOConfigured = clientId && clientId !== 'PLACEHOLDER_CLIENT_ID' && clientId.trim() !== '';
+
   return (
     <Container maxWidth="sm" sx={{ mt: 8 }}>
       <Card>
@@ -75,61 +79,94 @@ export default function Login() {
             </Typography>
           </Box>
 
-          <form onSubmit={handleSubmit}>
-            <FormControl fullWidth sx={{ mb: 3 }}>
-              <InputLabel id="login-type-label">Login Type</InputLabel>
-              <Select
-                labelId="login-type-label"
-                id="login-type"
-                value={loginType}
-                label="Login Type"
-                onChange={(e) => setLoginType(e.target.value as LoginType)}
+          {isSSOConfigured ? (
+            // SSO Login (Microsoft 365)
+            <Box>
+              <Button
+                fullWidth
+                variant="contained"
+                size="large"
+                onClick={handleSubmit}
                 disabled={loading}
+                startIcon={<LoginIcon />}
+                sx={{ mb: 2 }}
               >
-                <MenuItem value="employee">PA Consulting Employee Login</MenuItem>
-                <MenuItem value="admin">PA Consulting Admin Login</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              fullWidth
-              label="Email Address"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError('');
-              }}
-              placeholder="your.name@paconsulting.com"
-              error={!!error}
-              helperText={error || 'Enter your PA Consulting email address'}
-              disabled={loading}
-              sx={{ mb: 3 }}
-              autoFocus
-            />
+                {loading ? 'Signing in...' : 'Sign in with Microsoft 365'}
+              </Button>
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {error}
+                </Alert>
+              )}
+            </Box>
+          ) : (
+            // Manual Login (fallback)
+            <form onSubmit={handleSubmit}>
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="login-type-label">Login Type</InputLabel>
+                <Select
+                  labelId="login-type-label"
+                  id="login-type"
+                  value={loginType}
+                  label="Login Type"
+                  onChange={(e) => setLoginType(e.target.value as LoginType)}
+                  disabled={loading}
+                >
+                  <MenuItem value="employee">PA Consulting Employee Login</MenuItem>
+                  <MenuItem value="admin">PA Consulting Admin Login</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                fullWidth
+                label="Email Address"
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError('');
+                }}
+                placeholder="your.name@paconsulting.com"
+                error={!!error}
+                helperText={error || 'Enter your PA Consulting email address'}
+                disabled={loading}
+                sx={{ mb: 3 }}
+                autoFocus
+              />
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
-            )}
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {error}
+                </Alert>
+              )}
 
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              size="large"
-              disabled={loading || !email.trim()}
-              startIcon={<LoginIcon />}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="large"
+                disabled={loading || !email.trim()}
+                startIcon={<LoginIcon />}
+              >
+                {loading ? 'Signing in...' : 'Sign In'}
+              </Button>
+            </form>
+          )}
 
           <Box mt={3}>
             <Typography variant="caption" color="text.secondary" align="center" display="block">
-              Sign in with your Microsoft 365 account (PA Consulting).
-              <br />
-              Admin access requires membership in the admin security group.
+              {isSSOConfigured ? (
+                <>
+                  Sign in with your Microsoft 365 account (PA Consulting).
+                  <br />
+                  Admin access requires membership in the admin security group.
+                </>
+              ) : (
+                <>
+                  SSO is not configured. Using manual login.
+                  <br />
+                  Please run configure-auth.ps1 to enable Microsoft 365 SSO.
+                </>
+              )}
             </Typography>
           </Box>
         </CardContent>

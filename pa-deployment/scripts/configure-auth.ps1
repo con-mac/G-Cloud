@@ -264,14 +264,32 @@ Write-Info "Updating Web App with authentication settings..."
 $webAuthSettings = @(
     "VITE_AZURE_AD_TENANT_ID=$TENANT_ID",
     "VITE_AZURE_AD_CLIENT_ID=$APP_ID",
-    "VITE_AZURE_AD_REDIRECT_URI=${WEB_APP_URL}/auth/callback"
+    "VITE_AZURE_AD_REDIRECT_URI=$WEB_APP_URL"
 )
 
+# Add admin group ID if configured
+if (-not [string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID)) {
+    $webAuthSettings += "VITE_AZURE_AD_ADMIN_GROUP_ID=$ADMIN_GROUP_ID"
+    Write-Info "Admin group ID configured: $ADMIN_GROUP_ID"
+}
+
+$ErrorActionPreference = 'SilentlyContinue'
 az webapp config appsettings set `
     --name "$WEB_APP_NAME" `
     --resource-group "$RESOURCE_GROUP" `
     --settings $webAuthSettings `
-    --output none | Out-Null
+    --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Success "Web App authentication settings updated"
+    Write-Info "  Tenant ID: $TENANT_ID"
+    Write-Info "  Client ID: $APP_ID"
+    Write-Info "  Redirect URI: $WEB_APP_URL"
+} else {
+    Write-Warning "Failed to update Web App authentication settings"
+    Write-Info "Please update manually in Azure Portal or run this script again"
+}
 
 # Configure SharePoint site permissions (if SharePoint is configured)
 if (-not [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_URL) -and -not [string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
