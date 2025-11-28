@@ -16,12 +16,21 @@ import 'react-toastify/dist/ReactToastify.css';
 import './styles/index.css';
 
 // MSAL configuration - get from runtime window object or build-time env vars
+// Wait for DOM to ensure window.__ENV__ is available
 const getMsalConfig = () => {
-  // Check for runtime config (injected by nginx startup script)
+  // Check for runtime config (injected by entrypoint script)
   const runtimeConfig = (window as any).__ENV__;
   const clientId = runtimeConfig?.VITE_AZURE_AD_CLIENT_ID || import.meta.env.VITE_AZURE_AD_CLIENT_ID || '';
   const tenantId = runtimeConfig?.VITE_AZURE_AD_TENANT_ID || import.meta.env.VITE_AZURE_AD_TENANT_ID || '';
+  // Use redirect URI from config, or default to base URL (SPA doesn't need /auth/callback)
   const redirectUri = runtimeConfig?.VITE_AZURE_AD_REDIRECT_URI || import.meta.env.VITE_AZURE_AD_REDIRECT_URI || window.location.origin;
+  
+  console.log('MSAL Config:', { clientId: clientId ? `${clientId.substring(0, 8)}...` : 'empty', tenantId: tenantId ? `${tenantId.substring(0, 8)}...` : 'empty', redirectUri });
+  console.log('Runtime config available:', !!runtimeConfig);
+  
+  if (!clientId || clientId === 'PLACEHOLDER_CLIENT_ID') {
+    console.warn('MSAL Client ID not configured properly');
+  }
   
   return {
     auth: {
@@ -38,6 +47,13 @@ const getMsalConfig = () => {
 
 const msalConfig = getMsalConfig();
 const msalInstance = new PublicClientApplication(msalConfig);
+
+// Initialize MSAL - this is required for MSAL to work
+msalInstance.initialize().then(() => {
+  console.log('MSAL initialized successfully');
+}).catch((error) => {
+  console.error('MSAL initialization error:', error);
+});
 
 // React Query client
 const queryClient = new QueryClient({

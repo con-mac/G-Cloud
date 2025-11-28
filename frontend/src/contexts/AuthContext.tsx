@@ -43,6 +43,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Debug: Log MSAL instance config
+  useEffect(() => {
+    const config = (instance as any).config;
+    console.log('MSAL Instance Config:', {
+      clientId: config?.auth?.clientId ? `${config.auth.clientId.substring(0, 8)}...` : 'missing',
+      authority: config?.auth?.authority,
+      redirectUri: config?.auth?.redirectUri,
+    });
+  }, [instance]);
+
   // Format email as firstName.LastName@paconsulting.com
   const formatEmail = (email: string): string => {
     if (!email) return email;
