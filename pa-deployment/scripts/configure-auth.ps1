@@ -163,21 +163,23 @@ Write-Info "Note: This command may take 10-30 seconds..."
 # Check if there's an existing secret we can use (optional - we'll create new one anyway)
 # But this helps us understand if the command is hanging
 Write-Info "Calling Azure AD API (this may take a moment)..."
-# Capture stdout and stderr separately, then extract JSON from stdout only
+# Use a simpler approach: redirect stderr to null, then extract JSON from stdout
 $ErrorActionPreference = 'SilentlyContinue'
-$stderrFile = [System.IO.Path]::GetTempFileName()
+
+# Create temp files for output
 $stdoutFile = [System.IO.Path]::GetTempFileName()
+$stderrFile = [System.IO.Path]::GetTempFileName()
 
 try {
-    # Run command and redirect stderr to file, stdout to file
-    az ad app credential reset --id $APP_ID --output json *> $stdoutFile 2> $stderrFile
+    # Run command with stderr redirected
+    & az ad app credential reset --id $APP_ID --output json 2>$stderrFile | Out-File -FilePath $stdoutFile -Encoding utf8
     $secretExitCode = $LASTEXITCODE
     
-    # Read stdout (should contain JSON)
+    # Read stdout (should be clean JSON)
     $secretOutput = Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue
     
-    # If stdout is empty or contains warnings, try reading stderr (sometimes Azure CLI puts JSON in stderr)
-    if ([string]::IsNullOrWhiteSpace($secretOutput) -or $secretOutput -match '^WARNING:') {
+    # If stdout is empty, check if JSON ended up in stderr (unlikely but possible)
+    if ([string]::IsNullOrWhiteSpace($secretOutput)) {
         $stderrContent = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
         if (-not [string]::IsNullOrWhiteSpace($stderrContent) -and $stderrContent -match '\{') {
             $secretOutput = $stderrContent
@@ -185,8 +187,8 @@ try {
     }
 } finally {
     # Clean up temp files
-    Remove-Item $stdoutFile -ErrorAction SilentlyContinue
-    Remove-Item $stderrFile -ErrorAction SilentlyContinue
+    if (Test-Path $stdoutFile) { Remove-Item $stdoutFile -ErrorAction SilentlyContinue -Force }
+    if (Test-Path $stderrFile) { Remove-Item $stderrFile -ErrorAction SilentlyContinue -Force }
 }
 
 $ErrorActionPreference = 'Stop'
