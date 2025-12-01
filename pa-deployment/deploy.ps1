@@ -1210,7 +1210,9 @@ function Start-Deployment {
         & ".\scripts\deploy-frontend.ps1"
         
         # Configure authentication
-        & ".\scripts\configure-auth.ps1"
+        # Run configure-auth.ps1 without profile to bypass error handlers that intercept JSON parsing
+        Write-Info "Configuring SSO authentication (running without PowerShell profile to avoid JSON parsing errors)..."
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\configure-auth.ps1"
         
         Write-Success "Deployment complete!"
         Write-Info "Next steps:"

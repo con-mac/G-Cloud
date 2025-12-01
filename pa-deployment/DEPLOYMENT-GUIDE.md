@@ -1,0 +1,230 @@
+# G-Cloud 15 Automation Tool - PA Deployment Guide
+
+Complete deployment guide for deploying the G-Cloud 15 automation tool to PA Consulting's Azure dev environment.
+
+## Table of Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Initial Deployment](#initial-deployment)
+3. [SSO Configuration](#sso-configuration)
+4. [Frontend Docker Image Rebuild](#frontend-docker-image-rebuild)
+5. [Redeployment](#redeployment)
+6. [Troubleshooting](#troubleshooting)
+
+## Prerequisites
+
+- Azure CLI installed and configured
+- PowerShell 5.1 or later
+- Access to PA Consulting's Azure subscription
+- Appropriate Azure AD permissions (for App Registration and security groups)
+
+## Initial Deployment
+
+### Step 1: Run Main Deployment Script
+
+From the project root directory:
+
+```powershell
+cd C:\Users\conor\Documents\Projects\G-Cloud
+.\pa-deployment\deploy.ps1
+```
+
+The script will guide you through:
+- Resource group selection/creation
+- Function App configuration
+- Web App configuration
+- Key Vault setup
+- SharePoint site configuration
+- App Registration selection/creation
+- Storage Account configuration
+- Azure Container Registry (ACR) configuration
+- Private DNS Zone configuration
+- Application Insights configuration
+- VNet and Private Endpoint configuration (optional)
+- Admin and Employee Security Group configuration
+
+**Important Notes:**
+- You can use existing resources or create new ones
+- Private endpoints can be configured now or later (for testing, skip initially)
+- Security groups are required for SSO - the admin group determines access to the admin dashboard
+
+### Step 2: Deployment Process
+
+The `deploy.ps1` script automatically:
+1. Creates/verifies all Azure resources
+2. Deploys the backend (Function App)
+3. Builds and pushes the frontend Docker image to ACR (if needed)
+4. Deploys the frontend (Web App) using the Docker image
+5. Configures SSO authentication (runs `configure-auth.ps1` without PowerShell profile)
+
+## SSO Configuration
+
+SSO configuration is handled automatically by `deploy.ps1`, but if you need to run it separately:
+
+### Running SSO Configuration Manually
+
+**Important:** Due to PowerShell profile error handlers that can intercept JSON parsing, run the script without the profile:
+
+```powershell
+cd C:\Users\conor\Documents\Projects\G-Cloud
+powershell -NoProfile -ExecutionPolicy Bypass -File .\pa-deployment\scripts\configure-auth.ps1
+```
+
+This script:
+- Creates/updates the App Registration client secret
+- Configures Function App with SSO settings (using Key Vault references)
+- Configures Web App with SSO settings (including admin group ID)
+- Stores credentials in Key Vault
+- Attempts to grant SharePoint permissions
+
+**Why -NoProfile?**
+The PowerShell profile may contain error handlers that intercept JSON parsing errors when Azure CLI outputs warnings. Running without the profile bypasses these handlers and allows the script to use regex extraction for the client secret.
+
+## Frontend Docker Image Rebuild
+
+After SSO configuration, you **must** rebuild the frontend Docker image so it includes the actual SSO configuration values (Tenant ID, Client ID, Admin Group ID) at build time.
+
+### Step 1: Rebuild Frontend Image
+
+```powershell
+cd C:\Users\conor\Documents\Projects\G-Cloud
+.\pa-deployment\scripts\build-and-push-images.ps1
+```
+
+When prompted:
+- Select **Option 1** (ACR build) - builds in Azure cloud, no local Docker needed
+- The script automatically retrieves SSO configuration and passes it as build arguments
+
+### Step 2: Redeploy Frontend
+
+After the image is built:
+
+```powershell
+.\pa-deployment\scripts\deploy-frontend.ps1
+```
+
+This pulls the new image with SSO configuration and updates the Web App.
+
+## Redeployment
+
+### Full Redeployment
+
+If you need to redeploy everything:
+
+1. **Keep these resources** (don't delete):
+   - App Registration (contains SSO configuration)
+   - Security Groups (Admin and Employee groups)
+   - Key Vault (contains secrets)
+
+2. **Run deployment:**
+   ```powershell
+   .\pa-deployment\deploy.ps1
+   ```
+   - Select existing App Registration
+   - Select existing Security Groups
+   - Select existing Key Vault
+
+3. **Rebuild frontend image** (SSO values are embedded at build time):
+   ```powershell
+   .\pa-deployment\scripts\build-and-push-images.ps1
+   ```
+
+4. **Redeploy frontend:**
+   ```powershell
+   .\pa-deployment\scripts\deploy-frontend.ps1
+   ```
+
+### Code-Only Updates
+
+For backend code changes:
+```powershell
+.\pa-deployment\scripts\deploy-functions.ps1
+```
+
+For frontend code changes:
+1. Rebuild image: `.\pa-deployment\scripts\build-and-push-images.ps1`
+2. Redeploy: `.\pa-deployment\scripts\deploy-frontend.ps1`
+
+## Troubleshooting
+
+### SSO Not Working / "SSO is not configured" Message
+
+**Cause:** Frontend Docker image was built before SSO configuration.
+
+**Solution:**
+1. Ensure SSO is configured: `powershell -NoProfile -ExecutionPolicy Bypass -File .\pa-deployment\scripts\configure-auth.ps1`
+2. Rebuild frontend image: `.\pa-deployment\scripts\build-and-push-images.ps1`
+3. Redeploy frontend: `.\pa-deployment\scripts\deploy-frontend.ps1`
+
+### "Failed to parse client secret response" Error
+
+**Cause:** PowerShell profile error handlers intercepting JSON parsing.
+
+**Solution:** Always run `configure-auth.ps1` without profile:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\pa-deployment\scripts\configure-auth.ps1
+```
+
+The script uses regex extraction to get the password, which works even when warnings are present in the output.
+
+### Frontend Shows Blank Page
+
+**Possible causes:**
+1. Docker image not deployed correctly
+2. Container failed to start
+
+**Solution:**
+1. Check Web App logs: `az webapp log tail --name <WEB_APP_NAME> --resource-group <RESOURCE_GROUP>`
+2. Verify image exists in ACR: `az acr repository show-tags --name <ACR_NAME> --repository frontend`
+3. Redeploy frontend: `.\pa-deployment\scripts\deploy-frontend.ps1`
+
+### Backend Not Responding
+
+**Possible causes:**
+1. Function App not deployed
+2. CORS configuration issue
+
+**Solution:**
+1. Check Function App status: `az functionapp show --name <FUNCTION_APP_NAME> --resource-group <RESOURCE_GROUP>`
+2. Redeploy backend: `.\pa-deployment\scripts\deploy-functions.ps1`
+3. Verify CORS settings in `backend/app/core/config.py` include the frontend URL
+
+### SharePoint Permissions
+
+If SharePoint permissions fail to grant automatically:
+
+1. Go to SharePoint site: `https://<tenant>.sharepoint.com/sites/<site-name>`
+2. Settings → Site permissions → Grant permissions
+3. Add App Registration: `<APP_REGISTRATION_NAME>`
+4. Grant 'Edit' or 'Full Control' permissions
+
+## Key Configuration Files
+
+- `config/deployment-config.env` - Deployment configuration (auto-generated by deploy.ps1)
+- `pa-deployment/scripts/deploy.ps1` - Main deployment script
+- `pa-deployment/scripts/configure-auth.ps1` - SSO configuration script
+- `pa-deployment/scripts/build-and-push-images.ps1` - Docker image build script
+- `pa-deployment/scripts/deploy-frontend.ps1` - Frontend deployment script
+- `pa-deployment/scripts/deploy-functions.ps1` - Backend deployment script
+
+## Architecture Overview
+
+- **Frontend:** React app served via Nginx in Docker container (Azure Web App)
+- **Backend:** FastAPI application (Azure Function App)
+- **Authentication:** Microsoft 365 SSO via Azure AD App Registration
+- **Storage:** SharePoint for document storage
+- **Secrets:** Azure Key Vault
+- **Container Registry:** Azure Container Registry (ACR) for Docker images
+- **Security:** Azure AD Security Groups for role-based access (Admin vs Employee)
+
+## Support
+
+For issues or questions, refer to:
+- Azure Portal logs for detailed error messages
+- Application Insights for application telemetry
+- Azure CLI commands for resource status
+
+---
+
+**Last Updated:** After SSO milestone - All fixes for JSON parsing and SSO configuration are now integrated into the deployment scripts.
+
