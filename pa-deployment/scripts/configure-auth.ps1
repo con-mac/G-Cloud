@@ -163,7 +163,7 @@ Write-Info "Note: This command may take 10-30 seconds..."
 # Check if there's an existing secret we can use (optional - we'll create new one anyway)
 # But this helps us understand if the command is hanging
 Write-Info "Calling Azure AD API (this may take a moment)..."
-# Use a simpler approach: redirect stderr to null, then extract JSON from stdout
+# Capture raw output - we'll use regex to extract password, never JSON parsing
 $ErrorActionPreference = 'SilentlyContinue'
 
 # Create temp files for output
@@ -171,19 +171,31 @@ $stdoutFile = [System.IO.Path]::GetTempFileName()
 $stderrFile = [System.IO.Path]::GetTempFileName()
 
 try {
-    # Run command with stderr redirected
-    & az ad app credential reset --id $APP_ID --output json 2>$stderrFile | Out-File -FilePath $stdoutFile -Encoding utf8
+    # Run command and capture ALL output to file (both stdout and stderr may contain data)
+    # Use --only-show-errors to suppress warnings, but they may still appear
+    & az ad app credential reset --id $APP_ID --output json --only-show-errors 2>$stderrFile | Out-File -FilePath $stdoutFile -Encoding utf8 -NoNewline
     $secretExitCode = $LASTEXITCODE
     
-    # Read stdout (should be clean JSON)
+    # Read stdout as raw text (don't let PowerShell interpret it)
     $secretOutput = Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue
     
-    # If stdout is empty, check if JSON ended up in stderr (unlikely but possible)
-    if ([string]::IsNullOrWhiteSpace($secretOutput)) {
+    # If stdout is empty or contains warnings, check stderr
+    if ([string]::IsNullOrWhiteSpace($secretOutput) -or $secretOutput -match 'WARNING:') {
         $stderrContent = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
-        if (-not [string]::IsNullOrWhiteSpace($stderrContent) -and $stderrContent -match '\{') {
-            $secretOutput = $stderrContent
+        if (-not [string]::IsNullOrWhiteSpace($stderrContent)) {
+            # Combine both outputs - regex will find password regardless
+            if ([string]::IsNullOrWhiteSpace($secretOutput)) {
+                $secretOutput = $stderrContent
+            } else {
+                $secretOutput = "$secretOutput`n$stderrContent"
+            }
         }
+    }
+} catch {
+    # If anything fails, try to read what we have
+    Write-Warning "Error capturing output: $_"
+    if (Test-Path $stdoutFile) {
+        $secretOutput = Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue
     }
 } finally {
     # Clean up temp files
