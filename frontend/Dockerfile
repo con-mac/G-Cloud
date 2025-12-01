@@ -41,5 +41,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
 # Use entrypoint script to inject runtime env vars
-ENTRYPOINT ["/entrypoint.sh"]
+# Temporarily using CMD to debug - will switch back to ENTRYPOINT once working
+CMD ["/entrypoint.sh"]
 
