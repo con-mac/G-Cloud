@@ -29,9 +29,11 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy entrypoint script
+# Copy entrypoint script (ensure it exists and is executable)
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    ls -la /entrypoint.sh && \
+    head -5 /entrypoint.sh
 
 # Expose port
 EXPOSE 80
