@@ -104,10 +104,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (response.ok) {
         const groups = await response.json();
+        // Check if user is a member of the admin security group
+        // Only exact group ID match is used for security
         return groups.value?.some((group: any) => 
-          group.id === adminGroupId || 
-          group.displayName?.toLowerCase().includes('admin') ||
-          group.displayName?.toLowerCase().includes('gcloud')
+          group.id === adminGroupId
         ) || false;
       }
     } catch (error) {

@@ -11,37 +11,30 @@ import {
   Box,
   Card,
   CardContent,
-  TextField,
   Button,
   Typography,
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from '@mui/material';
 import { Login as LoginIcon } from '@mui/icons-material';
-
-type LoginType = 'employee' | 'admin';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login, isAuthenticated, user } = useAuth();
-  const [email, setEmail] = useState('');
-  const [loginType, setLoginType] = useState<LoginType>('employee');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated - automatically based on security group membership
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.isAdmin || loginType === 'admin') {
+      // Access is determined automatically by security group membership
+      // Admin group members get admin dashboard, others get standard employee view
+      if (user.isAdmin) {
         navigate('/admin/dashboard');
       } else {
         navigate('/proposals');
       }
     }
-  }, [isAuthenticated, user, navigate, loginType]);
+  }, [isAuthenticated, user, navigate]);
 
   // Email validation is handled by MSAL SSO - no manual validation needed
   // const validateEmail = (emailValue: string): boolean => {
@@ -50,15 +43,20 @@ export default function Login() {
   //   return emailRegex.test(emailValue);
   // };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
     setError('');
     setLoading(true);
 
     try {
       // Use MSAL SSO login
+      // After login, AuthContext will check security group membership
+      // and set user.isAdmin automatically
       await login();
       // Navigation will happen automatically via useEffect when user is authenticated
+      // based on their security group membership (admin vs employee)
     } catch (err: any) {
       setError(err.message || 'Failed to sign in. Please try again.');
       setLoading(false);
@@ -83,6 +81,7 @@ export default function Login() {
 
           {isSSOConfigured ? (
             // SSO Login (Microsoft 365)
+            // Access level (admin vs employee) is automatically determined by security group membership
             <Box>
               <Button
                 fullWidth
@@ -102,56 +101,12 @@ export default function Login() {
               )}
             </Box>
           ) : (
-            // Manual Login (fallback)
-            <form onSubmit={handleSubmit}>
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel id="login-type-label">Login Type</InputLabel>
-                <Select
-                  labelId="login-type-label"
-                  id="login-type"
-                  value={loginType}
-                  label="Login Type"
-                  onChange={(e) => setLoginType(e.target.value as LoginType)}
-                  disabled={loading}
-                >
-                  <MenuItem value="employee">PA Consulting Employee Login</MenuItem>
-                  <MenuItem value="admin">PA Consulting Admin Login</MenuItem>
-                </Select>
-              </FormControl>
-              <TextField
-                fullWidth
-                label="Email Address"
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setError('');
-                }}
-                placeholder="your.name@paconsulting.com"
-                error={!!error}
-                helperText={error || 'Enter your PA Consulting email address'}
-                disabled={loading}
-                sx={{ mb: 3 }}
-                autoFocus
-              />
-
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {error}
-                </Alert>
-              )}
-
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                size="large"
-                disabled={loading || !email.trim()}
-                startIcon={<LoginIcon />}
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-              </Button>
-            </form>
+            // SSO not configured - show error message
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              SSO is not configured. Please run configure-auth.ps1 to enable Microsoft 365 SSO.
+              <br />
+              Access level (admin vs employee) is automatically determined by your security group membership.
+            </Alert>
           )}
 
           <Box mt={3}>
@@ -160,13 +115,13 @@ export default function Login() {
                 <>
                   Sign in with your Microsoft 365 account (PA Consulting).
                   <br />
-                  Admin access requires membership in the admin security group.
+                  Your access level (admin dashboard or standard employee view) is automatically determined by your security group membership.
+                  <br />
+                  Admin group members will see the admin dashboard; all other users will see the standard employee interface.
                 </>
               ) : (
                 <>
-                  SSO is not configured. Using manual login.
-                  <br />
-                  Please run configure-auth.ps1 to enable Microsoft 365 SSO.
+                  SSO is not configured. Please run configure-auth.ps1 to enable Microsoft 365 SSO.
                 </>
               )}
             </Typography>
