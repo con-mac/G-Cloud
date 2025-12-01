@@ -29,12 +29,6 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy entrypoint script (ensure it exists and is executable)
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && \
-    ls -la /entrypoint.sh && \
-    head -5 /entrypoint.sh
-
 # Expose port
 EXPOSE 80
 
@@ -42,7 +36,6 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-# Use entrypoint script to inject runtime env vars
-# If entrypoint.sh exists, use it; otherwise start nginx directly
-CMD ["sh", "-c", "if [ -f /entrypoint.sh ]; then /entrypoint.sh; else nginx -g 'daemon off;'; fi"]
+# Start nginx directly (entrypoint script will be added later once app is working)
+CMD ["nginx", "-g", "daemon off;"]
 
