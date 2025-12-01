@@ -162,11 +162,21 @@ Write-Info "Note: This command may take 10-30 seconds..."
 
 # Check if there's an existing secret we can use (optional - we'll create new one anyway)
 # But this helps us understand if the command is hanging
-$ErrorActionPreference = 'SilentlyContinue'
 Write-Info "Calling Azure AD API (this may take a moment)..."
-$secretOutput = az ad app credential reset --id $APP_ID --output json 2>&1
+# Use --only-show-errors to suppress warnings, and redirect stderr separately
+$ErrorActionPreference = 'SilentlyContinue'
+$secretOutput = az ad app credential reset --id $APP_ID --output json --only-show-errors 2>$null
 $secretExitCode = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
+
+# If that didn't work (some Azure CLI versions don't support --only-show-errors), try with stderr redirect
+if ($secretExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($secretOutput)) {
+    Write-Info "Retrying without --only-show-errors flag..."
+    $ErrorActionPreference = 'SilentlyContinue'
+    $secretOutput = az ad app credential reset --id $APP_ID --output json 2>$null
+    $secretExitCode = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+}
 
 if ($secretExitCode -ne 0) {
     Write-Error "Failed to create client secret (exit code: $secretExitCode)"
@@ -188,65 +198,82 @@ if ([string]::IsNullOrWhiteSpace($secretOutput)) {
     exit 1
 }
 
+# Parse the secret - try multiple methods
+$SECRET = $null
+
+# Method 1: Direct JSON parse (if output is clean)
 try {
-    # Azure CLI may output warnings before JSON - extract just the JSON part
-    # Look for the JSON object (starts with { and ends with })
-    $jsonStart = $secretOutput.IndexOf('{')
-    if ($jsonStart -ge 0) {
-        $jsonEnd = $secretOutput.LastIndexOf('}')
-        if ($jsonEnd -gt $jsonStart) {
-            $jsonOnly = $secretOutput.Substring($jsonStart, $jsonEnd - $jsonStart + 1)
-            Write-Info "Extracted JSON from output (removed warnings)"
-            $secretJson = $jsonOnly | ConvertFrom-Json
-        } else {
-            # Fallback: try to find JSON on separate lines
-            $lines = $secretOutput -split "`n" | Where-Object { $_.Trim().StartsWith('{') }
-            if ($lines.Count -gt 0) {
-                $jsonOnly = $lines[0].Trim()
-                $secretJson = $jsonOnly | ConvertFrom-Json
-            } else {
-                # Last resort: try parsing the whole output
-                $secretJson = $secretOutput | ConvertFrom-Json
+    $secretJson = $secretOutput | ConvertFrom-Json
+    $SECRET = $secretJson.password
+    if (-not [string]::IsNullOrWhiteSpace($SECRET)) {
+        Write-Success "Client secret created successfully"
+    }
+} catch {
+    Write-Info "Direct JSON parse failed, trying extraction methods..."
+}
+
+# Method 2: Extract JSON from mixed output (if warnings are present)
+if ([string]::IsNullOrWhiteSpace($SECRET)) {
+    try {
+        # Look for JSON object in the output
+        if ($secretOutput -match '\{[\s\S]*"password"[\s\S]*\}') {
+            $jsonMatch = $matches[0]
+            $secretJson = $jsonMatch | ConvertFrom-Json
+            $SECRET = $secretJson.password
+            if (-not [string]::IsNullOrWhiteSpace($SECRET)) {
+                Write-Success "Client secret extracted from mixed output"
             }
         }
-    } else {
-        # No { found, try to find JSON on a line by itself
-        $lines = $secretOutput -split "`n" | Where-Object { $_.Trim().StartsWith('{') }
-        if ($lines.Count -gt 0) {
-            $jsonOnly = $lines[0].Trim()
-            $secretJson = $jsonOnly | ConvertFrom-Json
-        } else {
-            # Last resort: try parsing whole output
-            $secretJson = $secretOutput | ConvertFrom-Json
-        }
+    } catch {
+        Write-Info "JSON extraction from mixed output failed, trying regex..."
     }
-    
-    $SECRET = $secretJson.password
-    if ([string]::IsNullOrWhiteSpace($SECRET)) {
-        Write-Error "Client secret was created but password is empty"
-        Write-Info "Full response: $secretOutput"
-        exit 1
-    }
-    Write-Success "Client secret created successfully"
-} catch {
-    Write-Error "Failed to parse client secret response: $_"
-    Write-Info "Raw output: $secretOutput"
-    Write-Info ""
-    Write-Info "Attempting manual extraction..."
-    
-    # Try to extract password using regex as last resort
+}
+
+# Method 3: Regex extraction (most reliable fallback)
+if ([string]::IsNullOrWhiteSpace($SECRET)) {
     if ($secretOutput -match '"password"\s*:\s*"([^"]+)"') {
         $SECRET = $matches[1]
-        Write-Success "Extracted client secret using regex fallback"
-    } else {
-        Write-Error "Could not extract client secret from output"
-        Write-Info ""
-        Write-Info "The secret may have been created. You can:"
-        Write-Info "1. Check Azure Portal: App Registrations -> $APP_REGISTRATION_NAME -> Certificates & secrets"
-        Write-Info "2. Or manually extract the password from the output above"
-        Write-Info "3. Then run this script again or set it manually in Key Vault"
-        exit 1
+        Write-Success "Client secret extracted using regex"
     }
+}
+
+# Method 4: Line-by-line extraction
+if ([string]::IsNullOrWhiteSpace($SECRET)) {
+    $lines = $secretOutput -split "`r?`n" | Where-Object { $_.Trim().StartsWith('{') -or $_.Trim().StartsWith('"password"') }
+    foreach ($line in $lines) {
+        if ($line -match '"password"\s*:\s*"([^"]+)"') {
+            $SECRET = $matches[1]
+            Write-Success "Client secret extracted from line: $line"
+            break
+        }
+        if ($line.Trim().StartsWith('{')) {
+            try {
+                $secretJson = $line.Trim() | ConvertFrom-Json
+                $SECRET = $secretJson.password
+                if (-not [string]::IsNullOrWhiteSpace($SECRET)) {
+                    Write-Success "Client secret extracted from JSON line"
+                    break
+                }
+            } catch {
+                # Continue to next line
+            }
+        }
+    }
+}
+
+# Final validation
+if ([string]::IsNullOrWhiteSpace($SECRET)) {
+    Write-Error "Could not extract client secret from output"
+    Write-Info "Raw output: $secretOutput"
+    Write-Info ""
+    Write-Info "The secret may have been created. You can:"
+    Write-Info "1. Check Azure Portal: App Registrations -> $APP_REGISTRATION_NAME -> Certificates & secrets"
+    Write-Info "2. Or manually extract the password from the output above"
+    Write-Info "3. Then run this script again or set it manually in Key Vault"
+    Write-Info ""
+    Write-Info "To set manually:"
+    Write-Info "  az keyvault secret set --vault-name $KEY_VAULT_NAME --name 'AzureADClientSecret' --value 'YOUR_SECRET'"
+    exit 1
 }
 
 # Get or create admin security group
