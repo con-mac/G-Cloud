@@ -1,7 +1,9 @@
 # Configure Authentication Script (PowerShell)
 # Sets up Microsoft 365 SSO integration
 
+# Suppress any automatic error handling that might try to parse JSON
 $ErrorActionPreference = "Stop"
+$PSDefaultParameterValues = @{}
 
 # Load configuration
 if (-not (Test-Path "config\deployment-config.env")) {
