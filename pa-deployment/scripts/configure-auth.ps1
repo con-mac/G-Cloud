@@ -163,20 +163,33 @@ Write-Info "Note: This command may take 10-30 seconds..."
 # Check if there's an existing secret we can use (optional - we'll create new one anyway)
 # But this helps us understand if the command is hanging
 Write-Info "Calling Azure AD API (this may take a moment)..."
-# Use --only-show-errors to suppress warnings, and redirect stderr separately
+# Capture stdout and stderr separately, then extract JSON from stdout only
 $ErrorActionPreference = 'SilentlyContinue'
-$secretOutput = az ad app credential reset --id $APP_ID --output json --only-show-errors 2>$null
-$secretExitCode = $LASTEXITCODE
-$ErrorActionPreference = 'Stop'
+$stderrFile = [System.IO.Path]::GetTempFileName()
+$stdoutFile = [System.IO.Path]::GetTempFileName()
 
-# If that didn't work (some Azure CLI versions don't support --only-show-errors), try with stderr redirect
-if ($secretExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($secretOutput)) {
-    Write-Info "Retrying without --only-show-errors flag..."
-    $ErrorActionPreference = 'SilentlyContinue'
-    $secretOutput = az ad app credential reset --id $APP_ID --output json 2>$null
+try {
+    # Run command and redirect stderr to file, stdout to file
+    az ad app credential reset --id $APP_ID --output json *> $stdoutFile 2> $stderrFile
     $secretExitCode = $LASTEXITCODE
-    $ErrorActionPreference = 'Stop'
+    
+    # Read stdout (should contain JSON)
+    $secretOutput = Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue
+    
+    # If stdout is empty or contains warnings, try reading stderr (sometimes Azure CLI puts JSON in stderr)
+    if ([string]::IsNullOrWhiteSpace($secretOutput) -or $secretOutput -match '^WARNING:') {
+        $stderrContent = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
+        if (-not [string]::IsNullOrWhiteSpace($stderrContent) -and $stderrContent -match '\{') {
+            $secretOutput = $stderrContent
+        }
+    }
+} finally {
+    # Clean up temp files
+    Remove-Item $stdoutFile -ErrorAction SilentlyContinue
+    Remove-Item $stderrFile -ErrorAction SilentlyContinue
 }
+
+$ErrorActionPreference = 'Stop'
 
 if ($secretExitCode -ne 0) {
     Write-Error "Failed to create client secret (exit code: $secretExitCode)"
