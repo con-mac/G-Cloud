@@ -43,11 +43,12 @@ export default function Login() {
     }
   }, [isAuthenticated, user, navigate, loginType]);
 
-  const validateEmail = (emailValue: string): boolean => {
-    // Must end with @paconsulting.com
-    const emailRegex = /^[^\s@]+@paconsulting\.com$/i;
-    return emailRegex.test(emailValue);
-  };
+  // Email validation is handled by MSAL SSO - no manual validation needed
+  // const validateEmail = (emailValue: string): boolean => {
+  //   // Must end with @paconsulting.com
+  //   const emailRegex = /^[^\s@]+@paconsulting\.com$/i;
+  //   return emailRegex.test(emailValue);
+  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
