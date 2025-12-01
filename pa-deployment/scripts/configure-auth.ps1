@@ -175,87 +175,74 @@ Write-Info "Note: This command may take 10-30 seconds..."
 # But this helps us understand if the command is hanging
 Write-Info "Calling Azure AD API (this may take a moment)..."
 # Capture raw output - we'll use regex to extract password, NEVER JSON parsing
-# Completely suppress all error handling to prevent any auto-parsing or error interception
-
-# Save current error preference and suppress all errors
-$originalErrorAction = $ErrorActionPreference
-$ErrorActionPreference = 'SilentlyContinue'
-
-# Clear any existing errors
-$Error.Clear() | Out-Null
+# Use PowerShell's native command execution but suppress all errors to prevent JSON parsing
 
 $secretOutput = ""
 $secretExitCode = 0
 
-# Use ProcessStartInfo directly to completely bypass PowerShell pipeline
-# This prevents ANY PowerShell interpretation of the output
+# Find az command (works even without profile)
+$azPath = $null
+$ErrorActionPreference = 'SilentlyContinue'
 try {
-    # Create process start info
-    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $processInfo.FileName = "az"
-    $processInfo.Arguments = "ad app credential reset --id $APP_ID --output json"
-    $processInfo.RedirectStandardOutput = $true
-    $processInfo.RedirectStandardError = $true
-    $processInfo.UseShellExecute = $false
-    $processInfo.CreateNoWindow = $true
-    $processInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
-    
-    # Create and start process
-    $process = New-Object System.Diagnostics.Process
-    $process.StartInfo = $processInfo
-    
-    # Suppress any error handling during process execution
-    $ErrorActionPreference = 'SilentlyContinue'
-    
-    # Start process
-    $started = $process.Start()
-    if (-not $started) {
-        throw "Failed to start process"
-    }
-    
-    # Read output asynchronously to avoid blocking
-    $stdoutContent = ""
-    $stderrContent = ""
-    
-    # Read all output
-    $stdoutContent = $process.StandardOutput.ReadToEnd()
-    $stderrContent = $process.StandardError.ReadToEnd()
-    
-    # Wait for process to complete
-    $process.WaitForExit()
-    $secretExitCode = $process.ExitCode
-    
-    # Combine outputs - regex will find password in either
-    if (-not [string]::IsNullOrWhiteSpace($stdoutContent)) {
-        $secretOutput = $stdoutContent.Trim()
-    }
-    if (-not [string]::IsNullOrWhiteSpace($stderrContent)) {
-        $stderrTrimmed = $stderrContent.Trim()
-        if ([string]::IsNullOrWhiteSpace($secretOutput)) {
-            $secretOutput = $stderrTrimmed
-        } elseif (-not [string]::IsNullOrWhiteSpace($stderrTrimmed)) {
-            $secretOutput = "$secretOutput`n$stderrTrimmed"
+    # Try to find az in PATH
+    $azPath = (Get-Command az -ErrorAction SilentlyContinue).Source
+    if (-not $azPath) {
+        # Try common installation paths
+        $commonPaths = @(
+            "$env:ProgramFiles\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+            "$env:ProgramFiles(x86)\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+            "$env:LOCALAPPDATA\Programs\Python\Python*\Scripts\az.cmd"
+        )
+        foreach ($path in $commonPaths) {
+            if (Test-Path $path) {
+                $azPath = $path
+                break
+            }
+        }
+        # If still not found, try expanding wildcards
+        if (-not $azPath) {
+            $pythonPaths = Get-ChildItem "$env:LOCALAPPDATA\Programs\Python" -ErrorAction SilentlyContinue | 
+                Where-Object { $_.PSIsContainer } | 
+                ForEach-Object { Join-Path $_.FullName "Scripts\az.cmd" } |
+                Where-Object { Test-Path $_ }
+            if ($pythonPaths) {
+                $azPath = $pythonPaths | Select-Object -First 1
+            }
         }
     }
-    
-    # Clean up process
-    if ($process -and -not $process.HasExited) {
-        try { $process.Kill() } catch { }
-    }
-    $process.Dispose()
-    
 } catch {
-    # Suppress all errors - we'll check output below
-    $ErrorActionPreference = 'SilentlyContinue'
-    Write-Warning "Error during command execution (this may be expected): $_"
-} finally {
-    # Restore error preference
-    $ErrorActionPreference = $originalErrorAction
+    # Ignore errors
 }
 
-# Clear any errors that might have been set
-$Error.Clear() | Out-Null
+if (-not $azPath) {
+    # Fallback: use 'az' and hope it's in PATH
+    $azPath = "az"
+}
+
 $ErrorActionPreference = 'Stop'
+
+# Use PowerShell's native command execution with error suppression
+# This works even without profile and handles PATH correctly
+try {
+    $ErrorActionPreference = 'SilentlyContinue'
+    $null = $Error.Clear()
+    
+    # Run command and capture output - suppress errors to prevent JSON parsing
+    $secretOutput = & $azPath ad app credential reset --id $APP_ID --output json 2>&1 | Out-String
+    $secretExitCode = $LASTEXITCODE
+    
+    # Trim the output
+    if (-not [string]::IsNullOrWhiteSpace($secretOutput)) {
+        $secretOutput = $secretOutput.Trim()
+    }
+} catch {
+    # Suppress all errors - we'll check output below
+    $null = $Error.Clear()
+    Write-Warning "Error during command execution (this may be expected): $_"
+} finally {
+    $ErrorActionPreference = 'Stop'
+    $null = $Error.Clear()
+}
 
 if ($secretExitCode -ne 0) {
     Write-Error "Failed to create client secret (exit code: $secretExitCode)"
