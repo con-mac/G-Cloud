@@ -36,6 +36,6 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-# Start nginx directly (entrypoint script will be added later once app is working)
-CMD ["nginx", "-g", "daemon off;"]
+# Use nginx:alpine's default CMD (which is already "nginx -g 'daemon off;'")
+# No need to override - the base image handles it correctly
 
