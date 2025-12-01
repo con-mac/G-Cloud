@@ -2,8 +2,12 @@
 # Sets up Microsoft 365 SSO integration
 
 # Suppress any automatic error handling that might try to parse JSON
+# Also bypass PowerShell profile error handlers
 $ErrorActionPreference = "Stop"
 $PSDefaultParameterValues = @{}
+
+# Disable any error handlers that might intercept JSON parse errors
+$global:Error.Clear() | Out-Null
 
 # Load configuration
 if (-not (Test-Path "config\deployment-config.env")) {
