@@ -213,7 +213,8 @@ if ([string]::IsNullOrWhiteSpace($secretOutput)) {
     exit 1
 }
 
-# Parse the secret - ALWAYS use regex FIRST, never try JSON parsing if warnings present
+# Parse the secret - USE REGEX ONLY, never attempt JSON parsing
+# This avoids all JSON parsing errors when warnings are present
 $SECRET = $null
 
 # Debug: Show first 200 chars of output (for troubleshooting) - safely
@@ -224,48 +225,27 @@ if ($secretOutput -and $secretOutput.Length -gt 0) {
     Write-Info "Output is empty or null"
 }
 
-# Method 1: Regex extraction (ALWAYS try this first - most reliable, works even with warnings)
-# This regex will find the password value even if there are warnings in the output
+# Method 1: Regex extraction from entire output (most reliable)
 if ($secretOutput -match '"password"\s*:\s*"([^"]+)"') {
     $SECRET = $matches[1]
     Write-Success "Client secret extracted using regex: $($SECRET.Substring(0, 4))..."
-} else {
-    Write-Info "Regex extraction failed, trying alternative methods..."
-    
-    # Method 2: Line-by-line regex extraction (fallback)
+}
+
+# Method 2: Line-by-line regex extraction (fallback if Method 1 failed)
+if ([string]::IsNullOrWhiteSpace($SECRET)) {
+    Write-Info "Trying line-by-line regex extraction..."
     $lines = $secretOutput -split "`r?`n"
     foreach ($line in $lines) {
         if ($line -match '"password"\s*:\s*"([^"]+)"') {
             $SECRET = $matches[1]
-            Write-Success "Client secret extracted from line"
+            Write-Success "Client secret extracted from line using regex"
             break
         }
     }
-    
-    # Method 3: Try JSON parsing ONLY if no warnings detected AND regex failed
-    # Skip this entirely if warnings are present - regex should have worked
-    if ([string]::IsNullOrWhiteSpace($SECRET) -and $secretOutput -notmatch 'WARNING:' -and $secretOutput -notmatch '^WARNING') {
-        try {
-            # Find JSON object in output
-            if ($secretOutput -match '\{[\s\S]*?"password"[\s\S]*?\}') {
-                $jsonMatch = $matches[0]
-                # Double-check no warnings in the extracted JSON
-                if ($jsonMatch -notmatch 'WARNING:') {
-                    $secretJson = $jsonMatch | ConvertFrom-Json
-                    $SECRET = $secretJson.password
-                    if (-not [string]::IsNullOrWhiteSpace($SECRET)) {
-                        Write-Success "Client secret extracted from JSON block"
-                    }
-                }
-            }
-        } catch {
-            # Silently continue - regex should have worked
-            Write-Info "JSON parsing skipped (warnings detected or parse failed)"
-        }
-    } else {
-        Write-Info "Skipping JSON parsing (warnings detected in output)"
-    }
 }
+
+# DO NOT attempt JSON parsing - it will fail if warnings are present
+# Regex extraction should always work, even with warnings
 
 # Final validation
 if ([string]::IsNullOrWhiteSpace($SECRET)) {
