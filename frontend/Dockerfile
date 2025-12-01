@@ -29,12 +29,6 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy entrypoint script for runtime env injection (verify it exists)
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && \
-    ls -la /entrypoint.sh && \
-    head -3 /entrypoint.sh || (echo "ERROR: entrypoint.sh not found!" && exit 1)
-
 # Expose port
 EXPOSE 80
 
@@ -42,6 +36,7 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-# Use entrypoint script if it exists, otherwise start nginx directly
-CMD ["sh", "-c", "if [ -f /entrypoint.sh ]; then /entrypoint.sh; else echo 'WARNING: entrypoint.sh not found, starting nginx directly'; nginx -g 'daemon off;'; fi"]
+# Start nginx directly - SSO env vars will be injected via nginx sub_filter or build-time
+# Entrypoint script approach isn't working reliably, so using nginx default
+CMD ["nginx", "-g", "daemon off;"]
 
