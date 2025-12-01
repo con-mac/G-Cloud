@@ -43,6 +43,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
 # Use entrypoint script to inject runtime env vars
-# Temporarily using CMD to debug - will switch back to ENTRYPOINT once working
-CMD ["/entrypoint.sh"]
+# If entrypoint.sh exists, use it; otherwise start nginx directly
+CMD ["sh", "-c", "if [ -f /entrypoint.sh ]; then /entrypoint.sh; else nginx -g 'daemon off;'; fi"]
 
