@@ -359,45 +359,46 @@ if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID)) {
         $ADMIN_GROUP_NAME = "G-Cloud-Admins"
     }
 
-$ErrorActionPreference = 'SilentlyContinue'
-$adminGroup = az ad group list --display-name "$ADMIN_GROUP_NAME" --query "[0].{Id:id, DisplayName:displayName}" -o json 2>&1
-$ErrorActionPreference = 'Stop'
+    $ErrorActionPreference = 'SilentlyContinue'
+    $adminGroup = az ad group list --display-name "$ADMIN_GROUP_NAME" --query "[0].{Id:id, DisplayName:displayName}" -o json 2>&1
+    $ErrorActionPreference = 'Stop'
 
-$ADMIN_GROUP_ID = ""
-if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($adminGroup)) {
-    try {
-        $groupObj = $adminGroup | ConvertFrom-Json
-        if ($groupObj -and $groupObj.Id) {
-            $ADMIN_GROUP_ID = $groupObj.Id
-            Write-Success "Using existing admin group: $ADMIN_GROUP_NAME ($ADMIN_GROUP_ID)"
-        }
-    } catch {
-        Write-Warning "Could not parse admin group response"
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID)) {
-    Write-Info "Admin security group '$ADMIN_GROUP_NAME' not found."
-    $createGroup = Read-Host "Create admin security group? (y/n) [y]"
-    if ([string]::IsNullOrWhiteSpace($createGroup) -or $createGroup -eq "y") {
-        Write-Info "Creating admin security group: $ADMIN_GROUP_NAME"
-        $ErrorActionPreference = 'SilentlyContinue'
-        $newGroup = az ad group create --display-name "$ADMIN_GROUP_NAME" --mail-nickname "$($ADMIN_GROUP_NAME -replace ' ', '')" --query "{Id:id, DisplayName:displayName}" -o json 2>&1
-        $ErrorActionPreference = 'Stop'
-        
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($newGroup)) {
-            try {
-                $groupObj = $newGroup | ConvertFrom-Json
+    $ADMIN_GROUP_ID = ""
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($adminGroup)) {
+        try {
+            $groupObj = $adminGroup | ConvertFrom-Json
+            if ($groupObj -and $groupObj.Id) {
                 $ADMIN_GROUP_ID = $groupObj.Id
-                Write-Success "Admin security group created: $ADMIN_GROUP_NAME ($ADMIN_GROUP_ID)"
-            } catch {
-                Write-Warning "Could not parse new group response"
+                Write-Success "Using existing admin group: $ADMIN_GROUP_NAME ($ADMIN_GROUP_ID)"
+            }
+        } catch {
+            Write-Warning "Could not parse admin group response"
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID)) {
+        Write-Info "Admin security group '$ADMIN_GROUP_NAME' not found."
+        $createGroup = Read-Host "Create admin security group? (y/n) [y]"
+        if ([string]::IsNullOrWhiteSpace($createGroup) -or $createGroup -eq "y") {
+            Write-Info "Creating admin security group: $ADMIN_GROUP_NAME"
+            $ErrorActionPreference = 'SilentlyContinue'
+            $newGroup = az ad group create --display-name "$ADMIN_GROUP_NAME" --mail-nickname "$($ADMIN_GROUP_NAME -replace ' ', '')" --query "{Id:id, DisplayName:displayName}" -o json 2>&1
+            $ErrorActionPreference = 'Stop'
+            
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($newGroup)) {
+                try {
+                    $groupObj = $newGroup | ConvertFrom-Json
+                    $ADMIN_GROUP_ID = $groupObj.Id
+                    Write-Success "Admin security group created: $ADMIN_GROUP_NAME ($ADMIN_GROUP_ID)"
+                } catch {
+                    Write-Warning "Could not parse new group response"
+                }
+            } else {
+                Write-Warning "Could not create admin group. You can create it manually in Azure Portal."
             }
         } else {
-            Write-Warning "Could not create admin group. You can create it manually in Azure Portal."
+            Write-Info "Skipping admin group creation. You can create it manually and set VITE_AZURE_AD_ADMIN_GROUP_ID later."
         }
-    } else {
-        Write-Info "Skipping admin group creation. You can create it manually and set VITE_AZURE_AD_ADMIN_GROUP_ID later."
     }
 }
 
