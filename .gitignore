@@ -48,3 +48,6 @@ tmp/
 temp/
 *.tmp
 
+*.Zone.Identifier
+mock_sharepoint/**/*.txt
+mock_sharepoint/**/*.docx
