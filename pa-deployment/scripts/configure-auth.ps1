@@ -189,7 +189,23 @@ if ([string]::IsNullOrWhiteSpace($secretOutput)) {
 }
 
 try {
-    $secretJson = $secretOutput | ConvertFrom-Json
+    # Azure CLI may output warnings before JSON - extract just the JSON part
+    # Look for the JSON object (starts with { and ends with })
+    $jsonStart = $secretOutput.IndexOf('{')
+    if ($jsonStart -ge 0) {
+        $jsonEnd = $secretOutput.LastIndexOf('}')
+        if ($jsonEnd -gt $jsonStart) {
+            $jsonOnly = $secretOutput.Substring($jsonStart, $jsonEnd - $jsonStart + 1)
+            $secretJson = $jsonOnly | ConvertFrom-Json
+        } else {
+            # Fallback: try parsing the whole output
+            $secretJson = $secretOutput | ConvertFrom-Json
+        }
+    } else {
+        # No JSON found, try parsing whole output
+        $secretJson = $secretOutput | ConvertFrom-Json
+    }
+    
     $SECRET = $secretJson.password
     if ([string]::IsNullOrWhiteSpace($SECRET)) {
         Write-Error "Client secret was created but password is empty"
@@ -200,6 +216,11 @@ try {
 } catch {
     Write-Error "Failed to parse client secret response: $_"
     Write-Info "Raw output: $secretOutput"
+    Write-Info ""
+    Write-Info "The secret may have been created. You can:"
+    Write-Info "1. Check Azure Portal: App Registrations -> $APP_REGISTRATION_NAME -> Certificates & secrets"
+    Write-Info "2. Or manually extract the password from the output above"
+    Write-Info "3. Then run this script again or set it manually in Key Vault"
     exit 1
 }
 
