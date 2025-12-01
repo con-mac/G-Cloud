@@ -29,6 +29,10 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# Copy entrypoint script for runtime env injection
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Expose port
 EXPOSE 80
 
@@ -36,6 +40,6 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-# Use nginx:alpine's default CMD (which is already "nginx -g 'daemon off;'")
-# No need to override - the base image handles it correctly
+# Use entrypoint script to inject runtime env vars, then start nginx
+CMD ["/entrypoint.sh"]
 
