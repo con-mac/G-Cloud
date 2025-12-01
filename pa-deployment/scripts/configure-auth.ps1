@@ -163,30 +163,45 @@ Write-Info "Note: This command may take 10-30 seconds..."
 # Check if there's an existing secret we can use (optional - we'll create new one anyway)
 # But this helps us understand if the command is hanging
 Write-Info "Calling Azure AD API (this may take a moment)..."
-# Capture raw output - we'll use regex to extract password, never JSON parsing
+# Capture raw output - we'll use regex to extract password, NEVER JSON parsing
+# Suppress ALL errors during capture to prevent any auto-parsing
 $ErrorActionPreference = 'SilentlyContinue'
+$originalErrorAction = $ErrorActionPreference
 
 # Create temp files for output
 $stdoutFile = [System.IO.Path]::GetTempFileName()
 $stderrFile = [System.IO.Path]::GetTempFileName()
+$secretOutput = ""
+$secretExitCode = 0
 
+# Wrap everything in try-catch to prevent any errors from propagating
 try {
-    # Run command and capture ALL output to file (both stdout and stderr may contain data)
-    # Use --only-show-errors to suppress warnings, but they may still appear
-    & az ad app credential reset --id $APP_ID --output json --only-show-errors 2>$stderrFile | Out-File -FilePath $stdoutFile -Encoding utf8 -NoNewline
-    $secretExitCode = $LASTEXITCODE
+    # Run command and capture ALL output to file
+    # Redirect both stdout and stderr to files to avoid any PowerShell parsing
+    $process = Start-Process -FilePath "az" `
+        -ArgumentList "ad","app","credential","reset","--id",$APP_ID,"--output","json" `
+        -NoNewWindow -Wait -PassThru `
+        -RedirectStandardOutput $stdoutFile `
+        -RedirectStandardError $stderrFile
     
-    # Read stdout as raw text (don't let PowerShell interpret it)
-    $secretOutput = Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue
+    $secretExitCode = $process.ExitCode
     
-    # If stdout is empty or contains warnings, check stderr
-    if ([string]::IsNullOrWhiteSpace($secretOutput) -or $secretOutput -match 'WARNING:') {
-        $stderrContent = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
+    # Read files as raw text - NO JSON parsing, NO interpretation
+    if (Test-Path $stdoutFile) {
+        $stdoutContent = [System.IO.File]::ReadAllText($stdoutFile)
+        if (-not [string]::IsNullOrWhiteSpace($stdoutContent)) {
+            $secretOutput = $stdoutContent
+        }
+    }
+    
+    # Also check stderr - sometimes Azure CLI puts output there
+    if (Test-Path $stderrFile) {
+        $stderrContent = [System.IO.File]::ReadAllText($stderrFile)
         if (-not [string]::IsNullOrWhiteSpace($stderrContent)) {
-            # Combine both outputs - regex will find password regardless
             if ([string]::IsNullOrWhiteSpace($secretOutput)) {
                 $secretOutput = $stderrContent
             } else {
+                # Combine both - regex will find password in either
                 $secretOutput = "$secretOutput`n$stderrContent"
             }
         }
@@ -195,12 +210,21 @@ try {
     # If anything fails, try to read what we have
     Write-Warning "Error capturing output: $_"
     if (Test-Path $stdoutFile) {
-        $secretOutput = Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue
+        try {
+            $secretOutput = [System.IO.File]::ReadAllText($stdoutFile)
+        } catch {
+            # Ignore
+        }
     }
 } finally {
     # Clean up temp files
-    if (Test-Path $stdoutFile) { Remove-Item $stdoutFile -ErrorAction SilentlyContinue -Force }
-    if (Test-Path $stderrFile) { Remove-Item $stderrFile -ErrorAction SilentlyContinue -Force }
+    if (Test-Path $stdoutFile) { 
+        try { Remove-Item $stdoutFile -Force -ErrorAction SilentlyContinue } catch { }
+    }
+    if (Test-Path $stderrFile) { 
+        try { Remove-Item $stderrFile -Force -ErrorAction SilentlyContinue } catch { }
+    }
+    $ErrorActionPreference = $originalErrorAction
 }
 
 $ErrorActionPreference = 'Stop'
