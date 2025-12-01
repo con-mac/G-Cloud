@@ -196,14 +196,29 @@ try {
         $jsonEnd = $secretOutput.LastIndexOf('}')
         if ($jsonEnd -gt $jsonStart) {
             $jsonOnly = $secretOutput.Substring($jsonStart, $jsonEnd - $jsonStart + 1)
+            Write-Info "Extracted JSON from output (removed warnings)"
             $secretJson = $jsonOnly | ConvertFrom-Json
         } else {
-            # Fallback: try parsing the whole output
-            $secretJson = $secretOutput | ConvertFrom-Json
+            # Fallback: try to find JSON on separate lines
+            $lines = $secretOutput -split "`n" | Where-Object { $_.Trim().StartsWith('{') }
+            if ($lines.Count -gt 0) {
+                $jsonOnly = $lines[0].Trim()
+                $secretJson = $jsonOnly | ConvertFrom-Json
+            } else {
+                # Last resort: try parsing the whole output
+                $secretJson = $secretOutput | ConvertFrom-Json
+            }
         }
     } else {
-        # No JSON found, try parsing whole output
-        $secretJson = $secretOutput | ConvertFrom-Json
+        # No { found, try to find JSON on a line by itself
+        $lines = $secretOutput -split "`n" | Where-Object { $_.Trim().StartsWith('{') }
+        if ($lines.Count -gt 0) {
+            $jsonOnly = $lines[0].Trim()
+            $secretJson = $jsonOnly | ConvertFrom-Json
+        } else {
+            # Last resort: try parsing whole output
+            $secretJson = $secretOutput | ConvertFrom-Json
+        }
     }
     
     $SECRET = $secretJson.password
@@ -217,11 +232,21 @@ try {
     Write-Error "Failed to parse client secret response: $_"
     Write-Info "Raw output: $secretOutput"
     Write-Info ""
-    Write-Info "The secret may have been created. You can:"
-    Write-Info "1. Check Azure Portal: App Registrations -> $APP_REGISTRATION_NAME -> Certificates & secrets"
-    Write-Info "2. Or manually extract the password from the output above"
-    Write-Info "3. Then run this script again or set it manually in Key Vault"
-    exit 1
+    Write-Info "Attempting manual extraction..."
+    
+    # Try to extract password using regex as last resort
+    if ($secretOutput -match '"password"\s*:\s*"([^"]+)"') {
+        $SECRET = $matches[1]
+        Write-Success "Extracted client secret using regex fallback"
+    } else {
+        Write-Error "Could not extract client secret from output"
+        Write-Info ""
+        Write-Info "The secret may have been created. You can:"
+        Write-Info "1. Check Azure Portal: App Registrations -> $APP_REGISTRATION_NAME -> Certificates & secrets"
+        Write-Info "2. Or manually extract the password from the output above"
+        Write-Info "3. Then run this script again or set it manually in Key Vault"
+        exit 1
+    }
 }
 
 # Get or create admin security group
