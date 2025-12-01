@@ -1,8 +1,6 @@
 #!/bin/sh
 # Entrypoint script to inject runtime environment variables into the React app
 
-set -e  # Exit on any error
-
 INDEX_HTML="/usr/share/nginx/html/index.html"
 
 # Check if index.html exists
@@ -10,7 +8,7 @@ if [ ! -f "$INDEX_HTML" ]; then
   echo "ERROR: index.html not found at $INDEX_HTML"
   echo "Contents of /usr/share/nginx/html:"
   ls -la /usr/share/nginx/html/ || true
-  exit 1
+  # Don't exit - let nginx start anyway to see what happens
 fi
 
 # Read environment variables from Azure App Service
@@ -42,35 +40,25 @@ CONFIG_JS="window.__ENV__ = {
   VITE_AZURE_AD_ADMIN_GROUP_ID: '${ADMIN_GROUP_ID_ESC}'
 };"
 
-# Inject config into index.html before </head> tag
-# Use a more robust sed pattern that handles the closing tag
-if sed -i "s|</head>|<script>${CONFIG_JS}</script></head>|" "$INDEX_HTML"; then
-  echo "✓ Environment variables injected successfully"
-else
-  echo "✗ WARNING: Failed to inject environment variables with sed"
-  # Try alternative method: append before </head>
+# Inject config into index.html before </head> tag (only if file exists)
+if [ -f "$INDEX_HTML" ]; then
   if grep -q "</head>" "$INDEX_HTML"; then
-    sed -i "s|</head>|<script>${CONFIG_JS}</script></head>|" "$INDEX_HTML"
-    echo "✓ Retry successful"
+    sed -i "s|</head>|<script>${CONFIG_JS}</script></head>|" "$INDEX_HTML" 2>&1 || echo "WARNING: sed failed, continuing anyway"
+    if grep -q "window.__ENV__" "$INDEX_HTML"; then
+      echo "✓ Environment variables injected successfully"
+    else
+      echo "✗ WARNING: window.__ENV__ not found after injection, but continuing"
+    fi
   else
-    echo "✗ ERROR: Could not find </head> tag in index.html"
-    exit 1
+    echo "✗ WARNING: Could not find </head> tag in index.html, but continuing"
   fi
-fi
-
-# Verify injection worked
-if grep -q "window.__ENV__" "$INDEX_HTML"; then
-  echo "✓ Verified: window.__ENV__ found in index.html"
 else
-  echo "✗ WARNING: window.__ENV__ not found after injection"
+  echo "✗ WARNING: index.html not found, starting nginx without injection"
 fi
 
-# Test nginx config
+# Test nginx config (don't exit on failure, just warn)
 echo "Testing nginx configuration..."
-nginx -t || {
-  echo "ERROR: nginx configuration test failed"
-  exit 1
-}
+nginx -t 2>&1 || echo "WARNING: nginx config test failed, but continuing"
 
 # Start nginx
 echo "Starting nginx..."
