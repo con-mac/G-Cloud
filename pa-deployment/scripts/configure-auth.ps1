@@ -166,9 +166,9 @@ Write-Info "Note: This command may take 10-30 seconds..."
 # But this helps us understand if the command is hanging
 Write-Info "Calling Azure AD API (this may take a moment)..."
 # Capture raw output - we'll use regex to extract password, NEVER JSON parsing
-# Suppress ALL errors during capture to prevent any auto-parsing
-$ErrorActionPreference = 'SilentlyContinue'
+# Completely suppress all error handling to prevent any auto-parsing or error interception
 $originalErrorAction = $ErrorActionPreference
+$ErrorActionPreference = 'SilentlyContinue'
 
 # Create temp files for output
 $stdoutFile = [System.IO.Path]::GetTempFileName()
@@ -176,50 +176,51 @@ $stderrFile = [System.IO.Path]::GetTempFileName()
 $secretOutput = ""
 $secretExitCode = 0
 
-# Wrap everything in try-catch to prevent any errors from propagating
+# Use Start-Process to completely bypass PowerShell pipeline and any auto-parsing
+# This prevents PowerShell from trying to interpret the output as JSON
 try {
-    # Run command and capture ALL output to file
-    # Redirect both stdout and stderr to files to avoid any PowerShell parsing
-    $process = Start-Process -FilePath "az" `
-        -ArgumentList "ad","app","credential","reset","--id",$APP_ID,"--output","json" `
-        -NoNewWindow -Wait -PassThru `
-        -RedirectStandardOutput $stdoutFile `
-        -RedirectStandardError $stderrFile
+    # Suppress any error output that might trigger parsing
+    $null = $Error.Clear()
+    
+    # Run command with file redirection - no pipeline, no interpretation
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = "az"
+    $processInfo.Arguments = "ad app credential reset --id $APP_ID --output json"
+    $processInfo.RedirectStandardOutput = $true
+    $processInfo.RedirectStandardError = $true
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $processInfo
+    
+    # Start process and wait
+    $null = $process.Start()
+    $stdoutContent = $process.StandardOutput.ReadToEnd()
+    $stderrContent = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
     
     $secretExitCode = $process.ExitCode
     
-    # Read files as raw text - NO JSON parsing, NO interpretation
-    if (Test-Path $stdoutFile) {
-        $stdoutContent = [System.IO.File]::ReadAllText($stdoutFile)
-        if (-not [string]::IsNullOrWhiteSpace($stdoutContent)) {
-            $secretOutput = $stdoutContent
+    # Combine outputs - regex will find password in either
+    if (-not [string]::IsNullOrWhiteSpace($stdoutContent)) {
+        $secretOutput = $stdoutContent
+    }
+    if (-not [string]::IsNullOrWhiteSpace($stderrContent)) {
+        if ([string]::IsNullOrWhiteSpace($secretOutput)) {
+            $secretOutput = $stderrContent
+        } else {
+            $secretOutput = "$secretOutput`n$stderrContent"
         }
     }
     
-    # Also check stderr - sometimes Azure CLI puts output there
-    if (Test-Path $stderrFile) {
-        $stderrContent = [System.IO.File]::ReadAllText($stderrFile)
-        if (-not [string]::IsNullOrWhiteSpace($stderrContent)) {
-            if ([string]::IsNullOrWhiteSpace($secretOutput)) {
-                $secretOutput = $stderrContent
-            } else {
-                # Combine both - regex will find password in either
-                $secretOutput = "$secretOutput`n$stderrContent"
-            }
-        }
-    }
+    # Clean up process
+    $process.Dispose()
 } catch {
-    # If anything fails, try to read what we have
-    Write-Warning "Error capturing output: $_"
-    if (Test-Path $stdoutFile) {
-        try {
-            $secretOutput = [System.IO.File]::ReadAllText($stdoutFile)
-        } catch {
-            # Ignore
-        }
-    }
+    # If anything fails, just continue - we'll check output below
+    Write-Warning "Error during command execution: $_"
 } finally {
-    # Clean up temp files
+    # Clean up temp files if they exist
     if (Test-Path $stdoutFile) { 
         try { Remove-Item $stdoutFile -Force -ErrorAction SilentlyContinue } catch { }
     }
