@@ -686,14 +686,17 @@ function Start-Deployment {
     Write-Info "Step 6.5: Admin Security Group Configuration"
     Write-Info "Admin security group controls who can access the admin dashboard."
     Write-Info "Standard employees will have regular access (no admin dashboard)."
+    Write-Host ""  # Blank line for visibility
     
     function Search-SecurityGroups {
         param([string]$Filter = "")
-        $ErrorActionPreference = 'SilentlyContinue'
-        $groupsJson = az ad group list --query "[].{DisplayName:displayName, Id:id}" -o json 2>&1
-        $ErrorActionPreference = 'Stop'
-        
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($groupsJson)) {
+        try {
+            $ErrorActionPreference = 'SilentlyContinue'
+            $groupsJson = az ad group list --query "[].{DisplayName:displayName, Id:id}" -o json 2>&1
+            $exitCode = $LASTEXITCODE
+            $ErrorActionPreference = 'Stop'
+            
+            if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($groupsJson)) {
             try {
                 $groups = $groupsJson | ConvertFrom-Json
                 if ($groups -and $groups.Count -gt 0) {
@@ -710,6 +713,9 @@ function Start-Deployment {
             } catch {
                 Write-Warning "Could not parse security group list: $_"
             }
+            }
+        } catch {
+            Write-Warning "Error searching for security groups: $_"
         }
         return @()
     }
