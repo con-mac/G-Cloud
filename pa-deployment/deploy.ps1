@@ -682,7 +682,11 @@ function Start-Deployment {
         }
     }
     
-    # Prompt for Admin Security Group (for SSO admin access)
+    # ========================================
+    # PROMPT FOR ADMIN SECURITY GROUP
+    # ========================================
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
     Write-Info "Step 6.5: Admin Security Group Configuration"
     Write-Info "Admin security group controls who can access the admin dashboard."
     Write-Info "Standard employees will have regular access (no admin dashboard)."
