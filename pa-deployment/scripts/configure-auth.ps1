@@ -213,23 +213,21 @@ if ([string]::IsNullOrWhiteSpace($secretOutput)) {
     exit 1
 }
 
-# Parse the secret - use regex first to avoid JSON parsing issues with warnings
+# Parse the secret - ALWAYS use regex first to avoid any JSON parsing issues
 $SECRET = $null
 
-# Check if output contains warnings
-$hasWarnings = $secretOutput -match '^WARNING:' -or $secretOutput -match 'WARNING:'
-
-# Method 1: Regex extraction (most reliable, works even with warnings)
+# Method 1: Regex extraction (ALWAYS try this first - most reliable, works even with warnings)
+# This regex will find the password value even if there are warnings in the output
 if ($secretOutput -match '"password"\s*:\s*"([^"]+)"') {
     $SECRET = $matches[1]
     Write-Success "Client secret extracted using regex"
 }
 
-# Method 2: Extract JSON block and parse (only if regex didn't work)
-if ([string]::IsNullOrWhiteSpace($SECRET)) {
+# Method 2: Try to extract JSON block and parse (only if regex didn't work AND no warnings)
+if ([string]::IsNullOrWhiteSpace($SECRET) -and $secretOutput -notmatch 'WARNING:') {
     try {
         # Find JSON object in output (between { and })
-        if ($secretOutput -match '\{[\s\S]*?\}') {
+        if ($secretOutput -match '\{[\s\S]*?"password"[\s\S]*?\}') {
             $jsonMatch = $matches[0]
             $secretJson = $jsonMatch | ConvertFrom-Json
             $SECRET = $secretJson.password
@@ -238,48 +236,18 @@ if ([string]::IsNullOrWhiteSpace($SECRET)) {
             }
         }
     } catch {
-        Write-Info "JSON block extraction failed, trying line-by-line..."
+        # Silently continue - regex should have worked
     }
 }
 
-# Method 3: Direct JSON parse (only if no warnings detected)
-if ([string]::IsNullOrWhiteSpace($SECRET) -and -not $hasWarnings) {
-    try {
-        $secretJson = $secretOutput | ConvertFrom-Json
-        $SECRET = $secretJson.password
-        if (-not [string]::IsNullOrWhiteSpace($SECRET)) {
-            Write-Success "Client secret created successfully"
-        }
-    } catch {
-        Write-Info "Direct JSON parse failed"
-    }
-}
-
-# Method 4: Line-by-line extraction
+# Method 3: Line-by-line regex extraction (fallback)
 if ([string]::IsNullOrWhiteSpace($SECRET)) {
-    $lines = $secretOutput -split "`r?`n" | Where-Object { 
-        $line = $_.Trim()
-        $line -match '"password"' -or ($line.StartsWith('{') -and $line.EndsWith('}'))
-    }
+    $lines = $secretOutput -split "`r?`n"
     foreach ($line in $lines) {
-        # Try regex first on each line
         if ($line -match '"password"\s*:\s*"([^"]+)"') {
             $SECRET = $matches[1]
             Write-Success "Client secret extracted from line"
             break
-        }
-        # Try JSON parse on clean JSON lines
-        if ($line.Trim().StartsWith('{') -and $line.Trim().EndsWith('}')) {
-            try {
-                $secretJson = $line.Trim() | ConvertFrom-Json
-                $SECRET = $secretJson.password
-                if (-not [string]::IsNullOrWhiteSpace($SECRET)) {
-                    Write-Success "Client secret extracted from JSON line"
-                    break
-                }
-            } catch {
-                # Continue to next line
-            }
         }
     }
 }
