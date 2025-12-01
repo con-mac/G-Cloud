@@ -7,7 +7,12 @@ $ErrorActionPreference = "Stop"
 $PSDefaultParameterValues = @{}
 
 # Disable any error handlers that might intercept JSON parse errors
+# Clear errors at script start to prevent profile interference
 $global:Error.Clear() | Out-Null
+
+# Wrap the entire script execution in a try-catch to prevent profile error handlers
+# from intercepting and re-throwing errors with custom messages
+$script:OriginalErrorActionPreference = $ErrorActionPreference
 
 # Load configuration
 if (-not (Test-Path "config\deployment-config.env")) {
