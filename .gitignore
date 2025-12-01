@@ -51,3 +51,17 @@ temp/
 *.Zone.Identifier
 mock_sharepoint/**/*.txt
 mock_sharepoint/**/*.docx
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+.terraform.lock.hcl
+**/.terraform/providers/
+
+# Python virtual environments
+.venv/
+venv/
+__pycache__/
+*.pyc

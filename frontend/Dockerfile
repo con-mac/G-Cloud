@@ -5,6 +5,18 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Accept build arguments for SSO configuration
+ARG VITE_AZURE_AD_TENANT_ID
+ARG VITE_AZURE_AD_CLIENT_ID
+ARG VITE_AZURE_AD_REDIRECT_URI
+ARG VITE_AZURE_AD_ADMIN_GROUP_ID
+
+# Set as environment variables so Vite can access them during build
+ENV VITE_AZURE_AD_TENANT_ID=$VITE_AZURE_AD_TENANT_ID
+ENV VITE_AZURE_AD_CLIENT_ID=$VITE_AZURE_AD_CLIENT_ID
+ENV VITE_AZURE_AD_REDIRECT_URI=$VITE_AZURE_AD_REDIRECT_URI
+ENV VITE_AZURE_AD_ADMIN_GROUP_ID=$VITE_AZURE_AD_ADMIN_GROUP_ID
+
 # Copy package files
 COPY package*.json ./
 
@@ -14,7 +26,7 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application (Vite will embed the env vars)
 RUN npm run build
 
 # Stage 2: Production

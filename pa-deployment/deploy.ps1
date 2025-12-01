@@ -682,6 +682,110 @@ function Start-Deployment {
         }
     }
     
+    # Prompt for Admin Security Group (for SSO admin access)
+    Write-Info "Step 6.5: Admin Security Group Configuration"
+    Write-Info "Admin security group controls who can access the admin dashboard."
+    Write-Info "Standard employees will have regular access (no admin dashboard)."
+    
+    function Search-SecurityGroups {
+        param([string]$Filter = "")
+        $ErrorActionPreference = 'SilentlyContinue'
+        $groupsJson = az ad group list --query "[].{DisplayName:displayName, Id:id}" -o json 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($groupsJson)) {
+            try {
+                $groups = $groupsJson | ConvertFrom-Json
+                if ($groups -and $groups.Count -gt 0) {
+                    $groupNames = @()
+                    foreach ($group in $groups) {
+                        if ($group.DisplayName) {
+                            if ([string]::IsNullOrWhiteSpace($Filter) -or $group.DisplayName -like "*$Filter*") {
+                                $groupNames += $group.DisplayName
+                            }
+                        }
+                    }
+                    return $groupNames
+                }
+            } catch {
+                Write-Warning "Could not parse security group list: $_"
+            }
+        }
+        return @()
+    }
+    
+    $existingGroups = Search-SecurityGroups -Filter "admin"
+    if ($existingGroups.Count -eq 0) {
+        $existingGroups = Search-SecurityGroups -Filter "gcloud"
+    }
+    
+    $ADMIN_GROUP_ID = ""
+    $ADMIN_GROUP_NAME = ""
+    
+    if ($existingGroups.Count -gt 0) {
+        Write-Host "Existing security groups found:"
+        for ($i = 0; $i -lt $existingGroups.Count; $i++) {
+            Write-Host "  [$i] $($existingGroups[$i])"
+        }
+        Write-Host "  [n] Create new"
+        $groupChoice = Read-Host "Select option (0-$($existingGroups.Count - 1)) or 'n' for new"
+        
+        if ($groupChoice -match '^\d+$' -and [int]$groupChoice -lt $existingGroups.Count) {
+            $ADMIN_GROUP_NAME = $existingGroups[[int]$groupChoice]
+            Write-Info "Getting group ID for: $ADMIN_GROUP_NAME"
+            $ErrorActionPreference = 'SilentlyContinue'
+            $groupJson = az ad group list --display-name "$ADMIN_GROUP_NAME" --query "[0].{Id:id}" -o json 2>&1
+            $ErrorActionPreference = 'Stop'
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($groupJson)) {
+                try {
+                    $groupObj = $groupJson | ConvertFrom-Json
+                    $ADMIN_GROUP_ID = $groupObj.Id
+                    Write-Success "Using existing admin group: $ADMIN_GROUP_NAME"
+                } catch {
+                    Write-Warning "Could not parse group response"
+                }
+            }
+        } else {
+            $ADMIN_GROUP_NAME = Read-Host "Enter admin security group name [G-Cloud-Admins]"
+            if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_NAME)) {
+                $ADMIN_GROUP_NAME = "G-Cloud-Admins"
+            }
+        }
+    } else {
+        $ADMIN_GROUP_NAME = Read-Host "Enter admin security group name [G-Cloud-Admins]"
+        if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_NAME)) {
+            $ADMIN_GROUP_NAME = "G-Cloud-Admins"
+        }
+    }
+    
+    # Create group if ID not found
+    if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID) -and -not [string]::IsNullOrWhiteSpace($ADMIN_GROUP_NAME)) {
+        $createGroup = Read-Host "Create admin security group '$ADMIN_GROUP_NAME'? (y/n) [y]"
+        if ([string]::IsNullOrWhiteSpace($createGroup) -or $createGroup -eq "y") {
+            Write-Info "Creating admin security group: $ADMIN_GROUP_NAME"
+            $ErrorActionPreference = 'SilentlyContinue'
+            $newGroup = az ad group create --display-name "$ADMIN_GROUP_NAME" --mail-nickname "$($ADMIN_GROUP_NAME -replace ' ', '')" --query "{Id:id}" -o json 2>&1
+            $ErrorActionPreference = 'Stop'
+            
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($newGroup)) {
+                try {
+                    $groupObj = $newGroup | ConvertFrom-Json
+                    $ADMIN_GROUP_ID = $groupObj.Id
+                    Write-Success "Admin security group created: $ADMIN_GROUP_NAME ($ADMIN_GROUP_ID)"
+                } catch {
+                    Write-Warning "Could not parse new group response"
+                }
+            } else {
+                Write-Warning "Could not create admin group. You can create it manually and configure later."
+            }
+        }
+    }
+    
+    if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID)) {
+        Write-Warning "No admin group ID configured. Admin dashboard access will be disabled."
+        Write-Info "You can configure this later by running configure-auth.ps1"
+    }
+    
     # Prompt for custom domain
     Write-Info "Step 7: Custom Domain Configuration"
     $CUSTOM_DOMAIN = Read-Host "Enter custom domain name [PA-G-Cloud15] (for private DNS)"
@@ -928,6 +1032,7 @@ function Start-Deployment {
             "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL",
             "SHAREPOINT_SITE_ID=$($SHAREPOINT_SITE_ID -replace '\?.*$', '')",
             "APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME",
+            "ADMIN_GROUP_ID=$ADMIN_GROUP_ID",
             "CUSTOM_DOMAIN=$CUSTOM_DOMAIN",
             "LOCATION=$LOCATION",
             "SUBSCRIPTION_ID=$SUBSCRIPTION_ID",

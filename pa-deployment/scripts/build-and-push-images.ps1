@@ -31,6 +31,8 @@ foreach ($line in $fileLines) {
 $ACR_NAME = $config.ACR_NAME
 $IMAGE_TAG = $config.IMAGE_TAG
 $RESOURCE_GROUP = $config.RESOURCE_GROUP
+$APP_REGISTRATION_NAME = $config.APP_REGISTRATION_NAME
+$WEB_APP_NAME = $config.WEB_APP_NAME
 
 function Write-Info { param([string]$msg) Write-Host "[INFO] $msg" -ForegroundColor Blue }
 function Write-Success { param([string]$msg) Write-Host "[SUCCESS] $msg" -ForegroundColor Green }
@@ -373,15 +375,56 @@ if ($buildMethod -eq "2") {
         
         Write-Info "Build context: . (current directory: $frontendPath)"
         Write-Info "Dockerfile: Dockerfile (relative to context)"
-        Write-Info "Starting ACR build (this may take 5-10 minutes)..."
+        
+        # Get SSO configuration values for build-time injection
+        Write-Info "Getting SSO configuration for build-time injection..."
+        $tenantId = az account show --query tenantId -o tsv
+        if ([string]::IsNullOrWhiteSpace($tenantId)) {
+            Write-Error "Failed to get tenant ID"
+            exit 1
+        }
+        
+        $clientId = ""
+        if (-not [string]::IsNullOrWhiteSpace($APP_REGISTRATION_NAME)) {
+            $clientId = az ad app list --display-name "$APP_REGISTRATION_NAME" --query "[0].appId" -o tsv 2>&1
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($clientId)) {
+                Write-Warning "Could not get client ID from App Registration '$APP_REGISTRATION_NAME'"
+                Write-Info "SSO may not work - you'll need to configure it manually"
+            }
+        }
+        
+        $redirectUri = "https://${WEB_APP_NAME}.azurewebsites.net"
+        $adminGroupId = $config.ADMIN_GROUP_ID
+        
+        Write-Info "SSO Configuration:"
+        Write-Info "  Tenant ID: $($tenantId.Substring(0,8))..."
+        Write-Info "  Client ID: $($clientId.Substring(0,8))..." 
+        Write-Info "  Redirect URI: $redirectUri"
+        if ($adminGroupId) {
+            Write-Info "  Admin Group ID: $($adminGroupId.Substring(0,8))..."
+        }
+        
+        # Build build args array
+        $buildArgs = @(
+            "--build-arg", "VITE_AZURE_AD_TENANT_ID=$tenantId",
+            "--build-arg", "VITE_AZURE_AD_CLIENT_ID=$clientId",
+            "--build-arg", "VITE_AZURE_AD_REDIRECT_URI=$redirectUri"
+        )
+        
+        if (-not [string]::IsNullOrWhiteSpace($adminGroupId)) {
+            $buildArgs += "--build-arg", "VITE_AZURE_AD_ADMIN_GROUP_ID=$adminGroupId"
+        }
+        
+        Write-Info "Starting ACR build with SSO configuration (this may take 5-10 minutes)..."
         Write-Info "Note: ACR will upload the build context and build in Azure cloud"
         
         # Use "." as build context (current directory) and "Dockerfile" as relative path
-        # This works reliably on both Windows and Linux
+        # Pass build args for SSO configuration
         az acr build `
             --registry "$ACR_NAME" `
             --image "${imageName}:$IMAGE_TAG" `
             --file "Dockerfile" `
+            $buildArgs `
             "." `
             --timeout 1800 `
             --output table

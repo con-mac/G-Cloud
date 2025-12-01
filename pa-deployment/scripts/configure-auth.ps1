@@ -204,11 +204,37 @@ try {
 }
 
 # Get or create admin security group
-Write-Info "Configuring admin security group..."
-$ADMIN_GROUP_NAME = Read-Host "Enter admin security group name (e.g., G-Cloud-Admins) [G-Cloud-Admins]"
-if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_NAME)) {
-    $ADMIN_GROUP_NAME = "G-Cloud-Admins"
+# First check if ADMIN_GROUP_ID is in config (from deploy.ps1)
+$ADMIN_GROUP_ID = $config.ADMIN_GROUP_ID
+$ADMIN_GROUP_NAME = ""
+
+if (-not [string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID)) {
+    Write-Info "Admin group ID found in config: $($ADMIN_GROUP_ID.Substring(0,8))..."
+    # Verify it still exists
+    $ErrorActionPreference = 'SilentlyContinue'
+    $groupInfo = az ad group show --group "$ADMIN_GROUP_ID" --query "{DisplayName:displayName, Id:id}" -o json 2>&1
+    $ErrorActionPreference = 'Stop'
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($groupInfo)) {
+        try {
+            $groupObj = $groupInfo | ConvertFrom-Json
+            $ADMIN_GROUP_NAME = $groupObj.DisplayName
+            Write-Success "Using admin group from config: $ADMIN_GROUP_NAME"
+        } catch {
+            Write-Warning "Could not parse group info, will prompt for new group"
+            $ADMIN_GROUP_ID = ""
+        }
+    } else {
+        Write-Warning "Admin group from config not found, will prompt for new group"
+        $ADMIN_GROUP_ID = ""
+    }
 }
+
+if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_ID)) {
+    Write-Info "Configuring admin security group..."
+    $ADMIN_GROUP_NAME = Read-Host "Enter admin security group name (e.g., G-Cloud-Admins) [G-Cloud-Admins]"
+    if ([string]::IsNullOrWhiteSpace($ADMIN_GROUP_NAME)) {
+        $ADMIN_GROUP_NAME = "G-Cloud-Admins"
+    }
 
 $ErrorActionPreference = 'SilentlyContinue'
 $adminGroup = az ad group list --display-name "$ADMIN_GROUP_NAME" --query "[0].{Id:id, DisplayName:displayName}" -o json 2>&1
