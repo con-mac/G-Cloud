@@ -1,6 +1,6 @@
 # Wrapper script to run configure-auth.ps1 without PowerShell profile
 # This bypasses any profile error handlers that might intercept JSON parse errors
-# Usage: .\scripts\configure-auth-no-profile.ps1
+# Usage: .\pa-deployment\scripts\configure-auth-no-profile.ps1
 
 # Get the script directory (this script's location)
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
