@@ -786,6 +786,83 @@ function Start-Deployment {
         Write-Info "You can configure this later by running configure-auth.ps1"
     }
     
+    # Prompt for Employee Security Group (optional - for standard employee access)
+    Write-Info "Step 6.6: Employee Security Group Configuration (Optional)"
+    Write-Info "Employee security group is optional. Users not in admin group will have standard employee view."
+    Write-Info "You can skip this if you want all non-admin users to have standard access automatically."
+    
+    $EMPLOYEE_GROUP_ID = ""
+    $EMPLOYEE_GROUP_NAME = ""
+    
+    $configureEmployeeGroup = Read-Host "Configure employee security group? (y/n) [n]"
+    if ($configureEmployeeGroup -eq "y") {
+        $existingEmployeeGroups = Search-SecurityGroups -Filter "employee"
+        if ($existingEmployeeGroups.Count -eq 0) {
+            $existingEmployeeGroups = Search-SecurityGroups -Filter "gcloud"
+        }
+        
+        if ($existingEmployeeGroups.Count -gt 0) {
+            Write-Host "Existing security groups found:"
+            for ($i = 0; $i -lt $existingEmployeeGroups.Count; $i++) {
+                Write-Host "  [$i] $($existingEmployeeGroups[$i])"
+            }
+            Write-Host "  [n] Create new"
+            $empGroupChoice = Read-Host "Select option (0-$($existingEmployeeGroups.Count - 1)) or 'n' for new"
+            
+            if ($empGroupChoice -match '^\d+$' -and [int]$empGroupChoice -lt $existingEmployeeGroups.Count) {
+                $EMPLOYEE_GROUP_NAME = $existingEmployeeGroups[[int]$empGroupChoice]
+                Write-Info "Getting group ID for: $EMPLOYEE_GROUP_NAME"
+                $ErrorActionPreference = 'SilentlyContinue'
+                $empGroupJson = az ad group list --display-name "$EMPLOYEE_GROUP_NAME" --query "[0].{Id:id}" -o json 2>&1
+                $ErrorActionPreference = 'Stop'
+                if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($empGroupJson)) {
+                    try {
+                        $empGroupObj = $empGroupJson | ConvertFrom-Json
+                        $EMPLOYEE_GROUP_ID = $empGroupObj.Id
+                        Write-Success "Using existing employee group: $EMPLOYEE_GROUP_NAME"
+                    } catch {
+                        Write-Warning "Could not parse group response"
+                    }
+                }
+            } else {
+                $EMPLOYEE_GROUP_NAME = Read-Host "Enter employee security group name [G-Cloud-Employees]"
+                if ([string]::IsNullOrWhiteSpace($EMPLOYEE_GROUP_NAME)) {
+                    $EMPLOYEE_GROUP_NAME = "G-Cloud-Employees"
+                }
+            }
+        } else {
+            $EMPLOYEE_GROUP_NAME = Read-Host "Enter employee security group name [G-Cloud-Employees]"
+            if ([string]::IsNullOrWhiteSpace($EMPLOYEE_GROUP_NAME)) {
+                $EMPLOYEE_GROUP_NAME = "G-Cloud-Employees"
+            }
+        }
+        
+        # Create group if ID not found
+        if ([string]::IsNullOrWhiteSpace($EMPLOYEE_GROUP_ID) -and -not [string]::IsNullOrWhiteSpace($EMPLOYEE_GROUP_NAME)) {
+            $createEmpGroup = Read-Host "Create employee security group '$EMPLOYEE_GROUP_NAME'? (y/n) [y]"
+            if ([string]::IsNullOrWhiteSpace($createEmpGroup) -or $createEmpGroup -eq "y") {
+                Write-Info "Creating employee security group: $EMPLOYEE_GROUP_NAME"
+                $ErrorActionPreference = 'SilentlyContinue'
+                $newEmpGroup = az ad group create --display-name "$EMPLOYEE_GROUP_NAME" --mail-nickname "$($EMPLOYEE_GROUP_NAME -replace ' ', '')" --query "{Id:id}" -o json 2>&1
+                $ErrorActionPreference = 'Stop'
+                
+                if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($newEmpGroup)) {
+                    try {
+                        $empGroupObj = $newEmpGroup | ConvertFrom-Json
+                        $EMPLOYEE_GROUP_ID = $empGroupObj.Id
+                        Write-Success "Employee security group created: $EMPLOYEE_GROUP_NAME ($EMPLOYEE_GROUP_ID)"
+                    } catch {
+                        Write-Warning "Could not parse new group response"
+                    }
+                } else {
+                    Write-Warning "Could not create employee group. You can create it manually and configure later."
+                }
+            }
+        }
+    } else {
+        Write-Info "Skipping employee group configuration. All non-admin users will have standard employee access."
+    }
+    
     # Prompt for custom domain
     Write-Info "Step 7: Custom Domain Configuration"
     $CUSTOM_DOMAIN = Read-Host "Enter custom domain name [PA-G-Cloud15] (for private DNS)"
@@ -1033,6 +1110,7 @@ function Start-Deployment {
             "SHAREPOINT_SITE_ID=$($SHAREPOINT_SITE_ID -replace '\?.*$', '')",
             "APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME",
             "ADMIN_GROUP_ID=$ADMIN_GROUP_ID",
+            "EMPLOYEE_GROUP_ID=$EMPLOYEE_GROUP_ID",
             "CUSTOM_DOMAIN=$CUSTOM_DOMAIN",
             "LOCATION=$LOCATION",
             "SUBSCRIPTION_ID=$SUBSCRIPTION_ID",
