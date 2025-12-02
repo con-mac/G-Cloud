@@ -195,25 +195,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async () => {
     try {
       // CRITICAL: Use redirect flow ONLY - never popup
+      // Ensure we're not already in a redirect flow
+      if (inProgress !== InteractionStatus.None) {
+        console.log('MSAL interaction already in progress, waiting...');
+        return;
+      }
+      
       // Clear any existing hash that might interfere
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
       }
       
-      // Use redirect flow - this will navigate away and come back with hash fragment
+      // Explicitly use loginRedirect - this will navigate away
+      // After redirect, the page will reload and handleRedirectPromise() will process the response
+      console.log('Initiating MSAL redirect login...');
       await instance.loginRedirect({
         scopes: ['User.Read'],
-        prompt: 'select_account', // Force account selection
+        prompt: 'select_account',
       });
-      // Note: After redirect, the page will reload and MSAL will handle the response
-      // The useEffect in this component will detect the authenticated account
-      // DO NOT await or catch here - the redirect will navigate away
+      // Note: This will navigate away, so code after this won't execute
+      // The redirect response will be handled by handleRedirectPromise() in main.tsx
     } catch (error: any) {
-      // Only log if it's not a navigation error (which is expected for redirect)
-      if (error.errorCode !== 'user_cancelled' && error.name !== 'BrowserConfigurationAuthError') {
+      // Check if this is a redirect navigation (expected)
+      if (error.name === 'BrowserConfigurationAuthError' || 
+          error.message?.includes('redirect') ||
+          error.errorCode === 'user_cancelled') {
+        // These are expected - redirect is happening
+        console.log('Redirect initiated (this is expected)');
+      } else {
         console.error('Login error:', error);
+        // Don't throw - let user try again
       }
-      // Don't throw - redirect might still be in progress
     }
   };
 
