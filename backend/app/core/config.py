@@ -57,19 +57,25 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str = ""
     FROM_EMAIL: str = "notifications@your-organisation.com"
 
-    # CORS  
-    CORS_ORIGINS: Union[List[str], str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://localhost:5176",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-        "http://127.0.0.1:5176",
-    ]
+    # CORS - can be set via environment variable as comma-separated string
+    # Default includes localhost for development and common production URL
+    CORS_ORIGINS: Union[List[str], str] = Field(
+        default=[
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+            "http://localhost:5176",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:5175",
+            "http://127.0.0.1:5176",
+            # Production frontend URL (Azure App Service) - will be overridden by env var if set
+            "https://pa-gcloud15-web.azurewebsites.net",
+        ],
+        validate_default=False
+    )
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
