@@ -48,9 +48,17 @@ const getMsalConfig = () => {
 const msalConfig = getMsalConfig();
 const msalInstance = new PublicClientApplication(msalConfig);
 
-// Initialize MSAL - this is required for MSAL to work
+// Initialize MSAL and handle redirect promise - this is required for redirect flow
 msalInstance.initialize().then(() => {
   console.log('MSAL initialized successfully');
+  // Handle redirect response if this is a redirect callback
+  msalInstance.handleRedirectPromise().then((response) => {
+    if (response) {
+      console.log('MSAL redirect response received:', response.account?.username);
+    }
+  }).catch((error) => {
+    console.error('MSAL redirect handling error:', error);
+  });
 }).catch((error) => {
   console.error('MSAL initialization error:', error);
 });

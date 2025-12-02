@@ -171,9 +171,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async () => {
     try {
-      await instance.loginPopup({
+      // Use redirect flow instead of popup to avoid COOP policy issues
+      await instance.loginRedirect({
         scopes: ['User.Read'],
       });
+      // Note: After redirect, the page will reload and MSAL will handle the response
+      // The useEffect in this component will detect the authenticated account
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -182,10 +185,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
-      await instance.logoutPopup();
+      // Use redirect flow for logout as well
+      await instance.logoutRedirect({
+        account: account,
+      });
+      // Clear local state before redirect
       setUser(null);
       localStorage.removeItem('access_token');
       sessionStorage.removeItem('isAuthenticated');
+      sessionStorage.removeItem('user_email');
+      sessionStorage.removeItem('userEmail');
+      sessionStorage.removeItem('user_formatted_email');
+      sessionStorage.removeItem('user_is_admin');
     } catch (error) {
       console.error('Logout error:', error);
     }
