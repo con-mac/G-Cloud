@@ -81,10 +81,12 @@ $ErrorActionPreference = 'Stop'
 if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     Write-Warning "App Registration not found. Creating..."
     
-    # Create App Registration with redirect URIs (production and localhost for development)
+    # Create App Registration with redirect URIs
+    # For SPA redirect flow, use base URL (not /auth/callback)
+    # MSAL handles redirect responses automatically on the base URL
     $appJson = az ad app create `
         --display-name $APP_REGISTRATION_NAME `
-        --web-redirect-uris "${WEB_APP_URL}/auth/callback" "http://localhost:3000/auth/callback" "http://localhost:5173/auth/callback" | ConvertFrom-Json
+        --web-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" | ConvertFrom-Json
     
     $APP_ID = $appJson.appId
     
