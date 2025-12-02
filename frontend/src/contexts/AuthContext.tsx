@@ -124,30 +124,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       // Wait for MSAL to finish processing redirect
-      if (inProgress === InteractionStatus.None) {
-        if (account) {
+      // IMPORTANT: Don't proceed if MSAL is still processing a redirect
+      if (inProgress !== InteractionStatus.None) {
+        // Still processing - wait
+        return;
+      }
+      
+      if (account) {
+        try {
+          // Get access token silently (will use cached token if available)
+          let tokenResponse;
           try {
-            // Get access token silently (will use cached token if available)
-            let tokenResponse;
-            try {
-              tokenResponse = await instance.acquireTokenSilent({
-                scopes: ['User.Read'],
-                account: account,
-              });
-            } catch (silentError) {
-              // If silent acquisition fails, don't try popup - force redirect
-              // This prevents popup fallback which causes COOP errors
-              if (inProgress === InteractionStatus.None) {
-                console.log('Silent token acquisition failed, user may need to re-authenticate');
-                // Clear any stale tokens
-                localStorage.removeItem('access_token');
-                setUser(null);
-                setIsLoading(false);
-                return;
-              }
-              // If we're in a redirect flow, let it complete
-              throw silentError;
+            tokenResponse = await instance.acquireTokenSilent({
+              scopes: ['User.Read'],
+              account: account,
+            });
+          } catch (silentError: any) {
+            // If silent acquisition fails, check the error type
+            // NEVER fall back to popup - always use redirect
+            if (silentError.errorCode === 'interaction_required' || 
+                silentError.errorCode === 'consent_required' ||
+                silentError.errorCode === 'login_required') {
+              // User needs to authenticate - but don't do it here
+              // Let them click the login button which uses loginRedirect
+              console.log('Silent token acquisition failed - user needs to authenticate');
+              setUser(null);
+              setIsLoading(false);
+              return;
             }
+            // For other errors, log and clear state
+            console.log('Silent token acquisition error:', silentError.errorCode);
+            localStorage.removeItem('access_token');
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
 
             const accessToken = tokenResponse.accessToken;
             
@@ -188,15 +199,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async () => {
     try {
-      // Use redirect flow instead of popup to avoid COOP policy issues
+      // CRITICAL: Use redirect flow ONLY - never popup
+      // Clear any existing hash that might interfere
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      
+      // Use redirect flow - this will navigate away and come back with hash fragment
       await instance.loginRedirect({
         scopes: ['User.Read'],
+        prompt: 'select_account', // Force account selection
       });
       // Note: After redirect, the page will reload and MSAL will handle the response
       // The useEffect in this component will detect the authenticated account
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      // DO NOT await or catch here - the redirect will navigate away
+    } catch (error: any) {
+      // Only log if it's not a navigation error (which is expected for redirect)
+      if (error.errorCode !== 'user_cancelled' && error.name !== 'BrowserConfigurationAuthError') {
+        console.error('Login error:', error);
+      }
+      // Don't throw - redirect might still be in progress
     }
   };
 
