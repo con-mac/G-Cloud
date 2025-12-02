@@ -61,13 +61,22 @@ const msalInstance = new PublicClientApplication(msalConfig);
 msalInstance.initialize().then(() => {
   console.log('MSAL initialized successfully');
   // Handle redirect response if this is a redirect callback
-  msalInstance.handleRedirectPromise().then((response) => {
-    if (response) {
-      console.log('MSAL redirect response received:', response.account?.username);
-    }
-  }).catch((error) => {
-    console.error('MSAL redirect handling error:', error);
-  });
+  // This MUST be called on every page load to process redirect responses
+  msalInstance.handleRedirectPromise()
+    .then((response) => {
+      if (response) {
+        console.log('MSAL redirect response received:', response.account?.username);
+        // Redirect response handled - MSAL will update accounts automatically
+      } else {
+        console.log('No redirect response to process');
+      }
+    })
+    .catch((error) => {
+      // Only log if it's not a user cancellation (which is normal)
+      if (error.errorCode !== 'user_cancelled') {
+        console.error('MSAL redirect handling error:', error);
+      }
+    });
 }).catch((error) => {
   console.error('MSAL initialization error:', error);
 });
