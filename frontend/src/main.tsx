@@ -37,10 +37,19 @@ const getMsalConfig = () => {
       clientId: clientId,
       authority: `https://login.microsoftonline.com/${tenantId || 'common'}`,
       redirectUri: redirectUri,
+      // Explicitly configure for redirect flow (not popup)
+      navigateToLoginRequestUrl: true,
     },
     cache: {
       cacheLocation: 'localStorage' as const,
       storeAuthStateInCookie: false,
+    },
+    system: {
+      // Prefer redirect over popup
+      allowNativeBroker: false,
+      windowHashTimeout: 60000,
+      iframeHashTimeout: 6000,
+      loadFrameTimeout: 0,
     },
   };
 };

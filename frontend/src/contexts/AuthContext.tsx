@@ -123,14 +123,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
+      // Wait for MSAL to finish processing redirect
       if (inProgress === InteractionStatus.None) {
         if (account) {
           try {
-            // Get access token
-            const tokenResponse = await instance.acquireTokenSilent({
-              scopes: ['User.Read'],
-              account: account,
-            });
+            // Get access token silently (will use cached token if available)
+            let tokenResponse;
+            try {
+              tokenResponse = await instance.acquireTokenSilent({
+                scopes: ['User.Read'],
+                account: account,
+              });
+            } catch (silentError) {
+              // If silent acquisition fails, try interactive redirect
+              // But only if we're not already in a redirect flow
+              if (inProgress === InteractionStatus.None) {
+                console.log('Silent token acquisition failed, user may need to re-authenticate');
+                setUser(null);
+                setIsLoading(false);
+                return;
+              }
+              throw silentError;
+            }
 
             const accessToken = tokenResponse.accessToken;
             
