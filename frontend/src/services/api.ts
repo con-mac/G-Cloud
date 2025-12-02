@@ -43,8 +43,8 @@ class ApiService {
           config.headers.Authorization = `Bearer ${token}`;
         }
 
-        // Add user email header if available (formatted as firstName.LastName@paconsulting.com)
-        const userEmail = sessionStorage.getItem('user_formatted_email');
+        // Add user email header from Entra ID user profile
+        const userEmail = sessionStorage.getItem('user_email');
         if (userEmail) {
           config.headers['X-User-Email'] = userEmail;
         }

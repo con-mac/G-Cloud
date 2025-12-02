@@ -40,6 +40,7 @@ import {
 } from '@mui/icons-material';
 import SharePointSearch from '../components/SharePointSearch';
 import sharepointApi, { SearchResult } from '../services/sharepointApi';
+import { useAuth } from '../contexts/AuthContext';
 
 type FlowType = 'update' | 'create' | null;
 type DocType = 'SERVICE DESC' | 'Pricing Doc' | null;
@@ -48,6 +49,7 @@ type LotType = '2' | '2a' | '2b' | '3' | null;
 export default function ProposalFlow() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [flowType, setFlowType] = useState<FlowType>(null);
   const [docType, setDocType] = useState<DocType>(null);
@@ -134,13 +136,7 @@ export default function ProposalFlow() {
     setError('');
   };
 
-  // Extract name from email: Firstname.Lastname@paconsulting.com → "Firstname Lastname"
-  const extractNameFromEmail = (email: string): string => {
-    if (!email || !email.includes('@')) return '';
-    const localPart = email.split('@')[0];
-    const name = localPart.replace('.', ' ');
-    return name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  };
+  // No email formatting needed - use Entra ID user profile directly
 
   const handleProceed = async () => {
     setLoading(true);
@@ -148,9 +144,9 @@ export default function ProposalFlow() {
 
     try {
       if (flowType === 'update' && selectedResult) {
-        // Check if owner matches logged-in user
-        const userEmail = sessionStorage.getItem('userEmail');
-        const userName = userEmail ? extractNameFromEmail(userEmail) : '';
+        // Check if owner matches logged-in user (use Entra ID user profile)
+        const userEmail = user?.email || '';
+        const userName = user?.name || '';
         const proposalOwner = selectedResult.owner || '';
         
         // Load document content first
@@ -235,9 +231,9 @@ export default function ProposalFlow() {
           return;
         }
       } else if (flowType === 'create') {
-        // Get user name for last_edited_by
-        const userEmail = sessionStorage.getItem('userEmail');
-        const userName = userEmail ? extractNameFromEmail(userEmail) : '';
+        // Get user name for last_edited_by (use Entra ID user profile)
+        const userEmail = user?.email || '';
+        const userName = user?.name || '';
         
         // Create folder and metadata
         await sharepointApi.createFolder({

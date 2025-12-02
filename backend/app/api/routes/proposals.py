@@ -78,22 +78,36 @@ class ProposalDetailResponse(BaseModel):
 
 def extract_name_from_email(email: str) -> str:
     """
-    Extract name from email: Firstname.Lastname@paconsulting.com → "Firstname Lastname"
+    Extract name from email for backward compatibility with SharePoint metadata.
+    
+    SharePoint stores owner as name (e.g., "Firstname Lastname"), so we extract
+    the name from the Entra ID email for matching.
+    
+    Handles formats:
+    - Firstname.Lastname@paconsulting.com → "Firstname Lastname"
+    - firstname.lastname@domain.com → "Firstname Lastname"
+    - user@domain.com → "User" (fallback)
     
     Args:
-        email: Email address in format Firstname.Lastname@paconsulting.com
+        email: Email address from Entra ID
         
     Returns:
-        Name in format "Firstname Lastname"
+        Name in format "Firstname Lastname" for matching with SharePoint metadata
     """
     if not email or '@' not in email:
         return ''
     
-    # Remove @paconsulting.com part
+    # Get local part (before @)
     local_part = email.split('@')[0]
     
-    # Replace . with space
-    name = local_part.replace('.', ' ')
+    # If email contains dots, assume format: firstname.lastname
+    if '.' in local_part:
+        # Replace . with space and capitalize
+        name_parts = local_part.split('.')
+        name = ' '.join(word.capitalize() for word in name_parts if word)
+    else:
+        # Single word - capitalize first letter
+        name = local_part.capitalize()
     
     # Capitalize first letter of each word
     name = ' '.join(word.capitalize() for word in name.split())
@@ -520,19 +534,18 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
 
 @router.get("/", response_model=List[dict])
 async def get_all_proposals(
-    owner_email: Optional[str] = Query(None, description="Owner email to filter proposals"),
-    x_user_email: Optional[str] = Header(None, alias="X-User-Email", description="User email from SSO token")
+    owner_email: Optional[str] = Query(None, description="Owner email from Entra ID"),
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email", description="User email from Entra ID SSO token")
 ):
     """
     Get all proposals filtered by owner email.
     
-    If owner_email is provided, extracts name from email and filters proposals by owner.
-    If X-User-Email header is present (from SSO), uses that instead.
-    Otherwise, returns empty list (for now, we require owner_email for security).
+    Uses Entra ID user email directly. For backward compatibility with SharePoint
+    metadata that stores owner as name, we extract name from email for matching.
     
     Args:
-        owner_email: Email address in format Firstname.Lastname@paconsulting.com (query param)
-        x_user_email: User email from SSO token (header)
+        owner_email: Email address from Entra ID (query param)
+        x_user_email: User email from Entra ID SSO token (header, preferred)
         
     Returns:
         List of proposals matching the owner
@@ -545,18 +558,22 @@ async def get_all_proposals(
         if not effective_email:
             return []
         
-        # Extract owner name from email
+        # For backward compatibility: SharePoint metadata stores owner as name
+        # Extract name from email for matching existing proposals
+        # TODO: Update SharePoint to store email instead of name for better Entra ID integration
         owner_name = extract_name_from_email(effective_email)
         
         if not owner_name:
+            logger.warning(f"Could not extract name from email: {effective_email}")
             return []
         
-        # Get proposals from mock_sharepoint
+        # Get proposals from mock_sharepoint (matches by owner name for now)
         proposals = get_proposals_by_owner(owner_name)
         
         return proposals
         
     except Exception as e:
+        logger.error(f"Error getting proposals: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error getting proposals: {str(e)}")
 
 

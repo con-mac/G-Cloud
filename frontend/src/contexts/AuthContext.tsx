@@ -8,9 +8,8 @@ import { useMsal, useAccount } from '@azure/msal-react';
 import { InteractionStatus } from '@azure/msal-browser';
 
 interface User {
-  email: string;
-  formattedEmail: string; // firstName.LastName@paconsulting.com format
-  name: string;
+  email: string; // Direct email from Entra ID
+  name: string; // Direct name from Entra ID
   isAdmin: boolean;
 }
 
@@ -53,39 +52,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [accounts, instance]);
 
-  // Format email as firstName.LastName@paconsulting.com
-  // For PA Consulting users, convert to standard format
-  // For external users (like Gmail), use their actual email
-  const formatEmail = (email: string): string => {
-    if (!email) return email;
-    
-    const domain = email.split('@')[1]?.toLowerCase();
-    
-    // If already a PA Consulting email, return as-is
-    if (domain === 'paconsulting.com') {
-      return email;
-    }
-    
-    // For PA tenant domains (like conmacdev.onmicrosoft.com), try to convert to paconsulting.com format
-    if (domain === 'conmacdev.onmicrosoft.com' || domain?.endsWith('.onmicrosoft.com')) {
-      const localPart = email.split('@')[0];
-      // Try to extract from account name if available
-      if (account?.name) {
-        const nameParts = account.name.toLowerCase().split(' ').filter(p => p.length > 0);
-        if (nameParts.length >= 2) {
-          const firstName = nameParts[0];
-          const lastName = nameParts[nameParts.length - 1];
-          return `${firstName}.${lastName}@paconsulting.com`;
-        }
-      }
-      // Fallback: use local part with paconsulting.com
-      return `${localPart}@paconsulting.com`;
-    }
-    
-    // For external emails (Gmail, etc.), use the actual email
-    // This is important for testing in personal Azure before PA deployment
-    return email;
-  };
+  // No email formatting needed - use Entra ID user profile directly
+  // Entra ID provides the correct email and name from the security group
 
   // Check if user is in admin group
   const checkAdminStatus = async (accessToken: string): Promise<boolean> => {
@@ -168,14 +136,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Check admin status
           const isAdmin = await checkAdminStatus(accessToken);
 
-          // Format email
+          // Use Entra ID user profile directly - no formatting needed
           const email = account.username || account.name || '';
-          const formattedEmail = formatEmail(email);
+          const name = account.name || email;
 
           setUser({
             email: email,
-            formattedEmail: formattedEmail,
-            name: account.name || email,
+            name: name,
             isAdmin: isAdmin,
           });
 
@@ -183,8 +150,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.setItem('access_token', accessToken);
           sessionStorage.setItem('isAuthenticated', 'true');
           sessionStorage.setItem('user_email', email);
-          sessionStorage.setItem('userEmail', formattedEmail); // Also store as userEmail for compatibility
-          sessionStorage.setItem('user_formatted_email', formattedEmail);
+          sessionStorage.setItem('user_name', name);
           sessionStorage.setItem('user_is_admin', isAdmin.toString());
         } catch (error) {
           console.error('Error initializing auth:', error);
@@ -247,8 +213,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('access_token');
       sessionStorage.removeItem('isAuthenticated');
       sessionStorage.removeItem('user_email');
-      sessionStorage.removeItem('userEmail');
-      sessionStorage.removeItem('user_formatted_email');
+      // Clean up session storage (user_email and user_name are already removed above)
       sessionStorage.removeItem('user_is_admin');
     } catch (error) {
       console.error('Logout error:', error);

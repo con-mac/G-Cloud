@@ -68,8 +68,8 @@ export default function ProposalsList() {
         return;
       }
       
-      // Use formatted email from auth context (firstName.LastName@paconsulting.com format)
-      const userEmail = user.formattedEmail || user.email;
+      // Use direct email from Entra ID user profile
+      const userEmail = user.email;
       
       if (!userEmail) {
         setError('Please log in to view your proposals');
