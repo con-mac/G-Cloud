@@ -205,7 +205,8 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
         Write-Info "Adding: $WEB_APP_URL (and localhost for development)"
         # Update both web and SPA redirect URIs
         az ad app update --id $APP_ID --web-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
-        az ad app update --id $APP_ID --spa-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
+        # Use --set for SPA redirect URIs (works across Azure CLI versions)
+        az ad app update --id $APP_ID --set "spa.redirectUris=['${WEB_APP_URL}','http://localhost:3000','http://localhost:5173']" --output none 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Redirect URIs updated for SPA redirect flow"
         } else {
@@ -217,7 +218,8 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     } else {
         # Ensure SPA platform is configured even if redirect URI already exists
         Write-Info "Ensuring SPA platform configuration..."
-        az ad app update --id $APP_ID --spa-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
+        # Use --set for SPA redirect URIs (works across Azure CLI versions)
+        az ad app update --id $APP_ID --set "spa.redirectUris=['${WEB_APP_URL}','http://localhost:3000','http://localhost:5173']" --output none 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Success "SPA platform redirect URIs configured"
         } else {
