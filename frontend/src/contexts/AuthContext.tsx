@@ -54,29 +54,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [accounts, instance]);
 
   // Format email as firstName.LastName@paconsulting.com
+  // For PA Consulting users, convert to standard format
+  // For external users (like Gmail), use their actual email
   const formatEmail = (email: string): string => {
     if (!email) return email;
     
-    // Extract name from email (e.g., "conor.macklin@paconsulting.com" -> "conor.macklin")
-    const localPart = email.split('@')[0];
-    const domain = email.split('@')[1];
+    const domain = email.split('@')[1]?.toLowerCase();
     
-    // If already in firstName.LastName format, return as-is
-    if (domain === 'paconsulting.com' || domain === 'conmacdev.onmicrosoft.com') {
+    // If already a PA Consulting email, return as-is
+    if (domain === 'paconsulting.com') {
+      return email;
+    }
+    
+    // For PA tenant domains (like conmacdev.onmicrosoft.com), try to convert to paconsulting.com format
+    if (domain === 'conmacdev.onmicrosoft.com' || domain?.endsWith('.onmicrosoft.com')) {
+      const localPart = email.split('@')[0];
+      // Try to extract from account name if available
+      if (account?.name) {
+        const nameParts = account.name.toLowerCase().split(' ').filter(p => p.length > 0);
+        if (nameParts.length >= 2) {
+          const firstName = nameParts[0];
+          const lastName = nameParts[nameParts.length - 1];
+          return `${firstName}.${lastName}@paconsulting.com`;
+        }
+      }
+      // Fallback: use local part with paconsulting.com
       return `${localPart}@paconsulting.com`;
     }
     
-    // Try to extract from name if available
-    if (account?.name) {
-      const nameParts = account.name.toLowerCase().split(' ');
-      if (nameParts.length >= 2) {
-        const firstName = nameParts[0];
-        const lastName = nameParts[nameParts.length - 1];
-        return `${firstName}.${lastName}@paconsulting.com`;
-      }
-    }
-    
-    // Fallback: use email as-is
+    // For external emails (Gmail, etc.), use the actual email
+    // This is important for testing in personal Azure before PA deployment
     return email;
   };
 
