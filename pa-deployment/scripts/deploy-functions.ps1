@@ -246,6 +246,18 @@ if (-not $funcCheck) {
             
             Write-Info "Deploying zip package to Function App..."
             Write-Info "This may take 5-10 minutes (first deployment is slower)..."
+            
+            # Verify zip file exists before deployment
+            if (-not (Test-Path $deployZip)) {
+                Write-Error "Zip file not found at: $deployZip"
+                Write-Error "Current directory: $(Get-Location)"
+                Write-Error "Cannot deploy without zip file!"
+                exit 1
+            }
+            
+            Write-Info "Zip file verified: $deployZip"
+            Write-Info "File size: $((Get-Item $deployZip).Length / 1MB) MB"
+            Write-Info ""
             Write-Info "Monitoring deployment progress..."
             
             # Use the reliable zip deploy method (az functionapp deployment source config-zip)
@@ -254,11 +266,20 @@ if (-not $funcCheck) {
             Write-Info "Note: Large deployments can take time. Be patient..."
             
             try {
+                # Use absolute path and verify it exists
+                $deployZipAbsolute = [System.IO.Path]::GetFullPath($deployZip)
+                Write-Info "Using absolute path: $deployZipAbsolute"
+                
+                if (-not (Test-Path $deployZipAbsolute)) {
+                    Write-Error "Zip file not found at absolute path: $deployZipAbsolute"
+                    exit 1
+                }
+                
                 # Use the proven method that doesn't hang
                 $deployOutput = az functionapp deployment source config-zip `
                     --resource-group $RESOURCE_GROUP `
                     --name $FUNCTION_APP_NAME `
-                    --src $deployZip `
+                    --src $deployZipAbsolute `
                     --timeout 1800 2>&1 | Tee-Object -Variable deployOutput
                 
                 if ($LASTEXITCODE -eq 0) {
