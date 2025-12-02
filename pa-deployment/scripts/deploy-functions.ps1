@@ -133,28 +133,47 @@ if (-not $funcCheck) {
             }
         
         if ($filesToZip.Count -gt 0) {
-            # Verify critical files are included
+            # CRITICAL: Verify function_app folder exists and is included
+            $functionAppPath = Join-Path (Get-Location) "function_app"
+            if (-not (Test-Path $functionAppPath)) {
+                Write-Error "function_app folder not found at: $functionAppPath"
+                Write-Error "Function will not be registered without this folder!"
+                Write-Info "Current directory: $(Get-Location)"
+                Write-Info "Looking for: function_app\__init__.py and function_app\function.json"
+                exit 1
+            }
+            
+            # Verify critical files exist
             $hasFunctionApp = $filesToZip | Where-Object { $_.FullName -like "*function_app\__init__.py" -or $_.FullName -like "*function_app/__init__.py" }
             $hasFunctionJson = $filesToZip | Where-Object { $_.FullName -like "*function_app\function.json" -or $_.FullName -like "*function_app/function.json" }
             $hasHostJson = $filesToZip | Where-Object { $_.Name -eq "host.json" }
             
             if (-not $hasFunctionApp) {
-                Write-Warning "function_app/__init__.py not found in deployment package!"
-                Write-Warning "Function may not be registered. Checking if function_app folder exists..."
-                if (Test-Path "function_app\__init__.py") {
-                    Write-Info "function_app exists locally but wasn't included. Adding explicitly..."
-                    Get-ChildItem -Path "function_app" -Recurse -File | ForEach-Object { $filesToZip += $_ }
-                } else {
-                    Write-Error "function_app folder not found! Function will not be registered."
+                Write-Warning "function_app/__init__.py not found in file list. Adding explicitly..."
+                $functionAppFiles = Get-ChildItem -Path "function_app" -Recurse -File
+                foreach ($file in $functionAppFiles) {
+                    if ($filesToZip -notcontains $file) {
+                        $filesToZip += $file
+                        Write-Info "  Added: $($file.FullName)"
+                    }
                 }
             }
             
             if (-not $hasFunctionJson) {
-                Write-Warning "function_app/function.json not found in deployment package!"
+                Write-Warning "function_app/function.json not found. Adding explicitly..."
+                $functionJsonPath = Join-Path "function_app" "function.json"
+                if (Test-Path $functionJsonPath) {
+                    $jsonFile = Get-Item $functionJsonPath
+                    if ($filesToZip -notcontains $jsonFile) {
+                        $filesToZip += $jsonFile
+                        Write-Info "  Added: $($jsonFile.FullName)"
+                    }
+                }
             }
             
             if (-not $hasHostJson) {
-                Write-Warning "host.json not found in deployment package!"
+                Write-Error "host.json not found in deployment package!"
+                exit 1
             }
             
             Write-Info "Creating zip with $($filesToZip.Count) files..."
@@ -163,14 +182,61 @@ if (-not $funcCheck) {
             $functionAppFiles = $filesToZip | Where-Object { $_.FullName -like "*function_app*" }
             if ($functionAppFiles) {
                 Write-Info "Function App files included: $($functionAppFiles.Count)"
-                $functionAppFiles | Select-Object -First 5 | ForEach-Object {
-                    Write-Info "  - $($_.Name)"
+                $functionAppFiles | Select-Object -First 10 | ForEach-Object {
+                    $relativePath = $_.FullName.Replace((Get-Location).Path + "\", "").Replace((Get-Location).Path + "/", "")
+                    Write-Info "  - $relativePath"
                 }
             } else {
-                Write-Warning "No function_app files found in deployment package!"
+                Write-Error "No function_app files found in deployment package! Function will not work!"
+                exit 1
             }
             
-            $filesToZip | Compress-Archive -DestinationPath $deployZip -Force
+            # Create zip preserving directory structure
+            # Use .NET compression to ensure proper folder structure
+            Write-Info "Creating zip archive (preserving folder structure)..."
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::Open($deployZip, [System.IO.Compression.ZipArchiveMode]::Create)
+            $currentDir = (Get-Location).Path
+            try {
+                foreach ($file in $filesToZip) {
+                    # Use proper path resolution to get relative path
+                    $filePath = $file.FullName
+                    # Normalize paths for comparison
+                    $normalizedCurrent = [System.IO.Path]::GetFullPath($currentDir)
+                    $normalizedFile = [System.IO.Path]::GetFullPath($filePath)
+                    
+                    # Get relative path using .NET method
+                    $relativePath = [System.IO.Path]::GetRelativePath($normalizedCurrent, $normalizedFile)
+                    # Normalize to forward slashes for zip (zip format uses /)
+                    $relativePath = $relativePath.Replace("\", "/")
+                    
+                    Write-Verbose "Adding to zip: $relativePath"
+                    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $filePath, $relativePath) | Out-Null
+                }
+            } finally {
+                $zip.Dispose()
+            }
+            Write-Info "Zip created successfully with preserved folder structure"
+            
+            # Verify function_app folder structure in zip
+            Write-Info "Verifying zip contents..."
+            $zipRead = [System.IO.Compression.ZipFile]::OpenRead($deployZip)
+            try {
+                $functionAppEntries = $zipRead.Entries | Where-Object { $_.FullName -like "function_app/*" }
+                if ($functionAppEntries.Count -gt 0) {
+                    Write-Success "✓ Verified: function_app folder exists in zip with $($functionAppEntries.Count) files"
+                    $functionAppEntries | Select-Object -First 5 | ForEach-Object {
+                        Write-Info "  - $($_.FullName)"
+                    }
+                } else {
+                    Write-Error "✗ function_app folder NOT found in zip! This will fail!"
+                    $zipRead.Dispose()
+                    Remove-Item $deployZip -Force -ErrorAction SilentlyContinue
+                    exit 1
+                }
+            } finally {
+                $zipRead.Dispose()
+            }
             
             Write-Info "Deploying zip package to Function App..."
             Write-Info "This may take 5-10 minutes (first deployment is slower)..."
@@ -192,12 +258,41 @@ if (-not $funcCheck) {
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "Backend code deployed successfully!"
                     
+                    # Force function discovery by syncing triggers
+                    Write-Info "Forcing function discovery (syncing triggers)..."
+                    $ErrorActionPreference = 'SilentlyContinue'
+                    az functionapp function show `
+                        --name $FUNCTION_APP_NAME `
+                        --resource-group $RESOURCE_GROUP `
+                        --function-name "function_app" `
+                        --output none 2>&1 | Out-Null
+                    $ErrorActionPreference = 'Stop'
+                    
                     # Restart Function App to ensure function is discovered
-                    Write-Info "Restarting Function App to ensure function is registered..."
+                    Write-Info "Restarting Function App to trigger function discovery..."
                     az functionapp restart --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --output none
                     if ($LASTEXITCODE -eq 0) {
                         Write-Success "Function App restarted"
-                        Write-Info "Wait 30-60 seconds for function discovery, then check Functions list in Azure Portal"
+                        Write-Info "Waiting 30 seconds for function discovery..."
+                        Start-Sleep -Seconds 30
+                        
+                        # Verify function is registered
+                        Write-Info "Verifying function registration..."
+                        $ErrorActionPreference = 'SilentlyContinue'
+                        $functionCheck = az functionapp function show `
+                            --name $FUNCTION_APP_NAME `
+                            --resource-group $RESOURCE_GROUP `
+                            --function-name "function_app" `
+                            --query "name" -o tsv 2>&1
+                        $ErrorActionPreference = 'Stop'
+                        
+                        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($functionCheck)) {
+                            Write-Success "Function 'function_app' is registered!"
+                        } else {
+                            Write-Warning "Function 'function_app' not yet registered. This may take up to 2 minutes."
+                            Write-Info "Check Functions list in Azure Portal: Function App -> Functions"
+                            Write-Info "If function doesn't appear after 2 minutes, check logs for errors"
+                        }
                     }
                 } else {
                     # Check if it's a known error we can handle
