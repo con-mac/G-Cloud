@@ -60,7 +60,21 @@ const getMsalConfig = () => {
 };
 
 const msalConfig = getMsalConfig();
+
+// Validate config before creating instance
+if (!msalConfig.auth.clientId || msalConfig.auth.clientId === 'PLACEHOLDER_CLIENT_ID') {
+  console.error('MSAL Client ID is missing or placeholder - SSO will not work!');
+  console.error('Please rebuild the Docker image with actual SSO values');
+}
+
 const msalInstance = new PublicClientApplication(msalConfig);
+
+// Verify the instance was created with the config
+console.log('MSAL Instance created with config:', {
+  hasClientId: !!msalConfig.auth.clientId && msalConfig.auth.clientId !== 'PLACEHOLDER_CLIENT_ID',
+  hasTenantId: !!msalConfig.auth.authority,
+  redirectUri: msalConfig.auth.redirectUri,
+});
 
 // CRITICAL: Initialize MSAL and handle redirect BEFORE React Router processes the URL
 // This ensures the hash fragment (#access_token=...) is preserved for MSAL to process
@@ -74,17 +88,16 @@ const hasMsalHash = window.location.hash && (
   window.location.hash.includes('code')
 );
 
-// Initialize MSAL and handle redirect immediately (synchronously)
+// CRITICAL: Initialize MSAL synchronously and handle redirect BEFORE React renders
+// This must happen before React Router processes the URL to preserve hash fragments
+let msalInitialized = false;
+
 msalInstance.initialize().then(() => {
+  msalInitialized = true;
   console.log('MSAL initialized successfully');
   
-  // If we have an MSAL hash, process it IMMEDIATELY before anything else
-  if (hasMsalHash) {
-    console.log('Detected MSAL redirect response in hash, processing...');
-  }
-  
-  // Handle redirect response IMMEDIATELY - before React Router processes the URL
-  // This MUST be called synchronously on every page load to process redirect responses
+  // Handle redirect response IMMEDIATELY - this processes the hash fragment
+  // Must be called on every page load to handle redirect responses
   msalInstance.handleRedirectPromise()
     .then((response) => {
       if (response) {
@@ -92,31 +105,22 @@ msalInstance.initialize().then(() => {
         // Clear hash fragment after processing to prevent React Router from seeing it
         if (window.location.hash) {
           const hash = window.location.hash;
-          // Only clear if it's an MSAL response (contains access_token or error)
           if (hash.includes('access_token') || hash.includes('error') || hash.includes('code') || hash.includes('id_token')) {
-            // Replace hash with clean URL (preserve any non-MSAL hash)
             window.history.replaceState(null, '', window.location.pathname + window.location.search);
             console.log('Cleared MSAL hash fragment after processing');
           }
         }
-      } else {
-        console.log('No redirect response to process');
       }
     })
     .catch((error: any) => {
-      // Only log if it's not a user cancellation
-      // hash_empty_error might occur if hash was already processed or cleared
-      if (error.errorCode !== 'user_cancelled') {
-        if (error.errorCode === 'hash_empty_error') {
-          console.warn('MSAL hash was empty - may have been processed already or cleared by browser');
-        } else {
-          console.error('MSAL redirect handling error:', error);
-        }
+      // hash_empty_error is expected if no redirect response or already processed
+      if (error.errorCode !== 'user_cancelled' && error.errorCode !== 'hash_empty_error') {
+        console.error('MSAL redirect handling error:', error);
       }
-      // Don't throw - let the app continue
     });
 }).catch((error) => {
   console.error('MSAL initialization error:', error);
+  // Still allow app to continue, but SSO won't work
 });
 
 // React Query client

@@ -43,20 +43,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Debug: Log MSAL instance config
+  // Debug: Verify MSAL is configured (check via getConfiguration method if available)
   useEffect(() => {
-    // MSAL config is stored in instance.configuration, not instance.config
-    const config = (instance as any).configuration || (instance as any).config;
-    if (config) {
-      console.log('MSAL Instance Config:', {
-        clientId: config?.auth?.clientId ? `${config.auth.clientId.substring(0, 8)}...` : 'missing',
-        authority: config?.auth?.authority,
-        redirectUri: config?.auth?.redirectUri,
-      });
-    } else {
-      console.log('MSAL Instance Config: Not accessible (this is normal)');
+    // MSAL stores config internally - we can't always access it directly
+    // But we can verify it's working by checking if accounts are being managed
+    // The config was already validated in main.tsx, so we trust it here
+    if (accounts.length > 0) {
+      console.log('MSAL is working - accounts found:', accounts.length);
     }
-  }, [instance]);
+  }, [accounts, instance]);
 
   // Format email as firstName.LastName@paconsulting.com
   const formatEmail = (email: string): string => {
