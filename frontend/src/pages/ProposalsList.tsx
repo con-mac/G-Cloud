@@ -33,8 +33,10 @@ import {
 } from '@mui/icons-material';
 import { proposalsService } from '../services/proposals';
 import sharepointApi from '../services/sharepointApi';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ProposalsList() {
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [proposals, setProposals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +49,27 @@ export default function ProposalsList() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadProposals();
-  }, []);
+    if (!authLoading) {
+      loadProposals();
+    }
+  }, [authLoading, isAuthenticated, user]);
 
   const loadProposals = async () => {
     try {
-      // Get user email from sessionStorage
-      const userEmail = sessionStorage.getItem('userEmail');
+      // Wait for auth to finish loading
+      if (authLoading) {
+        return;
+      }
+
+      // Check if user is authenticated
+      if (!isAuthenticated || !user) {
+        setError('Please log in to view your proposals');
+        setLoading(false);
+        return;
+      }
+      
+      // Use formatted email from auth context (firstName.LastName@paconsulting.com format)
+      const userEmail = user.formattedEmail || user.email;
       
       if (!userEmail) {
         setError('Please log in to view your proposals');

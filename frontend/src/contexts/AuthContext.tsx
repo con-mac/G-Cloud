@@ -45,12 +45,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Debug: Log MSAL instance config
   useEffect(() => {
-    const config = (instance as any).config;
-    console.log('MSAL Instance Config:', {
-      clientId: config?.auth?.clientId ? `${config.auth.clientId.substring(0, 8)}...` : 'missing',
-      authority: config?.auth?.authority,
-      redirectUri: config?.auth?.redirectUri,
-    });
+    // MSAL config is stored in instance.configuration, not instance.config
+    const config = (instance as any).configuration || (instance as any).config;
+    if (config) {
+      console.log('MSAL Instance Config:', {
+        clientId: config?.auth?.clientId ? `${config.auth.clientId.substring(0, 8)}...` : 'missing',
+        authority: config?.auth?.authority,
+        redirectUri: config?.auth?.redirectUri,
+      });
+    } else {
+      console.log('MSAL Instance Config: Not accessible (this is normal)');
+    }
   }, [instance]);
 
   // Format email as firstName.LastName@paconsulting.com
@@ -147,6 +152,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             localStorage.setItem('access_token', accessToken);
             sessionStorage.setItem('isAuthenticated', 'true');
             sessionStorage.setItem('user_email', email);
+            sessionStorage.setItem('userEmail', formattedEmail); // Also store as userEmail for compatibility
             sessionStorage.setItem('user_formatted_email', formattedEmail);
             sessionStorage.setItem('user_is_admin', isAdmin.toString());
           } catch (error) {
