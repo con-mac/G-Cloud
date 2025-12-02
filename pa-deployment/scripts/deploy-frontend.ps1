@@ -223,14 +223,49 @@ Write-Success "Web App configured to use Docker container"
 
 # Set app settings for API URL and other configuration
 Write-Info "Configuring app settings..."
+
+# Get actual SSO values from Azure (same as build script does)
+Write-Info "Getting SSO configuration for app settings..."
+$tenantId = az account show --query tenantId -o tsv 2>&1
+if ([string]::IsNullOrWhiteSpace($tenantId)) {
+    Write-Warning "Could not get tenant ID, using placeholder"
+    $tenantId = "PLACEHOLDER_TENANT_ID"
+}
+
+$clientId = ""
+$APP_REGISTRATION_NAME = $config.APP_REGISTRATION_NAME
+if (-not [string]::IsNullOrWhiteSpace($APP_REGISTRATION_NAME)) {
+    $clientId = az ad app list --display-name "$APP_REGISTRATION_NAME" --query "[0].appId" -o tsv 2>&1
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($clientId)) {
+        Write-Warning "Could not get client ID from App Registration '$APP_REGISTRATION_NAME', using placeholder"
+        $clientId = "PLACEHOLDER_CLIENT_ID"
+    }
+} else {
+    Write-Warning "APP_REGISTRATION_NAME not in config, using placeholder"
+    $clientId = "PLACEHOLDER_CLIENT_ID"
+}
+
+$redirectUri = "https://${WEB_APP_NAME}.azurewebsites.net"
+$adminGroupId = $config.ADMIN_GROUP_ID
+
+Write-Info "SSO Configuration for app settings:"
+Write-Info "  Tenant ID: $($tenantId.Substring(0, [Math]::Min(8, $tenantId.Length)))..."
+Write-Info "  Client ID: $($clientId.Substring(0, [Math]::Min(8, $clientId.Length)))..."
+Write-Info "  Redirect URI: $redirectUri"
+
 $appSettings = @(
     "VITE_API_BASE_URL=https://${FUNCTION_APP_URL}",
-    "VITE_AZURE_AD_TENANT_ID=PLACEHOLDER_TENANT_ID",
-    "VITE_AZURE_AD_CLIENT_ID=PLACEHOLDER_CLIENT_ID",
-    "VITE_AZURE_AD_REDIRECT_URI=https://${WEB_APP_NAME}.azurewebsites.net",
+    "VITE_AZURE_AD_TENANT_ID=$tenantId",
+    "VITE_AZURE_AD_CLIENT_ID=$clientId",
+    "VITE_AZURE_AD_REDIRECT_URI=$redirectUri",
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false",
     "PORT=80"
 )
+
+# Add admin group ID if available
+if (-not [string]::IsNullOrWhiteSpace($adminGroupId)) {
+    $appSettings += "VITE_AZURE_AD_ADMIN_GROUP_ID=$adminGroupId"
+}
 
 # Set app settings in a single batch operation
 Write-Info "Setting app settings in batch..."
