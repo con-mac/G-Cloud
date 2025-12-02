@@ -10,24 +10,49 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Load config - try multiple possible locations
+# Get the script directory and project root
+$scriptDir = $PSScriptRoot
+$paDeploymentDir = Split-Path $scriptDir -Parent
+$projectRoot = Split-Path $paDeploymentDir -Parent
+
+# Try different possible config locations
 $possibleConfigPaths = @(
-    Join-Path $PSScriptRoot "..\config\deployment-config.env",
-    Join-Path (Split-Path $PSScriptRoot -Parent) "config\deployment-config.env",
+    (Join-Path $paDeploymentDir "config\deployment-config.env"),
+    (Join-Path $projectRoot "config\deployment-config.env"),
+    (Join-Path $projectRoot "pa-deployment\config\deployment-config.env"),
     "config\deployment-config.env",
     "pa-deployment\config\deployment-config.env"
 )
 
 $configPath = $null
 foreach ($path in $possibleConfigPaths) {
-    if (Test-Path $path) {
-        $configPath = $path
+    $fullPath = if ([System.IO.Path]::IsPathRooted($path)) {
+        $path
+    } else {
+        # Try relative to current directory, then project root
+        $currentDirPath = Join-Path (Get-Location) $path
+        if (Test-Path $currentDirPath) {
+            $currentDirPath
+        } else {
+            Join-Path $projectRoot $path
+        }
+    }
+    
+    if (Test-Path $fullPath) {
+        $configPath = $fullPath
         break
     }
 }
 
 if (-not $configPath) {
     Write-Host "[ERROR] Config file not found. Tried:" -ForegroundColor Red
-    $possibleConfigPaths | ForEach-Object { Write-Host "  - $_" -ForegroundColor Gray }
+    $possibleConfigPaths | ForEach-Object { 
+        $tryPath = if ([System.IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $projectRoot $_ }
+        Write-Host "  - $tryPath" -ForegroundColor Gray 
+    }
+    Write-Host ""
+    Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+    Write-Host "Project root: $projectRoot" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Please run deploy.ps1 first from the project root" -ForegroundColor Yellow
     Write-Host "Or ensure you're in the project root directory" -ForegroundColor Yellow
