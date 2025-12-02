@@ -15,51 +15,62 @@ $scriptDir = $PSScriptRoot
 $paDeploymentDir = Split-Path $scriptDir -Parent
 $projectRoot = Split-Path $paDeploymentDir -Parent
 
-# Try different possible config locations
-$possibleConfigPaths = @(
-    (Join-Path $paDeploymentDir "config\deployment-config.env"),
-    (Join-Path $projectRoot "config\deployment-config.env"),
-    (Join-Path $projectRoot "pa-deployment\config\deployment-config.env"),
-    "config\deployment-config.env",
-    "pa-deployment\config\deployment-config.env"
-)
+# Build list of possible config paths to try
+$possibleConfigPaths = @()
 
+# Path relative to pa-deployment directory (most common)
+$possibleConfigPaths += Join-Path $paDeploymentDir "config" "deployment-config.env"
+
+# Path relative to project root
+$possibleConfigPaths += Join-Path $projectRoot "config" "deployment-config.env"
+$possibleConfigPaths += Join-Path $projectRoot "pa-deployment" "config" "deployment-config.env"
+
+# Try relative to current working directory
+$currentDir = Get-Location
+$possibleConfigPaths += Join-Path $currentDir "config" "deployment-config.env"
+$possibleConfigPaths += Join-Path $currentDir "pa-deployment" "config" "deployment-config.env"
+
+# Try simple relative paths
+$possibleConfigPaths += "config\deployment-config.env"
+$possibleConfigPaths += "pa-deployment\config\deployment-config.env"
+
+# Try to find the config file
 $configPath = $null
 foreach ($path in $possibleConfigPaths) {
-    $fullPath = if ([System.IO.Path]::IsPathRooted($path)) {
-        $path
-    } else {
-        # Try relative to current directory, then project root
-        $currentDirPath = Join-Path (Get-Location) $path
-        if (Test-Path $currentDirPath) {
-            $currentDirPath
-        } else {
-            Join-Path $projectRoot $path
+    # Resolve the path properly
+    try {
+        $resolvedPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($path)
+        if (Test-Path $resolvedPath -ErrorAction SilentlyContinue) {
+            $configPath = $resolvedPath
+            break
         }
-    }
-    
-    if (Test-Path $fullPath) {
-        $configPath = $fullPath
-        break
+    } catch {
+        # Try as-is
+        if (Test-Path $path -ErrorAction SilentlyContinue) {
+            $configPath = (Resolve-Path $path).Path
+            break
+        }
     }
 }
 
 if (-not $configPath) {
     Write-Host "[ERROR] Config file not found. Tried:" -ForegroundColor Red
-    $possibleConfigPaths | ForEach-Object { 
-        $tryPath = if ([System.IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $projectRoot $_ }
-        Write-Host "  - $tryPath" -ForegroundColor Gray 
+    foreach ($path in $possibleConfigPaths) {
+        Write-Host "  - $path" -ForegroundColor Gray
     }
     Write-Host ""
-    Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+    Write-Host "Current directory: $currentDir" -ForegroundColor Yellow
+    Write-Host "Script directory: $scriptDir" -ForegroundColor Yellow
+    Write-Host "PA deployment directory: $paDeploymentDir" -ForegroundColor Yellow
     Write-Host "Project root: $projectRoot" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Please run deploy.ps1 first from the project root" -ForegroundColor Yellow
-    Write-Host "Or ensure you're in the project root directory" -ForegroundColor Yellow
+    Write-Host "Please run deploy.ps1 first from the project root to create the config file" -ForegroundColor Yellow
+    Write-Host "Expected location: pa-deployment\config\deployment-config.env" -ForegroundColor Yellow
     exit 1
 }
 
-Write-Host "[INFO] Using config file: $configPath" -ForegroundColor Gray
+Write-Host "[INFO] Found config file: $configPath" -ForegroundColor Green
+Write-Host ""
 
 $config = @{}
 Get-Content $configPath | ForEach-Object {
