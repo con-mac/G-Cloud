@@ -167,6 +167,40 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     }
 } else {
     Write-Success "App Registration found: $APP_ID"
+    
+    # Ensure redirect URIs are correct for SPA redirect flow (base URL, not /auth/callback)
+    Write-Info "Verifying redirect URIs for SPA redirect flow..."
+    $ErrorActionPreference = 'SilentlyContinue'
+    $currentUris = az ad app show --id $APP_ID --query "web.redirectUris" -o json 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    # Check if base URL is already in redirect URIs
+    $needsUpdate = $true
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($currentUris)) {
+        try {
+            $uris = $currentUris | ConvertFrom-Json
+            if ($uris -contains $WEB_APP_URL) {
+                $needsUpdate = $false
+                Write-Info "Redirect URI already configured: $WEB_APP_URL"
+            }
+        } catch {
+            # Continue to update
+        }
+    }
+    
+    if ($needsUpdate) {
+        Write-Info "Updating redirect URIs to use base URL for SPA redirect flow..."
+        Write-Info "Adding: $WEB_APP_URL (and localhost for development)"
+        az ad app update --id $APP_ID --web-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Redirect URIs updated for SPA redirect flow"
+        } else {
+            Write-Warning "Could not update redirect URIs automatically. Please update manually in Azure Portal:"
+            Write-Warning "  App Registrations -> $APP_REGISTRATION_NAME -> Authentication"
+            Write-Warning "  Platform: Single-page application"
+            Write-Warning "  Add redirect URI: $WEB_APP_URL"
+        }
+    }
 }
 
 # Create client secret
