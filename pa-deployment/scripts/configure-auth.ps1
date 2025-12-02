@@ -90,6 +90,18 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     
     $APP_ID = $appJson.appId
     
+    # Add SPA platform configuration (required for redirect flow to work properly)
+    Write-Info "Configuring as Single-Page Application (SPA) platform..."
+    az ad app update --id $APP_ID --spa-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "App Registration configured as SPA platform"
+    } else {
+        Write-Warning "Could not configure SPA platform automatically. Please configure manually:"
+        Write-Warning "  App Registrations -> $APP_REGISTRATION_NAME -> Authentication"
+        Write-Warning "  Platform: Single-page application"
+        Write-Warning "  Add redirect URI: $WEB_APP_URL"
+    }
+    
     Write-Success "App Registration created: $APP_ID"
     
     # Create service principal
@@ -191,7 +203,9 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     if ($needsUpdate) {
         Write-Info "Updating redirect URIs to use base URL for SPA redirect flow..."
         Write-Info "Adding: $WEB_APP_URL (and localhost for development)"
+        # Update both web and SPA redirect URIs
         az ad app update --id $APP_ID --web-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
+        az ad app update --id $APP_ID --spa-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Redirect URIs updated for SPA redirect flow"
         } else {
@@ -200,6 +214,10 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
             Write-Warning "  Platform: Single-page application"
             Write-Warning "  Add redirect URI: $WEB_APP_URL"
         }
+    } else {
+        # Ensure SPA platform is configured even if redirect URI already exists
+        Write-Info "Ensuring SPA platform configuration..."
+        az ad app update --id $APP_ID --spa-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
     }
 }
 

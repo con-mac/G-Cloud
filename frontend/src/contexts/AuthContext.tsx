@@ -135,14 +135,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 account: account,
               });
             } catch (silentError) {
-              // If silent acquisition fails, try interactive redirect
-              // But only if we're not already in a redirect flow
+              // If silent acquisition fails, don't try popup - force redirect
+              // This prevents popup fallback which causes COOP errors
               if (inProgress === InteractionStatus.None) {
                 console.log('Silent token acquisition failed, user may need to re-authenticate');
+                // Clear any stale tokens
+                localStorage.removeItem('access_token');
                 setUser(null);
                 setIsLoading(false);
                 return;
               }
+              // If we're in a redirect flow, let it complete
               throw silentError;
             }
 

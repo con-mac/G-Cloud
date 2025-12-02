@@ -39,17 +39,22 @@ const getMsalConfig = () => {
       redirectUri: redirectUri,
       // Explicitly configure for redirect flow (not popup)
       navigateToLoginRequestUrl: true,
+      // Ensure we're using redirect flow, not popup
+      postLogoutRedirectUri: redirectUri,
     },
     cache: {
       cacheLocation: 'localStorage' as const,
       storeAuthStateInCookie: false,
     },
     system: {
-      // Prefer redirect over popup
+      // Disable popup completely - force redirect flow only
       allowNativeBroker: false,
+      // Increase timeouts for redirect flow
       windowHashTimeout: 60000,
       iframeHashTimeout: 6000,
       loadFrameTimeout: 0,
+      // Prevent popup fallback
+      asyncPopups: false,
     },
   };
 };
