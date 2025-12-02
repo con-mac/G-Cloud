@@ -155,38 +155,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             return;
           }
 
-            const accessToken = tokenResponse.accessToken;
-            
-            // Check admin status
-            const isAdmin = await checkAdminStatus(accessToken);
+          // Only reach here if tokenResponse was successfully acquired
+          const accessToken = tokenResponse.accessToken;
+          
+          // Check admin status
+          const isAdmin = await checkAdminStatus(accessToken);
 
-            // Format email
-            const email = account.username || account.name || '';
-            const formattedEmail = formatEmail(email);
+          // Format email
+          const email = account.username || account.name || '';
+          const formattedEmail = formatEmail(email);
 
-            setUser({
-              email: email,
-              formattedEmail: formattedEmail,
-              name: account.name || email,
-              isAdmin: isAdmin,
-            });
+          setUser({
+            email: email,
+            formattedEmail: formattedEmail,
+            name: account.name || email,
+            isAdmin: isAdmin,
+          });
 
-            // Store token and user info for API calls
-            localStorage.setItem('access_token', accessToken);
-            sessionStorage.setItem('isAuthenticated', 'true');
-            sessionStorage.setItem('user_email', email);
-            sessionStorage.setItem('userEmail', formattedEmail); // Also store as userEmail for compatibility
-            sessionStorage.setItem('user_formatted_email', formattedEmail);
-            sessionStorage.setItem('user_is_admin', isAdmin.toString());
-          } catch (error) {
-            console.error('Error initializing auth:', error);
-            setUser(null);
-          }
-        } else {
+          // Store token and user info for API calls
+          localStorage.setItem('access_token', accessToken);
+          sessionStorage.setItem('isAuthenticated', 'true');
+          sessionStorage.setItem('user_email', email);
+          sessionStorage.setItem('userEmail', formattedEmail); // Also store as userEmail for compatibility
+          sessionStorage.setItem('user_formatted_email', formattedEmail);
+          sessionStorage.setItem('user_is_admin', isAdmin.toString());
+        } catch (error) {
+          console.error('Error initializing auth:', error);
           setUser(null);
         }
-        setIsLoading(false);
+      } else {
+        setUser(null);
       }
+      setIsLoading(false);
     };
 
     initializeAuth();
