@@ -9,13 +9,32 @@ Write-Host "MSAL Configuration Verification" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Load config
-$configPath = Join-Path $PSScriptRoot "..\config\deployment-config.env"
-if (-not (Test-Path $configPath)) {
-    Write-Host "[ERROR] Config file not found: $configPath" -ForegroundColor Red
-    Write-Host "Please run deploy.ps1 first" -ForegroundColor Yellow
+# Load config - try multiple possible locations
+$possibleConfigPaths = @(
+    Join-Path $PSScriptRoot "..\config\deployment-config.env",
+    Join-Path (Split-Path $PSScriptRoot -Parent) "config\deployment-config.env",
+    "config\deployment-config.env",
+    "pa-deployment\config\deployment-config.env"
+)
+
+$configPath = $null
+foreach ($path in $possibleConfigPaths) {
+    if (Test-Path $path) {
+        $configPath = $path
+        break
+    }
+}
+
+if (-not $configPath) {
+    Write-Host "[ERROR] Config file not found. Tried:" -ForegroundColor Red
+    $possibleConfigPaths | ForEach-Object { Write-Host "  - $_" -ForegroundColor Gray }
+    Write-Host ""
+    Write-Host "Please run deploy.ps1 first from the project root" -ForegroundColor Yellow
+    Write-Host "Or ensure you're in the project root directory" -ForegroundColor Yellow
     exit 1
 }
+
+Write-Host "[INFO] Using config file: $configPath" -ForegroundColor Gray
 
 $config = @{}
 Get-Content $configPath | ForEach-Object {

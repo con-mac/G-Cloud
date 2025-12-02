@@ -49,6 +49,7 @@ temp/
 *.tmp
 
 *.Zone.Identifier
+*:Zone.Identifier
 mock_sharepoint/**/*.txt
 mock_sharepoint/**/*.docx
 
