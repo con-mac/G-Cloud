@@ -139,60 +139,41 @@ if (-not $funcCheck) {
             Write-Info "This may take 5-10 minutes (first deployment is slower)..."
             Write-Info "Monitoring deployment progress..."
             
-            # Use the newer az webapp deploy command which has better progress reporting
-            # This is the recommended method and shows real-time progress
+            # Use the reliable zip deploy method (az functionapp deployment source config-zip)
+            # This is more reliable than az webapp deploy which can hang
+            Write-Info "Deploying zip package (this may take 5-10 minutes)..."
+            Write-Info "Note: Large deployments can take time. Be patient..."
+            
             try {
-                Write-Info "Starting deployment (this command shows live progress)..."
-                $deployOutput = az webapp deploy `
-                    --resource-group $RESOURCE_GROUP `
-                    --name $FUNCTION_APP_NAME `
-                    --src-path $deployZip `
-                    --type zip `
-                    --timeout 1800 `
-                    --async false 2>&1
-                
-                # Check if error is about API not being available (known issue with some Azure CLI versions)
-                if ($deployOutput -match "This API isn't available|not available in this environment") {
-                    Write-Info "New deployment API not available, using fallback method..."
-                    $deployOutput = $null
-                } elseif ($LASTEXITCODE -eq 0) {
-                    Write-Success "Backend code deployed successfully using zip deploy"
-                } else {
-                    Write-Warning "Deployment may have failed. Checking status..."
-                    # Fallback to old method if new one fails
-                    Write-Info "Trying alternative deployment method..."
-                    $deployOutput = az functionapp deployment source config-zip `
-                        --resource-group $RESOURCE_GROUP `
-                        --name $FUNCTION_APP_NAME `
-                        --src $deployZip `
-                        --timeout 1800 2>&1
-                    
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Success "Backend code deployed successfully using zip deploy (fallback method)"
-                    } else {
-                        Write-Warning "Zip deployment failed. Checking deployment logs..."
-                        Write-Info "Deployment output: $deployOutput"
-                        Write-Info "To view detailed logs, run:"
-                        Write-Info "  az webapp log deployment show -n $FUNCTION_APP_NAME -g $RESOURCE_GROUP"
-                    }
-                }
-            } catch {
-                Write-Warning "Deployment error: $_"
-                Write-Info "Trying alternative deployment method..."
+                # Use the proven method that doesn't hang
                 $deployOutput = az functionapp deployment source config-zip `
                     --resource-group $RESOURCE_GROUP `
                     --name $FUNCTION_APP_NAME `
                     --src $deployZip `
-                    --timeout 1800 2>&1
+                    --timeout 1800 2>&1 | Tee-Object -Variable deployOutput
                 
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Success "Backend code deployed successfully using zip deploy (fallback method)"
+                    Write-Success "Backend code deployed successfully!"
                 } else {
-                    Write-Warning "Zip deployment failed. Checking deployment logs..."
-                    Write-Info "Deployment output: $deployOutput"
-                    Write-Info "Or check in Azure Portal: Function App -> Deployment Center -> Logs"
-                    Write-Warning "Function App will be configured with settings, but code deployment may need manual intervention."
+                    # Check if it's a known error we can handle
+                    if ($deployOutput -match "This API isn't available|not available in this environment") {
+                        Write-Info "Deployment API not available, but deployment may still be in progress..."
+                        Write-Info "Check deployment status in Azure Portal:"
+                        Write-Info "  Function App -> Deployment Center -> Logs"
+                        Write-Warning "Deployment may have succeeded despite the error message."
+                    } else {
+                        Write-Warning "Deployment may have failed. Checking status..."
+                        Write-Info "Deployment output: $deployOutput"
+                        Write-Info "To view detailed logs, run:"
+                        Write-Info "  az webapp log deployment show -n $FUNCTION_APP_NAME -g $RESOURCE_GROUP"
+                        Write-Info "Or check in Azure Portal: Function App -> Deployment Center -> Logs"
+                    }
                 }
+            } catch {
+                Write-Warning "Deployment error: $_"
+                Write-Info "Deployment may still be in progress. Check status in Azure Portal:"
+                Write-Info "  Function App -> Deployment Center -> Logs"
+                Write-Warning "Function App will be configured with settings, but code deployment may need manual verification."
             }
             
             # Cleanup
