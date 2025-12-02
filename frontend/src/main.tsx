@@ -80,20 +80,9 @@ console.log('MSAL Instance created with config:', {
 // This ensures the hash fragment (#access_token=...) is preserved for MSAL to process
 // We need to handle the redirect synchronously before React renders
 
-// Check if we have a hash fragment that looks like an MSAL response
-const hasMsalHash = window.location.hash && (
-  window.location.hash.includes('access_token') ||
-  window.location.hash.includes('id_token') ||
-  window.location.hash.includes('error') ||
-  window.location.hash.includes('code')
-);
-
 // CRITICAL: Initialize MSAL synchronously and handle redirect BEFORE React renders
 // This must happen before React Router processes the URL to preserve hash fragments
-let msalInitialized = false;
-
 msalInstance.initialize().then(() => {
-  msalInitialized = true;
   console.log('MSAL initialized successfully');
   
   // Handle redirect response IMMEDIATELY - this processes the hash fragment
