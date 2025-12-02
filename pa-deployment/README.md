@@ -2,6 +2,12 @@
 
 Deployment scripts and guides for PA Consulting Azure environment.
 
+## Application Access
+
+**Sign In URL:** [https://pa-gcloud15-web.azurewebsites.net](https://pa-gcloud15-web.azurewebsites.net)
+
+For all access URLs and troubleshooting, see [ACCESS-URLS.md](./ACCESS-URLS.md)
+
 ## Quick Start
 
 1. **Initial Deployment:**
