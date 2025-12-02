@@ -7,10 +7,23 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api import api_router
 
-# Setup logging
+# Setup logging first
 setup_logging()
+import logging
+logger = logging.getLogger(__name__)
+
+# Import API router with error handling
+try:
+    from app.api import api_router
+    logger.info("API router imported successfully")
+    logger.info(f"API router has {len(api_router.routes)} routes")
+except Exception as e:
+    logger.error(f"Failed to import API router: {e}", exc_info=True)
+    # Create empty router as fallback
+    from fastapi import APIRouter
+    api_router = APIRouter()
+    api_router.get("/")(lambda: {"error": "API router failed to load", "detail": str(e)})
 
 # Create FastAPI application
 app = FastAPI(
@@ -60,7 +73,11 @@ async def health_check():
 
 
 # Include API router
-app.include_router(api_router, prefix="/api/v1")
+try:
+    app.include_router(api_router, prefix="/api/v1")
+    logger.info("API router included successfully with prefix /api/v1")
+except Exception as e:
+    logger.error(f"Failed to include API router: {e}", exc_info=True)
 
 
 @app.on_event("startup")
