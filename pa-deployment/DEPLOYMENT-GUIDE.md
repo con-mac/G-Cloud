@@ -184,6 +184,25 @@ The script uses regex extraction to get the password, which works even when warn
 1. Function App not deployed
 2. CORS configuration issue
 
+   **IMPORTANT:** Azure Function Apps have built-in CORS settings that override application-level CORS.
+   
+   **Fix via Azure Portal:**
+   1. Go to Azure Portal → Function App (`pa-gcloud15-api`)
+   2. Navigate to **"API" → "CORS"** (or search for "CORS")
+   3. Add allowed origins:
+      - `https://pa-gcloud15-web.azurewebsites.net`
+      - `http://localhost:3000`
+      - `http://localhost:5173`
+   4. Click **"Save"**
+   5. Restart the Function App (Overview → Restart)
+   
+   **Alternative - PowerShell script:**
+   ```powershell
+   .\pa-deployment\scripts\fix-cors-azure-function.ps1
+   ```
+   
+   **Note:** The `CORS_ORIGINS` app setting is not sufficient - you must configure CORS at the Function App level in Azure Portal.
+
 **Solution:**
 1. Check Function App status: `az functionapp show --name <FUNCTION_APP_NAME> --resource-group <RESOURCE_GROUP>`
 2. Redeploy backend: `.\pa-deployment\scripts\deploy-functions.ps1`
