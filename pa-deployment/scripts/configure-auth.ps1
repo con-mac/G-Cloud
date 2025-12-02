@@ -218,6 +218,11 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
         # Ensure SPA platform is configured even if redirect URI already exists
         Write-Info "Ensuring SPA platform configuration..."
         az ad app update --id $APP_ID --spa-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "SPA platform redirect URIs configured"
+        } else {
+            Write-Warning "Could not configure SPA redirect URIs. Please configure manually in Azure Portal"
+        }
     }
 }
 
