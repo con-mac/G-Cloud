@@ -49,10 +49,18 @@ if (-not (Test-Path "backend")) {
 Write-Info "Creating deployment package..."
 Push-Location backend
 
-# Create requirements.txt if it doesn't exist
+# Copy or create requirements.txt - CRITICAL for dependency installation
 if (-not (Test-Path "requirements.txt")) {
-    Write-Warning "requirements.txt not found. Creating from template..."
-    @"
+    # Try to copy from main repo backend directory first
+    $mainRepoRequirements = "..\..\backend\requirements.txt"
+    if (Test-Path $mainRepoRequirements) {
+        Write-Info "Copying requirements.txt from main repo backend directory..."
+        Copy-Item -Path $mainRepoRequirements -Destination "requirements.txt" -Force
+        Write-Success "✓ requirements.txt copied from main repo"
+    } else {
+        Write-Warning "requirements.txt not found. Creating from template..."
+        Write-Warning "NOTE: This template may be incomplete. Use full backend/requirements.txt for production!"
+        @"
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 azure-functions>=1.18.0
@@ -66,6 +74,9 @@ pydantic-settings>=2.1.0
 msgraph-sdk>=1.0.0
 # Placeholder: Add other dependencies as needed
 "@ | Out-File -FilePath "requirements.txt" -Encoding utf8
+    }
+} else {
+    Write-Success "✓ requirements.txt found in backend directory"
 }
 
 # Deploy to Function App
@@ -78,6 +89,11 @@ if (-not (Test-Path "host.json")) {
     if (Test-Path "..\..\backend\host.json") {
         Write-Info "Copying backend files from main repo..."
         Copy-Item -Path "..\..\backend\*" -Destination . -Recurse -Force -Exclude "*.pyc","__pycache__","*.log",".git"
+        # Ensure requirements.txt is copied (may have been excluded)
+        if (Test-Path "..\..\backend\requirements.txt") {
+            Copy-Item -Path "..\..\backend\requirements.txt" -Destination "requirements.txt" -Force
+            Write-Info "✓ requirements.txt copied from main repo (ensuring it's present)"
+        }
     } else {
         Write-Warning "Backend code not found. Function App will be created but code deployment skipped."
         Write-Warning "Please ensure backend code is in pa-deployment/backend/ directory"
@@ -153,6 +169,24 @@ if (-not $funcCheck) {
             $hasFunctionApp = $filesToZip | Where-Object { $_.FullName -like "*function_app\__init__.py" -or $_.FullName -like "*function_app/__init__.py" }
             $hasFunctionJson = $filesToZip | Where-Object { $_.FullName -like "*function_app\function.json" -or $_.FullName -like "*function_app/function.json" }
             $hasHostJson = $filesToZip | Where-Object { $_.Name -eq "host.json" }
+            $hasRequirementsTxt = $filesToZip | Where-Object { $_.Name -eq "requirements.txt" }
+            
+            # CRITICAL: requirements.txt MUST be at the root of the zip for Azure Functions to install dependencies
+            if (-not $hasRequirementsTxt) {
+                Write-Warning "requirements.txt not found in file list. Adding explicitly..."
+                $requirementsPath = Join-Path (Get-Location) "requirements.txt"
+                if (Test-Path $requirementsPath) {
+                    $reqFile = Get-Item $requirementsPath
+                    $filesToZip += $reqFile
+                    Write-Info "  Added: requirements.txt (REQUIRED for dependency installation)"
+                } else {
+                    Write-Error "requirements.txt not found at: $requirementsPath"
+                    Write-Error "Azure Functions requires requirements.txt at zip root to install Python packages!"
+                    exit 1
+                }
+            } else {
+                Write-Success "✓ requirements.txt found in deployment package"
+            }
             
             if (-not $hasFunctionApp) {
                 Write-Warning "function_app/__init__.py not found in file list. Adding explicitly..."
@@ -224,10 +258,23 @@ if (-not $funcCheck) {
             }
             Write-Info "Zip created successfully with preserved folder structure"
             
-            # Verify function_app folder structure in zip
+            # Verify zip contents - CRITICAL: requirements.txt and function_app folder
             Write-Info "Verifying zip contents..."
             $zipRead = [System.IO.Compression.ZipFile]::OpenRead($deployZip)
             try {
+                # Verify requirements.txt is at the root (CRITICAL for dependency installation)
+                $requirementsEntry = $zipRead.Entries | Where-Object { $_.FullName -eq "requirements.txt" -or $_.FullName -eq "requirements.txt/" }
+                if ($requirementsEntry) {
+                    Write-Success "✓ Verified: requirements.txt exists at zip root (Azure Functions will install dependencies)"
+                } else {
+                    Write-Error "✗ requirements.txt NOT found at zip root! Azure Functions cannot install dependencies!"
+                    Write-Error "This will cause ModuleNotFoundError when importing FastAPI or other packages!"
+                    $zipRead.Dispose()
+                    Remove-Item $deployZip -Force -ErrorAction SilentlyContinue
+                    exit 1
+                }
+                
+                # Verify function_app folder structure
                 $functionAppEntries = $zipRead.Entries | Where-Object { $_.FullName -like "function_app/*" }
                 if ($functionAppEntries.Count -gt 0) {
                     Write-Success "✓ Verified: function_app folder exists in zip with $($functionAppEntries.Count) files"
@@ -236,6 +283,17 @@ if (-not $funcCheck) {
                     }
                 } else {
                     Write-Error "✗ function_app folder NOT found in zip! This will fail!"
+                    $zipRead.Dispose()
+                    Remove-Item $deployZip -Force -ErrorAction SilentlyContinue
+                    exit 1
+                }
+                
+                # Verify host.json
+                $hostJsonEntry = $zipRead.Entries | Where-Object { $_.FullName -eq "host.json" -or $_.FullName -eq "host.json/" }
+                if ($hostJsonEntry) {
+                    Write-Success "✓ Verified: host.json exists in zip"
+                } else {
+                    Write-Error "✗ host.json NOT found in zip! This will fail!"
                     $zipRead.Dispose()
                     Remove-Item $deployZip -Force -ErrorAction SilentlyContinue
                     exit 1
