@@ -117,7 +117,13 @@ if (-not $funcCheck) {
     } else {
         # Create deployment zip (exclude unnecessary files)
         Write-Info "Creating deployment package..."
-        $deployZip = "..\function-deploy-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
+        # Use absolute path to avoid path resolution issues
+        $backendDir = Get-Location
+        $parentDir = Split-Path -Parent $backendDir.Path
+        $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $deployZip = Join-Path $parentDir "function-deploy-${timestamp}.zip"
+        $deployZip = [System.IO.Path]::GetFullPath($deployZip)
+        Write-Info "Zip will be created at: $deployZip"
         
         # Get all files except common exclusions
         $filesToZip = Get-ChildItem -Path . -Recurse -File | 
