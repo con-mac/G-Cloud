@@ -91,15 +91,56 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     $APP_ID = $appJson.appId
     
     # Add SPA platform configuration (required for redirect flow to work properly)
+    # Use Graph API to ensure SPA platform is created correctly (more reliable than Azure CLI)
     Write-Info "Configuring as Single-Page Application (SPA) platform..."
-    az ad app update --id $APP_ID --spa-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "App Registration configured as SPA platform"
+    
+    # Get tenant ID and access token for Graph API
+    $tenantId = az account show --query tenantId -o tsv
+    $token = az account get-access-token --resource "https://graph.microsoft.com" --query accessToken -o tsv
+    
+    if ($tenantId -and $token) {
+        # Use Graph API to set SPA platform (more reliable than Azure CLI)
+        $appUri = "https://graph.microsoft.com/v1.0/applications(appId='$APP_ID')"
+        $headers = @{
+            "Authorization" = "Bearer $token"
+            "Content-Type" = "application/json"
+        }
+        
+        $body = @{
+            spa = @{
+                redirectUris = @($WEB_APP_URL, "http://localhost:3000", "http://localhost:5173")
+            }
+        } | ConvertTo-Json -Depth 10
+        
+        try {
+            Invoke-RestMethod -Uri $appUri -Method Patch -Headers $headers -Body $body | Out-Null
+            Write-Success "App Registration configured as SPA platform via Graph API"
+        } catch {
+            Write-Warning "Could not configure SPA platform via Graph API: $_"
+            Write-Warning "Falling back to Azure CLI method..."
+            # Fallback to Azure CLI
+            az ad app update --id $APP_ID --set "spa.redirectUris=['${WEB_APP_URL}','http://localhost:3000','http://localhost:5173']" --output none 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "App Registration configured as SPA platform (fallback method)"
+            } else {
+                Write-Warning "Could not configure SPA platform automatically. Please configure manually:"
+                Write-Warning "  App Registrations -> $APP_REGISTRATION_NAME -> Authentication"
+                Write-Warning "  Platform: Single-page application"
+                Write-Warning "  Add redirect URI: $WEB_APP_URL"
+            }
+        }
     } else {
-        Write-Warning "Could not configure SPA platform automatically. Please configure manually:"
-        Write-Warning "  App Registrations -> $APP_REGISTRATION_NAME -> Authentication"
-        Write-Warning "  Platform: Single-page application"
-        Write-Warning "  Add redirect URI: $WEB_APP_URL"
+        # Fallback to Azure CLI if Graph API not available
+        Write-Warning "Could not get Graph API token, using Azure CLI fallback..."
+        az ad app update --id $APP_ID --set "spa.redirectUris=['${WEB_APP_URL}','http://localhost:3000','http://localhost:5173']" --output none 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "App Registration configured as SPA platform (Azure CLI method)"
+        } else {
+            Write-Warning "Could not configure SPA platform automatically. Please configure manually:"
+            Write-Warning "  App Registrations -> $APP_REGISTRATION_NAME -> Authentication"
+            Write-Warning "  Platform: Single-page application"
+            Write-Warning "  Add redirect URI: $WEB_APP_URL"
+        }
     }
     
     Write-Success "App Registration created: $APP_ID"
@@ -218,12 +259,38 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     } else {
         # Ensure SPA platform is configured even if redirect URI already exists
         Write-Info "Ensuring SPA platform configuration..."
-        # Use --set for SPA redirect URIs (works across Azure CLI versions)
-        az ad app update --id $APP_ID --set "spa.redirectUris=['${WEB_APP_URL}','http://localhost:3000','http://localhost:5173']" --output none 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "SPA platform redirect URIs configured"
+        # Use Graph API for more reliable SPA platform configuration
+        $tenantId = az account show --query tenantId -o tsv
+        $token = az account get-access-token --resource "https://graph.microsoft.com" --query accessToken -o tsv
+        
+        if ($tenantId -and $token) {
+            $appUri = "https://graph.microsoft.com/v1.0/applications(appId='$APP_ID')"
+            $headers = @{
+                "Authorization" = "Bearer $token"
+                "Content-Type" = "application/json"
+            }
+            
+            $body = @{
+                spa = @{
+                    redirectUris = @($WEB_APP_URL, "http://localhost:3000", "http://localhost:5173")
+                }
+            } | ConvertTo-Json -Depth 10
+            
+            try {
+                Invoke-RestMethod -Uri $appUri -Method Patch -Headers $headers -Body $body | Out-Null
+                Write-Success "SPA platform redirect URIs configured via Graph API"
+            } catch {
+                Write-Warning "Could not configure SPA redirect URIs via Graph API: $_"
+                Write-Warning "Please configure manually in Azure Portal"
+            }
         } else {
-            Write-Warning "Could not configure SPA redirect URIs. Please configure manually in Azure Portal"
+            # Fallback to Azure CLI
+            az ad app update --id $APP_ID --set "spa.redirectUris=['${WEB_APP_URL}','http://localhost:3000','http://localhost:5173']" --output none 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "SPA platform redirect URIs configured"
+            } else {
+                Write-Warning "Could not configure SPA redirect URIs. Please configure manually in Azure Portal"
+            }
         }
     }
 }
