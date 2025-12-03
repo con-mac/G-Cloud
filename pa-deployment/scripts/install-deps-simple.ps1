@@ -91,7 +91,7 @@ Write-Info ""
 Write-Info "4. In the SSH console, run these commands:"
 Write-Info ""
 Write-Info "   cd /home/site/wwwroot"
-Write-Info "   pip install -r requirements.txt --target .python_packages/lib/site-packages"
+Write-Info "   python3 -m pip install -r requirements.txt --target .python_packages/lib/site-packages"
 Write-Info ""
 Write-Info "5. Wait for installation to complete (5-10 minutes)"
 Write-Info ""
@@ -110,12 +110,12 @@ if ($openPortal -eq 'y' -or $openPortal -eq 'Y') {
     Write-Info ""
     Write-Info "Once the SSH console opens, run:"
     Write-Info "  cd /home/site/wwwroot"
-    Write-Info "  pip install -r requirements.txt --target .python_packages/lib/site-packages"
+    Write-Info "  python3 -m pip install -r requirements.txt --target .python_packages/lib/site-packages"
 }
 
 Write-Info ""
 Write-Info "Alternatively, you can copy this command and run it in the SSH console:"
 Write-Info ""
-Write-Host "pip install -r requirements.txt --target .python_packages/lib/site-packages" -ForegroundColor Yellow
+Write-Host "python3 -m pip install -r requirements.txt --target .python_packages/lib/site-packages" -ForegroundColor Yellow
 Write-Info ""
 
