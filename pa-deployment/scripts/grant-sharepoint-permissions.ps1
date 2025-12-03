@@ -1,192 +1,129 @@
-# Grant SharePoint Permissions to App Registration
-# This script grants your App Registration access to a specific SharePoint site
+# Grant App Registration permissions to SharePoint site
 
-param(
-    [Parameter(Mandatory=$true)]
-    [string]$SiteUrl,
-    
-    [Parameter(Mandatory=$true)]
-    [string]$AppId,
-    
-    [Parameter(Mandatory=$false)]
-    [string]$AppDisplayName = "pa-gcloud15-app",
-    
-    [Parameter(Mandatory=$false)]
-    [ValidateSet("Read", "Write", "FullControl")]
-    [string]$PermissionLevel = "Write"
-)
+$ErrorActionPreference = "Stop"
 
-function Write-Info { param([string]$msg) Write-Host "[INFO] $msg" -ForegroundColor Blue }
+function Write-Info { param([string]$msg) Write-Host "[INFO] $msg" -ForegroundColor Cyan }
 function Write-Success { param([string]$msg) Write-Host "[SUCCESS] $msg" -ForegroundColor Green }
 function Write-Warning { param([string]$msg) Write-Host "[WARNING] $msg" -ForegroundColor Yellow }
 function Write-Error { param([string]$msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
-Write-Info "Granting SharePoint permissions to App Registration..."
+# Load configuration
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$configPath = Join-Path $scriptDir "..\config\deployment-config.env"
+$configPath = [System.IO.Path]::GetFullPath($configPath)
 
-# Check if PnP.PowerShell is installed
-$pnpModule = Get-Module -ListAvailable -Name PnP.PowerShell
-if (-not $pnpModule) {
-    Write-Info "PnP.PowerShell module not found. Installing..."
-    try {
-        Install-Module -Name PnP.PowerShell -Scope CurrentUser -Force -AllowClobber
-        Write-Success "PnP.PowerShell module installed"
-    } catch {
-        Write-Error "Failed to install PnP.PowerShell module: $_"
-        Write-Info "Trying alternative method with Microsoft Graph PowerShell..."
-        
-        # Alternative: Use Microsoft Graph PowerShell
-        $graphModule = Get-Module -ListAvailable -Name Microsoft.Graph
-        if (-not $graphModule) {
-            Write-Info "Installing Microsoft.Graph module..."
-            Install-Module -Name Microsoft.Graph -Scope CurrentUser -Force -AllowClobber
-        }
-        
-        Import-Module Microsoft.Graph -Force
-        
-        Write-Info "Connecting to Microsoft Graph..."
-        Connect-MgGraph -Scopes "Sites.FullControl.All" -NoWelcome
-        
-        # Get site ID from URL
-        Write-Info "Getting site ID from URL: $SiteUrl"
-        $siteId = $SiteUrl -replace 'https://', '' -replace 'http://', ''
-        $siteId = $siteId -replace '/sites/', ':/sites/'
-        
-        # Grant permission using Graph API
-        Write-Info "Granting $PermissionLevel permission to app $AppId..."
-        $params = @{
-            roles = @($PermissionLevel.ToLower())
-            grantedToIdentities = @(
-                @{
-                    application = @{
-                        id = $AppId
-                        displayName = $AppDisplayName
-                    }
-                }
-            )
-        }
-        
-        try {
-            $permission = New-MgSitePermission -SiteId $siteId -BodyParameter $params
-            Write-Success "Permission granted successfully via Microsoft Graph!"
-            Write-Info "Permission ID: $($permission.Id)"
-        } catch {
-            Write-Error "Failed to grant permission: $_"
-            Write-Info "You may need to grant permissions manually in SharePoint"
-            exit 1
-        }
-        
-        Disconnect-MgGraph
-        exit 0
-    }
-}
-
-# Import PnP.PowerShell module
-Import-Module PnP.PowerShell -Force
-
-# Connect to SharePoint
-Write-Info "Connecting to SharePoint site: $SiteUrl"
-try {
-    Connect-PnPOnline -Url $SiteUrl -Interactive
-    Write-Success "Connected to SharePoint"
-} catch {
-    Write-Error "Failed to connect to SharePoint: $_"
+if (-not (Test-Path $configPath)) {
+    Write-Error "deployment-config.env not found at: $configPath"
     exit 1
 }
 
-# Check if the cmdlet exists (it might have a different name in newer versions)
-$cmdletName = "Grant-PnPAzureADAppSitePermission"
-$cmdlet = Get-Command -Name $cmdletName -ErrorAction SilentlyContinue
-
-if (-not $cmdlet) {
-    # Try alternative cmdlet names
-    $alternatives = @(
-        "Grant-PnPAzureADAppSitePermission",
-        "Add-PnPAzureADAppSitePermission",
-        "Set-PnPAzureADAppSitePermission"
-    )
-    
-    $found = $false
-    foreach ($alt in $alternatives) {
-        $cmdlet = Get-Command -Name $alt -ErrorAction SilentlyContinue
-        if ($cmdlet) {
-            $cmdletName = $alt
-            $found = $true
-            break
+# Parse environment file
+$config = @{}
+$fileLines = Get-Content $configPath -Encoding UTF8
+foreach ($line in $fileLines) {
+    $line = $line.Trim()
+    if ($line -and -not $line.StartsWith('#')) {
+        $equalsIndex = $line.IndexOf('=')
+        if ($equalsIndex -gt 0) {
+            $key = $line.Substring(0, $equalsIndex).Trim()
+            $value = $line.Substring($equalsIndex + 1).Trim()
+            if ($key -and $value) {
+                $config[$key] = $value
+            }
         }
-    }
-    
-    if (-not $found) {
-        Write-Warning "PnP cmdlet not found. Using Microsoft Graph API method instead..."
-        
-        # Use Graph API via REST
-        $token = az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to get access token. Please run 'az login' first."
-            exit 1
-        }
-        
-        # Get site ID
-        $siteId = $SiteUrl -replace 'https://', '' -replace 'http://', ''
-        $siteId = $siteId -replace '/sites/', ':/sites/'
-        
-        # Grant permission
-        $body = @{
-            roles = @($PermissionLevel.ToLower())
-            grantedToIdentities = @(
-                @{
-                    application = @{
-                        id = $AppId
-                        displayName = $AppDisplayName
-                    }
-                }
-            )
-        } | ConvertTo-Json -Depth 10
-        
-        Write-Info "Granting $PermissionLevel permission via Graph API..."
-        $response = az rest --method POST `
-            --uri "https://graph.microsoft.com/v1.0/sites/$siteId/permissions" `
-            --headers "Authorization=Bearer $token" "Content-Type=application/json" `
-            --body $body 2>&1
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "Permission granted successfully via Graph API!"
-        } else {
-            Write-Error "Failed to grant permission: $response"
-            exit 1
-        }
-        
-        Disconnect-PnPOnline
-        exit 0
     }
 }
 
-# Use PnP cmdlet
-Write-Info "Granting $PermissionLevel permission to app $AppId..."
-try {
-    & $cmdletName -AppId $AppId -DisplayName $AppDisplayName -Site $SiteUrl -Permissions $PermissionLevel
-    Write-Success "Permission granted successfully!"
-} catch {
-    Write-Error "Failed to grant permission: $_"
-    Write-Info "Error details: $($_.Exception.Message)"
+$APP_REGISTRATION_NAME = $config.APP_REGISTRATION_NAME
+$SHAREPOINT_SITE_URL = $config.SHAREPOINT_SITE_URL
+$SHAREPOINT_SITE_ID = $config.SHAREPOINT_SITE_ID
+
+if ([string]::IsNullOrWhiteSpace($APP_REGISTRATION_NAME)) {
+    Write-Error "Missing APP_REGISTRATION_NAME in config"
+    exit 1
+}
+if ([string]::IsNullOrWhiteSpace($SHAREPOINT_SITE_ID)) {
+    Write-Error "Missing SHAREPOINT_SITE_ID in config"
     exit 1
 }
 
-# Verify permission
-Write-Info "Verifying permission..."
+# Get App Registration ID
+Write-Info "Getting App Registration ID for: $APP_REGISTRATION_NAME"
+$APP_ID = az ad app list --display-name "$APP_REGISTRATION_NAME" --query "[0].appId" -o tsv
+
+if ([string]::IsNullOrWhiteSpace($APP_ID)) {
+    Write-Error "App Registration '$APP_REGISTRATION_NAME' not found"
+    exit 1
+}
+
+Write-Info "App Registration ID: $APP_ID"
+Write-Info "SharePoint Site ID: $SHAREPOINT_SITE_ID"
+Write-Info "SharePoint Site URL: $SHAREPOINT_SITE_URL"
+Write-Info ""
+
+Write-Info "Granting App Registration access to SharePoint site..."
+Write-Info "This requires:"
+Write-Info "1. App Registration has 'Sites.FullControl.All' API permission (Application)"
+Write-Info "2. Admin consent granted for the permission"
+Write-Info ""
+
+# Get access token for Graph API
+Write-Info "Getting access token for Microsoft Graph API..."
+$token = az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv
+
+if ([string]::IsNullOrWhiteSpace($token)) {
+    Write-Error "Failed to get access token"
+    exit 1
+}
+
+# Try to grant permissions via Graph API
+Write-Info "Attempting to grant permissions via Graph API..."
 try {
-    $permissions = Get-PnPAzureADAppSitePermission -AppIdentity $AppId -ErrorAction SilentlyContinue
-    if ($permissions) {
-        Write-Success "Permission verified. App has access to the site."
-        Write-Info "Permission details:"
-        $permissions | Format-List
+    $body = @{
+        roles = @("write")
+        grantedToIdentities = @(@{
+            application = @{
+                id = $APP_ID
+                displayName = $APP_REGISTRATION_NAME
+            }
+        })
+    } | ConvertTo-Json -Depth 10
+    
+    $response = az rest --method POST `
+        --uri "https://graph.microsoft.com/v1.0/sites/$SHAREPOINT_SITE_ID/permissions" `
+        --headers "Authorization=Bearer $token" "Content-Type=application/json" `
+        --body $body 2>&1
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "SharePoint permissions granted via Graph API!"
     } else {
-        Write-Warning "Could not verify permission, but it may have been granted."
+        Write-Warning "Graph API call failed. You may need to grant permissions manually."
+        Write-Info "Response: $response"
+        Write-Info ""
+        Write-Info "MANUAL STEPS:"
+        Write-Info "1. Go to SharePoint site: $SHAREPOINT_SITE_URL"
+        Write-Info "2. Click Settings (gear icon) -> Site permissions"
+        Write-Info "3. Click 'Grant permissions'"
+        Write-Info "4. Add: $APP_REGISTRATION_NAME (or App ID: $APP_ID)"
+        Write-Info "5. Grant 'Edit' or 'Full Control' permissions"
+        Write-Info "6. Click 'Share'"
     }
 } catch {
-    Write-Warning "Could not verify permission: $_"
+    Write-Warning "Exception occurred: $_"
+    Write-Info ""
+    Write-Info "MANUAL STEPS:"
+    Write-Info "1. Go to SharePoint site: $SHAREPOINT_SITE_URL"
+    Write-Info "2. Click Settings (gear icon) -> Site permissions"
+    Write-Info "3. Click 'Grant permissions'"
+    Write-Info "4. Add: $APP_REGISTRATION_NAME (or App ID: $APP_ID)"
+    Write-Info "5. Grant 'Edit' or 'Full Control' permissions"
+    Write-Info "6. Click 'Share'"
 }
 
-Disconnect-PnPOnline
-Write-Success "Script completed successfully!"
-
-
+Write-Info ""
+Write-Info "Also verify App Registration has required API permissions:"
+Write-Info "1. Go to Azure Portal -> Azure Active Directory -> App registrations"
+Write-Info "2. Find: $APP_REGISTRATION_NAME"
+Write-Info "3. Go to 'API permissions'"
+Write-Info "4. Ensure 'Sites.FullControl.All' (Application permission) is added"
+Write-Info "5. Ensure 'Admin consent' is granted (green checkmark)"
