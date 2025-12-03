@@ -203,14 +203,14 @@ def get_document_path(
     doc_type: str,
     lot: str,
     gcloud_version: str
-) -> str:
+) -> Tuple[Optional[str], Optional[Path]]:
     """
     Get document path/item ID in SharePoint
-    Returns: item_id string for SharePoint (not a Path object)
+    Returns: (item_id, None) tuple for SharePoint (consistent with Azure Blob Storage pattern)
     """
     if not SHAREPOINT_SITE_ID:
         logger.error("SHAREPOINT_SITE_ID not configured")
-        return ""
+        return (None, None)
     
     try:
         # Construct expected path in SharePoint
@@ -225,14 +225,15 @@ def get_document_path(
         
         if response and response.status_code == 200:
             item = response.json()
-            return item.get("id", "")
+            item_id = item.get("id", "")
+            return (item_id, None) if item_id else (None, None)
         else:
             logger.debug(f"Document not found at {file_path}")
-            return ""
+            return (None, None)
             
     except Exception as e:
         logger.error(f"Error getting document path: {e}", exc_info=True)
-        return ""
+        return (None, None)
 
 
 def create_folder(
