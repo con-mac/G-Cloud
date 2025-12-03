@@ -117,6 +117,29 @@ try {
         }
     }
     
+    # CRITICAL: Ensure app folder exists (contains FastAPI routes)
+    if (-not (Test-Path "app")) {
+        Write-Warning "app folder not found. Copying from main repo..."
+        if (Test-Path "..\..\backend\app") {
+            Copy-Item -Path "..\..\backend\app" -Destination "app" -Recurse -Force -Exclude "*.pyc","__pycache__"
+            Write-Success "✓ app folder copied"
+        } else {
+            Write-Error "app folder not found! Cannot deploy."
+            exit 1
+        }
+    }
+    
+    # CRITICAL: Ensure sharepoint_service folder exists (required for proposals router)
+    if (-not (Test-Path "sharepoint_service")) {
+        Write-Warning "sharepoint_service folder not found. Copying from main repo..."
+        if (Test-Path "..\..\backend\sharepoint_service") {
+            Copy-Item -Path "..\..\backend\sharepoint_service" -Destination "sharepoint_service" -Recurse -Force -Exclude "*.pyc","__pycache__"
+            Write-Success "✓ sharepoint_service folder copied"
+        } else {
+            Write-Warning "sharepoint_service folder not found in main repo. Proposals router may fail."
+        }
+    }
+    
     Write-Info ""
     Write-Info "Deploying with Azure Functions Core Tools..."
     Write-Info "This will automatically install dependencies from requirements.txt"
