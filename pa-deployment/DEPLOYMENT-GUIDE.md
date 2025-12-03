@@ -80,6 +80,41 @@ This script:
 **Why -NoProfile?**
 The PowerShell profile may contain error handlers that intercept JSON parsing errors when Azure CLI outputs warnings. Running without the profile bypasses these handlers and allows the script to use regex extraction for the client secret.
 
+## SharePoint Configuration
+
+**IMPORTANT:** SharePoint access requires **THREE security layers** to be configured correctly. See the detailed step-by-step guide:
+
+📖 **[SharePoint Setup - Step-by-Step Guide](./SHAREPOINT-SETUP-STEP-BY-STEP.md)**
+
+### Quick Overview
+
+After running `deploy.ps1` and `configure-auth.ps1`, you must complete these **REQUIRED** manual steps:
+
+1. **Grant Admin Consent** (Azure Portal - REQUIRED)
+   - Azure AD → App registrations → `pa-gcloud15-app` → API permissions → Grant admin consent
+   - See [Step 2 in SharePoint Setup Guide](./SHAREPOINT-SETUP-STEP-BY-STEP.md#step-2-grant-admin-consent-required---manual)
+
+2. **Grant Site-Level Permissions** (SharePoint - REQUIRED)
+   - SharePoint Site → Settings → Site permissions → Add App Registration
+   - See [Step 3 in SharePoint Setup Guide](./SHAREPOINT-SETUP-STEP-BY-STEP.md#step-3-grant-site-level-permissions-required---manual)
+
+3. **Verify Key Vault Access** (Automated script)
+   ```powershell
+   .\pa-deployment\scripts\fix-keyvault-access.ps1
+   ```
+
+4. **Set Key Vault References** (Azure Portal recommended)
+   - Function App → Configuration → Add Key Vault references for Azure AD credentials
+   - See [Step 5 in SharePoint Setup Guide](./SHAREPOINT-SETUP-STEP-BY-STEP.md#step-5-set-key-vault-references-in-function-app)
+
+5. **Restart and Test**
+   ```powershell
+   az functionapp restart --name pa-gcloud15-api --resource-group pa-gcloud15-rg
+   curl https://pa-gcloud15-api.azurewebsites.net/api/v1/sharepoint/test
+   ```
+
+**For complete instructions with copy-paste commands and verification steps, see: [SHAREPOINT-SETUP-STEP-BY-STEP.md](./SHAREPOINT-SETUP-STEP-BY-STEP.md)**
+
 ## Frontend Docker Image Rebuild
 
 After SSO configuration, you **must** rebuild the frontend Docker image so it includes the actual SSO configuration values (Tenant ID, Client ID, Admin Group ID) at build time.
