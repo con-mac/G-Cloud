@@ -76,17 +76,17 @@ def get_access_token() -> Optional[str]:
         client_id = os.environ.get("AZURE_AD_CLIENT_ID", "")
         client_secret = os.environ.get("AZURE_AD_CLIENT_SECRET", "")
         
-        # If any value looks like a Key Vault reference, try to resolve it
-        if tenant_id and tenant_id.startswith("@Microsoft.KeyVault"):
-            logger.info("Tenant ID is a Key Vault reference, attempting to resolve...")
+        # If values are missing or Key Vault references, try to read from Key Vault
+        if not tenant_id or tenant_id.startswith("@Microsoft.KeyVault"):
+            logger.info("Tenant ID missing or is Key Vault reference, reading from Key Vault...")
             tenant_id = _get_secret_from_keyvault("AzureADTenantId") or tenant_id
         
-        if client_id and client_id.startswith("@Microsoft.KeyVault"):
-            logger.info("Client ID is a Key Vault reference, attempting to resolve...")
+        if not client_id or client_id.startswith("@Microsoft.KeyVault"):
+            logger.info("Client ID missing or is Key Vault reference, reading from Key Vault...")
             client_id = _get_secret_from_keyvault("AzureADClientId") or client_id
         
-        if client_secret and client_secret.startswith("@Microsoft.KeyVault"):
-            logger.info("Client Secret is a Key Vault reference, attempting to resolve...")
+        if not client_secret or client_secret.startswith("@Microsoft.KeyVault"):
+            logger.info("Client Secret missing or is Key Vault reference, reading from Key Vault...")
             client_secret = _get_secret_from_keyvault("AzureADClientSecret") or client_secret
         
         if not all([tenant_id, client_id, client_secret]):
