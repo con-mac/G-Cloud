@@ -8,12 +8,11 @@ function Write-Warning { param([string]$msg) Write-Host "[WARNING] $msg" -Foregr
 function Write-Error { param([string]$msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
 # Load configuration
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$configPath = Join-Path $scriptDir "..\config\deployment-config.env"
-$configPath = [System.IO.Path]::GetFullPath($configPath)
-
+# Look for config in same location as other scripts (project root/config/)
+$configPath = "config\deployment-config.env"
 if (-not (Test-Path $configPath)) {
-    Write-Error "deployment-config.env not found at: $configPath"
+    Write-Error "deployment-config.env not found. Please run deploy.ps1 first."
+    Write-Info "Expected location: $((Get-Location).Path)\config\deployment-config.env"
     exit 1
 }
 
