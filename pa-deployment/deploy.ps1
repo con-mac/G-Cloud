@@ -1,5 +1,13 @@
 # PA Environment Deployment Script (PowerShell)
 # Interactive deployment script for PA's Azure dev environment
+#
+# BAKED-IN FIXES (as of latest update):
+# - SPA platform configuration using Graph API (prevents MSAL login errors)
+# - Managed identity for Function App with Key Vault access
+# - Reliable dependency installation using Azure Functions Core Tools
+# - SharePoint permissions configuration support
+# - Automatic SPA platform verification after deployment
+# - Comprehensive next steps with fix scripts
 
 $ErrorActionPreference = "Stop"
 
@@ -1214,12 +1222,148 @@ function Start-Deployment {
         Write-Info "Configuring SSO authentication (running without PowerShell profile to avoid JSON parsing errors)..."
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\configure-auth.ps1"
         
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "configure-auth.ps1 exited with error code $LASTEXITCODE"
+            Write-Warning "Some authentication features may not be configured correctly"
+            Write-Warning "You may need to run configure-auth.ps1 manually to fix issues"
+        }
+        
+        # Verify SPA platform configuration (critical for MSAL login)
+        Write-Info "Verifying SPA platform configuration..."
+        $ErrorActionPreference = 'SilentlyContinue'
+        $appRegName = $APP_REGISTRATION_NAME
+        $appListJson = az ad app list --display-name $appRegName --query "[].{appId:appId,displayName:displayName}" -o json 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($appListJson)) {
+            try {
+                $appList = $appListJson | ConvertFrom-Json
+                if ($appList.Count -gt 0) {
+                    $appId = $appList[0].appId
+                    
+                    # Get tenant ID and access token for Graph API
+                    $tenantId = az account show --query tenantId -o tsv
+                    $token = az account get-access-token --resource "https://graph.microsoft.com" --query accessToken -o tsv
+                    
+                    if ($tenantId -and $token) {
+                        $appUri = "https://graph.microsoft.com/v1.0/applications(appId='$appId')"
+                        $headers = @{
+                            "Authorization" = "Bearer $token"
+                            "Content-Type" = "application/json"
+                        }
+                        
+                        try {
+                            $appDetails = Invoke-RestMethod -Uri $appUri -Method Get -Headers $headers
+                            $spaUris = $appDetails.spa.redirectUris
+                            
+                            if ($spaUris -and $spaUris.Count -gt 0) {
+                                Write-Success "✓ SPA platform configured correctly with $($spaUris.Count) redirect URI(s)"
+                            } else {
+                                Write-Warning "⚠ SPA platform may not be configured correctly"
+                                Write-Warning "Run: .\scripts\fix-spa-platform-urgent.ps1 to fix this"
+                            }
+                        } catch {
+                            Write-Warning "Could not verify SPA platform configuration: $_"
+                        }
+                    }
+                }
+            } catch {
+                Write-Warning "Could not parse App Registration details for verification"
+            }
+        }
+        
         Write-Success "Deployment complete!"
-        Write-Info "Next steps:"
-        Write-Host "  1. Configure SharePoint permissions in App Registration"
-        Write-Host "  2. Test authentication"
-        Write-Host "  3. Test SharePoint connectivity"
-        Write-Host "  4. Verify private endpoints"
+        Write-Info ""
+        Write-Info "═══════════════════════════════════════════════════════════════"
+        Write-Info "POST-DEPLOYMENT STEPS (Manual & Automated)"
+        Write-Info "═══════════════════════════════════════════════════════════════"
+        Write-Host ""
+        Write-Host "STEP 1: VERIFY SPA PLATFORM (CRITICAL - Do this first!)" -ForegroundColor Yellow
+        Write-Host "─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+        Write-Host "Option A - Automated (recommended):" -ForegroundColor Cyan
+        Write-Host "   .\scripts\fix-spa-platform-urgent.ps1" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Option B - Manual (if script fails):" -ForegroundColor Cyan
+        Write-Host "   1. Go to: https://portal.azure.com -> Azure AD -> App registrations" -ForegroundColor White
+        Write-Host "   2. Find: $APP_REGISTRATION_NAME" -ForegroundColor White
+        Write-Host "   3. Go to 'Authentication'" -ForegroundColor White
+        Write-Host "   4. Under 'Platform configurations', click 'Add a platform'" -ForegroundColor White
+        Write-Host "   5. Select 'Single-page application'" -ForegroundColor White
+        Write-Host "   6. Add redirect URI: https://$WEB_APP_NAME.azurewebsites.net" -ForegroundColor White
+        Write-Host "   7. Click 'Configure'" -ForegroundColor White
+        Write-Host ""
+        Write-Host "STEP 2: CONFIGURE SHAREPOINT PERMISSIONS" -ForegroundColor Yellow
+        Write-Host "─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+        Write-Host "Option A - Automated (removes old, adds correct permissions):" -ForegroundColor Cyan
+        Write-Host "   .\scripts\fix-sharepoint-permissions-v2.ps1" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Option B - Manual (if you prefer):" -ForegroundColor Cyan
+        Write-Host "   1. Go to: https://portal.azure.com -> Azure AD -> App registrations" -ForegroundColor White
+        Write-Host "   2. Find: $APP_REGISTRATION_NAME" -ForegroundColor White
+        Write-Host "   3. Go to 'API permissions'" -ForegroundColor White
+        Write-Host "   4. Remove any Delegated SharePoint permissions" -ForegroundColor White
+        Write-Host "   5. Click 'Add a permission' -> Microsoft Graph -> Application permissions" -ForegroundColor White
+        Write-Host "   6. Add: Sites.FullControl.All, Sites.ReadWrite.All, Files.ReadWrite.All" -ForegroundColor White
+        Write-Host "   7. Click 'Grant admin consent for [your tenant]'" -ForegroundColor White
+        Write-Host "   8. Confirm the consent" -ForegroundColor White
+        Write-Host ""
+        Write-Host "STEP 3: VERIFY KEY VAULT ACCESS (if SharePoint test fails)" -ForegroundColor Yellow
+        Write-Host "─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+        Write-Host "Run this diagnostic:" -ForegroundColor Cyan
+        Write-Host "   .\scripts\check-keyvault-access.ps1" -ForegroundColor White
+        Write-Host ""
+        Write-Host "If managed identity is not enabled, run:" -ForegroundColor Cyan
+        Write-Host "   .\scripts\fix-keyvault-access.ps1" -ForegroundColor White
+        Write-Host ""
+        Write-Host "STEP 4: TEST AUTHENTICATION" -ForegroundColor Yellow
+        Write-Host "─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+        Write-Host "   Open: https://$WEB_APP_NAME.azurewebsites.net" -ForegroundColor White
+        Write-Host "   Try logging in with Microsoft 365" -ForegroundColor White
+        Write-Host "   If you see 'Cross-origin token redemption' error, go back to Step 1" -ForegroundColor White
+        Write-Host ""
+        Write-Host "STEP 5: TEST SHAREPOINT CONNECTIVITY" -ForegroundColor Yellow
+        Write-Host "─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+        Write-Host "Option A - Automated:" -ForegroundColor Cyan
+        Write-Host "   .\scripts\test-sharepoint-connectivity.ps1" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Option B - Manual (curl):" -ForegroundColor Cyan
+        Write-Host "   curl https://$FUNCTION_APP_NAME.azurewebsites.net/api/v1/sharepoint/test" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Expected: If test tenant, may show 'tenant limitation' (this is OK for production)" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "STEP 6: VERIFY PRIVATE ENDPOINTS (if configured)" -ForegroundColor Yellow
+        Write-Host "─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+        Write-Host "   Check Azure Portal -> Resource Group -> Private Endpoints" -ForegroundColor White
+        Write-Host ""
+        Write-Info "═══════════════════════════════════════════════════════════════"
+        Write-Info ""
+        Write-Info "QUICK COPY-PASTE COMMANDS (for manual verification):"
+        Write-Host ""
+        Write-Host "# Test SharePoint connectivity:" -ForegroundColor Cyan
+        Write-Host "curl https://$FUNCTION_APP_NAME.azurewebsites.net/api/v1/sharepoint/test" -ForegroundColor White
+        Write-Host ""
+        Write-Host "# Check Function App settings:" -ForegroundColor Cyan
+        Write-Host "az functionapp config appsettings list --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP" -ForegroundColor White
+        Write-Host ""
+        Write-Host "# Restart Function App (if needed):" -ForegroundColor Cyan
+        Write-Host "az functionapp restart --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP" -ForegroundColor White
+        Write-Host ""
+        Write-Host "# Check App Registration SPA platform (Graph API):" -ForegroundColor Cyan
+        Write-Host '$appId = az ad app list --display-name "' + $APP_REGISTRATION_NAME + '" --query "[0].appId" -o tsv' -ForegroundColor White
+        Write-Host '$token = az account get-access-token --resource "https://graph.microsoft.com" --query accessToken -o tsv' -ForegroundColor White
+        Write-Host 'Invoke-RestMethod -Uri "https://graph.microsoft.com/v1.0/applications(appId=''$appId'')" -Headers @{Authorization="Bearer $token"} | Select-Object -ExpandProperty spa' -ForegroundColor White
+        Write-Host ""
+        Write-Info "═══════════════════════════════════════════════════════════════"
+        Write-Info ""
+        Write-Info "TROUBLESHOOTING:"
+        Write-Host "  - Login fails? -> Run Step 1 (SPA platform)" -ForegroundColor Yellow
+        Write-Host "  - SharePoint test fails? -> Run Step 2 (permissions) and Step 3 (Key Vault)" -ForegroundColor Yellow
+        Write-Host "  - 'Tenant does not have SPO license'? -> This is a test tenant limitation, production will work" -ForegroundColor Yellow
+        Write-Host "  - Need to verify something manually? -> Use the copy-paste commands above" -ForegroundColor Yellow
+        Write-Info ""
+        Write-Info "NOTE: Manual steps are perfectly fine! Use automated scripts when they work," -ForegroundColor Gray
+        Write-Info "      but don't hesitate to use portal or manual commands if needed." -ForegroundColor Gray
+        Write-Info ""
     } else {
         Write-Info "Deployment cancelled"
         exit 0
