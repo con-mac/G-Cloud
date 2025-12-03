@@ -6,12 +6,15 @@ Use this checklist during deployment:
 
 - [ ] **Step 1:** API Permissions configured (Application permissions added)
 - [ ] **Step 2:** Admin Consent granted (REQUIRED - Manual in Portal)
-- [ ] **Step 3:** Site-Level Permissions granted (REQUIRED - Manual in SharePoint)
+- [ ] **Step 3:** Site-Level Permissions granted (REQUIRED - See note below)
 - [ ] **Step 4:** Managed Identity enabled for Function App
 - [ ] **Step 5:** Key Vault Secrets User role assigned
 - [ ] **Step 6:** Key Vault references set in Function App settings
 - [ ] **Step 7:** Function App restarted
 - [ ] **Step 8:** SharePoint connectivity verified
+
+**⚠️ IMPORTANT - Site-Level Permissions:**
+If you get "Tenant does not have a SPO license" error from Graph API, SharePoint Online may not be fully provisioned yet. The app will work once SharePoint is fully provisioned (can take 24-48 hours after license assignment). For production, use a tenant with SharePoint Online fully enabled.
 
 ---
 
@@ -331,7 +334,18 @@ curl https://pa-gcloud15-api.azurewebsites.net/api/v1/sharepoint/test
   "error": "Tenant does not have a SPO license"
 }
 ```
-**Solution:** The tenant doesn't have SharePoint Online enabled. This is expected for test tenants. For production, use a tenant with SharePoint Online licenses.
+**What this means:**
+- SharePoint sites may be visible in admin center, but SharePoint Online isn't fully provisioned for Graph API access
+- This can happen even with Microsoft 365 Business Basic (which includes SharePoint)
+- SharePoint provisioning can take 24-48 hours after license assignment
+
+**Solutions:**
+1. **Wait for provisioning** (24-48 hours) - SharePoint will eventually be fully enabled
+2. **Use production tenant** - PA Consulting tenant should have SharePoint fully provisioned
+3. **Verify license assignment** - Ensure Microsoft 365 Business Basic license is assigned to at least one user
+4. **Check SharePoint status** - Go to SharePoint Admin Center and verify sites are accessible
+
+**Note:** Once SharePoint is fully provisioned, the app will work automatically. All configuration is correct - this is a tenant provisioning timing issue.
 
 ### Error: "Key Vault reference not resolved"
 ```json
