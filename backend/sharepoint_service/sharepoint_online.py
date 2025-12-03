@@ -54,7 +54,7 @@ def _get_secret_from_keyvault(secret_name: str, key_vault_url: str = None) -> Op
         secret = client.get_secret(secret_name)
         return secret.value
     except Exception as e:
-        logger.debug(f"Could not read secret from Key Vault: {e}")
+        logger.error(f"Could not read secret '{secret_name}' from Key Vault: {e}", exc_info=True)
         return None
 
 
@@ -79,15 +79,36 @@ def get_access_token() -> Optional[str]:
         # If values are missing or Key Vault references, try to read from Key Vault
         if not tenant_id or tenant_id.startswith("@Microsoft.KeyVault"):
             logger.info("Tenant ID missing or is Key Vault reference, reading from Key Vault...")
-            tenant_id = _get_secret_from_keyvault("AzureADTenantId") or tenant_id
+            kv_tenant_id = _get_secret_from_keyvault("AzureADTenantId")
+            if kv_tenant_id:
+                tenant_id = kv_tenant_id
+                logger.info("Successfully read Tenant ID from Key Vault")
+            else:
+                logger.error("Failed to read Tenant ID from Key Vault. Key Vault reference not resolved and direct read failed.")
+                if tenant_id.startswith("@Microsoft.KeyVault"):
+                    raise ValueError("Tenant ID is a Key Vault reference but could not be resolved. Check managed identity and Key Vault access.")
         
         if not client_id or client_id.startswith("@Microsoft.KeyVault"):
             logger.info("Client ID missing or is Key Vault reference, reading from Key Vault...")
-            client_id = _get_secret_from_keyvault("AzureADClientId") or client_id
+            kv_client_id = _get_secret_from_keyvault("AzureADClientId")
+            if kv_client_id:
+                client_id = kv_client_id
+                logger.info("Successfully read Client ID from Key Vault")
+            else:
+                logger.error("Failed to read Client ID from Key Vault. Key Vault reference not resolved and direct read failed.")
+                if client_id.startswith("@Microsoft.KeyVault"):
+                    raise ValueError("Client ID is a Key Vault reference but could not be resolved. Check managed identity and Key Vault access.")
         
         if not client_secret or client_secret.startswith("@Microsoft.KeyVault"):
             logger.info("Client Secret missing or is Key Vault reference, reading from Key Vault...")
-            client_secret = _get_secret_from_keyvault("AzureADClientSecret") or client_secret
+            kv_client_secret = _get_secret_from_keyvault("AzureADClientSecret")
+            if kv_client_secret:
+                client_secret = kv_client_secret
+                logger.info("Successfully read Client Secret from Key Vault")
+            else:
+                logger.error("Failed to read Client Secret from Key Vault. Key Vault reference not resolved and direct read failed.")
+                if client_secret.startswith("@Microsoft.KeyVault"):
+                    raise ValueError("Client Secret is a Key Vault reference but could not be resolved. Check managed identity and Key Vault access.")
         
         if not all([tenant_id, client_id, client_secret]):
             logger.error("Missing Azure AD credentials for SharePoint authentication")
