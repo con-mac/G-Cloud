@@ -29,6 +29,35 @@ _access_token = None
 _token_expiry = None
 
 
+def _get_secret_from_keyvault(secret_name: str, key_vault_url: str = None) -> Optional[str]:
+    """
+    Get secret from Key Vault if environment variable is a Key Vault reference
+    """
+    try:
+        from azure.keyvault.secrets import SecretClient
+        from azure.identity import DefaultAzureCredential
+        
+        if not key_vault_url:
+            # Try to get Key Vault URL from environment
+            key_vault_url = os.environ.get("AZURE_KEY_VAULT_URL", "")
+            if not key_vault_url:
+                # Try to construct from Key Vault name
+                kv_name = os.environ.get("KEY_VAULT_NAME", "")
+                if kv_name:
+                    key_vault_url = f"https://{kv_name}.vault.azure.net"
+        
+        if not key_vault_url:
+            return None
+        
+        credential = DefaultAzureCredential()
+        client = SecretClient(vault_url=key_vault_url, credential=credential)
+        secret = client.get_secret(secret_name)
+        return secret.value
+    except Exception as e:
+        logger.debug(f"Could not read secret from Key Vault: {e}")
+        return None
+
+
 def get_access_token() -> Optional[str]:
     """
     Get or refresh access token for Microsoft Graph API
@@ -47,8 +76,24 @@ def get_access_token() -> Optional[str]:
         client_id = os.environ.get("AZURE_AD_CLIENT_ID", "")
         client_secret = os.environ.get("AZURE_AD_CLIENT_SECRET", "")
         
+        # If any value looks like a Key Vault reference, try to resolve it
+        if tenant_id and tenant_id.startswith("@Microsoft.KeyVault"):
+            logger.info("Tenant ID is a Key Vault reference, attempting to resolve...")
+            tenant_id = _get_secret_from_keyvault("AzureADTenantId") or tenant_id
+        
+        if client_id and client_id.startswith("@Microsoft.KeyVault"):
+            logger.info("Client ID is a Key Vault reference, attempting to resolve...")
+            client_id = _get_secret_from_keyvault("AzureADClientId") or client_id
+        
+        if client_secret and client_secret.startswith("@Microsoft.KeyVault"):
+            logger.info("Client Secret is a Key Vault reference, attempting to resolve...")
+            client_secret = _get_secret_from_keyvault("AzureADClientSecret") or client_secret
+        
         if not all([tenant_id, client_id, client_secret]):
             logger.error("Missing Azure AD credentials for SharePoint authentication")
+            logger.error(f"Tenant ID: {'Set' if tenant_id else 'Missing'}")
+            logger.error(f"Client ID: {'Set' if client_id else 'Missing'}")
+            logger.error(f"Client Secret: {'Set' if client_secret else 'Missing'}")
             return None
         
         # Get access token using client credentials flow

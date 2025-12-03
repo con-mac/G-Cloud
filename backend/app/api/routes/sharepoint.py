@@ -56,13 +56,49 @@ async def test_sharepoint_connectivity(
             client_id = os.getenv("AZURE_AD_CLIENT_ID", "")
             client_secret = os.getenv("AZURE_AD_CLIENT_SECRET", "")
             
+            # If values are Key Vault references, try to resolve them
+            def _get_secret_from_keyvault(secret_name: str) -> Optional[str]:
+                try:
+                    from azure.keyvault.secrets import SecretClient
+                    from azure.identity import DefaultAzureCredential
+                    
+                    key_vault_url = os.getenv("AZURE_KEY_VAULT_URL", "")
+                    if not key_vault_url:
+                        # Try to get from Key Vault name
+                        kv_name = os.getenv("KEY_VAULT_NAME", "")
+                        if kv_name:
+                            key_vault_url = f"https://{kv_name}.vault.azure.net"
+                    
+                    if not key_vault_url:
+                        return None
+                    
+                    credential = DefaultAzureCredential()
+                    client = SecretClient(vault_url=key_vault_url, credential=credential)
+                    secret = client.get_secret(secret_name)
+                    return secret.value
+                except Exception as e:
+                    logger.debug(f"Could not read secret from Key Vault: {e}")
+                    return None
+            
+            if tenant_id and tenant_id.startswith("@Microsoft.KeyVault"):
+                logger.info("Resolving Tenant ID from Key Vault...")
+                tenant_id = _get_secret_from_keyvault("AzureADTenantId") or tenant_id
+            
+            if client_id and client_id.startswith("@Microsoft.KeyVault"):
+                logger.info("Resolving Client ID from Key Vault...")
+                client_id = _get_secret_from_keyvault("AzureADClientId") or client_id
+            
+            if client_secret and client_secret.startswith("@Microsoft.KeyVault"):
+                logger.info("Resolving Client Secret from Key Vault...")
+                client_secret = _get_secret_from_keyvault("AzureADClientSecret") or client_secret
+            
             if not all([tenant_id, client_id, client_secret]):
                 return SharePointTestResponse(
                     connected=False,
                     site_id=site_id,
                     site_url=site_url,
                     message="SharePoint credentials not configured",
-                    error="AZURE_AD_TENANT_ID, AZURE_AD_CLIENT_ID, or AZURE_AD_CLIENT_SECRET not set"
+                    error=f"AZURE_AD_TENANT_ID: {'Set' if tenant_id else 'Missing'}, AZURE_AD_CLIENT_ID: {'Set' if client_id else 'Missing'}, AZURE_AD_CLIENT_SECRET: {'Set' if client_secret else 'Missing'}"
                 )
             
             # Get access token using client credentials flow
