@@ -9,14 +9,23 @@ function Write-Warning { param([string]$msg) Write-Host "[WARNING] $msg" -Foregr
 function Write-Error { param([string]$msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
 # Load configuration
-$configPath = "deployment-config.env"
+# Resolve path relative to script location
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$configPath = Join-Path $scriptDir "..\config\deployment-config.env"
+$configPath = [System.IO.Path]::GetFullPath($configPath)
+
 if (-not (Test-Path $configPath)) {
-    $configPath = "..\deployment-config.env"
+    # Try alternative location (project root)
+    $configPath = Join-Path $scriptDir "..\..\config\deployment-config.env"
+    $configPath = [System.IO.Path]::GetFullPath($configPath)
     if (-not (Test-Path $configPath)) {
-        Write-Error "deployment-config.env not found. Please run deploy.ps1 first."
+        Write-Error "deployment-config.env not found at: $configPath"
+        Write-Info "Please run deploy.ps1 first to create the config file."
         exit 1
     }
 }
+
+Write-Info "Loading configuration from: $configPath"
 
 # Parse environment file
 $config = @{}
