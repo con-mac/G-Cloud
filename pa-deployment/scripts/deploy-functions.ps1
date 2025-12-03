@@ -100,6 +100,20 @@ if (-not (Test-Path "host.json")) {
     }
 }
 
+# CRITICAL: Set SCM_DO_BUILD_DURING_DEPLOYMENT BEFORE any deployment
+# This must be set BEFORE deployment so Azure Functions installs dependencies
+Write-Info "Setting SCM_DO_BUILD_DURING_DEPLOYMENT=true (REQUIRED for dependency installation)..."
+az functionapp config appsettings set `
+    --name $FUNCTION_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=true" `
+    --output none
+if ($LASTEXITCODE -eq 0) {
+    Write-Success "✓ SCM_DO_BUILD_DURING_DEPLOYMENT enabled (dependencies will install during deployment)"
+} else {
+    Write-Warning "Failed to set SCM_DO_BUILD_DURING_DEPLOYMENT. Dependencies may not install automatically."
+}
+
 # Try using Azure Functions Core Tools first
 $funcCheck = Get-Command func -ErrorAction SilentlyContinue
 if ($funcCheck) {
@@ -434,8 +448,7 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($WEB_APP_URL)) {
 }
 
 $appSettings = @()
-# CRITICAL: Enable automatic dependency installation from requirements.txt
-$appSettings += "SCM_DO_BUILD_DURING_DEPLOYMENT=true"
+# Note: SCM_DO_BUILD_DURING_DEPLOYMENT is already set before deployment above
 $appSettings += "AZURE_KEY_VAULT_URL=$KEY_VAULT_URI"
 $appSettings += "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL"
 $appSettings += "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID"
