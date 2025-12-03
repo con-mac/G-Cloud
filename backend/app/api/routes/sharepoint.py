@@ -128,7 +128,10 @@ async def test_sharepoint_connectivity(
             access_token = result["access_token"]
             
             # Test Graph API call to SharePoint site
+            # Try both site ID and site URL formats (some tenants work better with URL format)
             import requests
+            
+            # First try: Site ID format
             graph_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}"
             
             response = requests.get(
@@ -140,6 +143,31 @@ async def test_sharepoint_connectivity(
                 timeout=10
             )
             
+            # If site ID format fails, try site URL format
+            if response.status_code != 200 and site_url:
+                try:
+                    # Extract hostname and path from site URL
+                    # Format: https://{hostname}/sites/{sitename} or https://{hostname}/:u:/s/{sitename}
+                    from urllib.parse import urlparse
+                    parsed = urlparse(site_url)
+                    hostname = parsed.netloc
+                    path = parsed.path
+                    
+                    # Convert to Graph API format: /sites/{hostname}:{path}
+                    graph_url = f"https://graph.microsoft.com/v1.0/sites/{hostname}:{path}"
+                    
+                    logger.info(f"Trying alternative Graph API format: {graph_url}")
+                    response = requests.get(
+                        graph_url,
+                        headers={
+                            "Authorization": f"Bearer {access_token}",
+                            "Content-Type": "application/json"
+                        },
+                        timeout=10
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to parse site URL for alternative format: {e}")
+            
             if response.status_code == 200:
                 site_data = response.json()
                 return SharePointTestResponse(
@@ -150,13 +178,24 @@ async def test_sharepoint_connectivity(
                     error=None
                 )
             else:
-                return SharePointTestResponse(
-                    connected=False,
-                    site_id=site_id,
-                    site_url=site_url,
-                    message="Failed to access SharePoint site",
-                    error=f"Graph API returned status {response.status_code}: {response.text}"
-                )
+                error_text = response.text[:500] if response.text else "No error details"
+                # Check if this is the "SPO license" error
+                if "SPO license" in error_text or "does not have a SPO license" in error_text:
+                    return SharePointTestResponse(
+                        connected=False,
+                        site_id=site_id,
+                        site_url=site_url,
+                        message="SharePoint site exists but Graph API access is limited in this tenant",
+                        error=f"Tenant limitation: {error_text}. This is a test tenant issue and should work in production (PA Consulting tenant)."
+                    )
+                else:
+                    return SharePointTestResponse(
+                        connected=False,
+                        site_id=site_id,
+                        site_url=site_url,
+                        message="Failed to access SharePoint site",
+                        error=f"Graph API returned status {response.status_code}: {error_text}"
+                    )
                 
         except ImportError as e:
             return SharePointTestResponse(
