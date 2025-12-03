@@ -183,6 +183,7 @@ The script uses regex extraction to get the password, which works even when warn
 **Possible causes:**
 1. Function App not deployed
 2. CORS configuration issue
+3. Python dependencies not installed
 
    **IMPORTANT:** Azure Function Apps have built-in CORS settings that override application-level CORS.
    
@@ -207,6 +208,47 @@ The script uses regex extraction to get the password, which works even when warn
 1. Check Function App status: `az functionapp show --name <FUNCTION_APP_NAME> --resource-group <RESOURCE_GROUP>`
 2. Redeploy backend: `.\pa-deployment\scripts\deploy-functions.ps1`
 3. Verify CORS settings in `backend/app/core/config.py` include the frontend URL
+
+### ModuleNotFoundError: No module named 'fastapi' (Dependency Installation)
+
+**Cause:** Azure Functions Python dependencies are not automatically installed with zip deployment. The `SCM_DO_BUILD_DURING_DEPLOYMENT` setting alone is unreliable for Function Apps.
+
+**Solution: Use Azure Functions Core Tools (REQUIRED)**
+
+Azure Functions Core Tools is the **only reliable method** to install Python dependencies in Azure Functions. Zip deployment does not reliably trigger dependency installation.
+
+**Step 1: Install Azure Functions Core Tools**
+
+Download and install from:
+- **Direct Download:** https://github.com/Azure/azure-functions-core-tools/releases/latest
+- Download `Azure.Functions.Cli.win-x64.msi` and install it
+- Or use npm: `npm install -g azure-functions-core-tools@4`
+
+**Step 2: Verify Installation**
+
+```powershell
+func --version
+```
+
+You should see a version number (e.g., `4.5.0`).
+
+**Step 3: Deploy with Dependencies**
+
+```powershell
+.\pa-deployment\scripts\deploy-with-dependencies.ps1
+```
+
+This script:
+- Uses `func azure functionapp publish` which properly installs dependencies
+- Automatically installs all packages from `requirements.txt` during deployment
+- Uses remote build in Azure (no local Python/Docker needed)
+
+**Why This Works:**
+- Azure Functions Core Tools uses remote build which properly installs dependencies
+- Zip deployment with `SCM_DO_BUILD_DURING_DEPLOYMENT` is unreliable
+- Manual installation via SSH is not possible (pip not available in runtime)
+
+**Note:** The main `deploy.ps1` script uses zip deployment for speed, but for dependency installation, always use `deploy-with-dependencies.ps1` after initial deployment.
 
 ### SharePoint Permissions
 
