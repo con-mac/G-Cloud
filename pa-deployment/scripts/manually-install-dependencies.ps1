@@ -77,17 +77,66 @@ $headers = @{
     "Content-Type" = "application/json"
 }
 
-# Check if requirements.txt exists
+# Check if requirements.txt exists, upload if missing
 Write-Info "Checking if requirements.txt exists..."
+$requirementsExists = $false
 try {
     $requirementsCheck = Invoke-RestMethod -Uri "$kuduUrl/api/vfs/site/wwwroot/requirements.txt" -Headers $headers -Method GET -ErrorAction SilentlyContinue
     if ($requirementsCheck) {
-        Write-Success "✓ requirements.txt found"
+        Write-Success "✓ requirements.txt found in deployment"
+        $requirementsExists = $true
     }
 } catch {
-    Write-Error "requirements.txt not found in deployment!"
-    Write-Info "Please redeploy with deploy-functions.ps1 first."
-    exit 1
+    Write-Warning "requirements.txt not found in deployment"
+    Write-Info "Attempting to upload requirements.txt from local source..."
+    
+    # Try to find requirements.txt locally
+    $localRequirements = $null
+    $possiblePaths = @(
+        "backend\requirements.txt",
+        "..\backend\requirements.txt",
+        "..\..\backend\requirements.txt",
+        "pa-deployment\backend\requirements.txt"
+    )
+    
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $localRequirements = $path
+            Write-Info "Found requirements.txt at: $path"
+            break
+        }
+    }
+    
+    if ($null -eq $localRequirements) {
+        Write-Error "Could not find requirements.txt locally!"
+        Write-Info "Please ensure requirements.txt exists in backend directory or redeploy."
+        exit 1
+    }
+    
+    # Read and upload requirements.txt
+    Write-Info "Uploading requirements.txt to Function App..."
+    $requirementsContent = Get-Content $localRequirements -Raw -Encoding UTF8
+    
+    try {
+        $uploadBody = $requirementsContent
+        $uploadHeaders = @{
+            Authorization = "Basic $base64Auth"
+            "Content-Type" = "text/plain"
+        }
+        
+        Invoke-RestMethod -Uri "$kuduUrl/api/vfs/site/wwwroot/requirements.txt" `
+            -Headers $uploadHeaders `
+            -Method PUT `
+            -Body $uploadBody `
+            -ErrorAction Stop
+        
+        Write-Success "✓ requirements.txt uploaded successfully"
+        $requirementsExists = $true
+    } catch {
+        Write-Error "Failed to upload requirements.txt: $($_.Exception.Message)"
+        Write-Info "Please upload manually via Azure Portal or redeploy."
+        exit 1
+    }
 }
 
 # Execute pip install command via Kudu API
