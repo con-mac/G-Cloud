@@ -50,7 +50,9 @@ $endpoints = @(
     @{Path="/"; Name="Root"},
     @{Path="/health"; Name="Health Check"},
     @{Path="/api/v1"; Name="API Root"},
-    @{Path="/api/v1/proposals/"; Name="Proposals List"},
+    @{Path="/api/v1/proposals"; Name="Proposals List (no trailing slash)"},
+    @{Path="/api/v1/proposals/"; Name="Proposals List (with trailing slash)"},
+    @{Path="/api/v1/proposals/?owner_email=test@test.com"; Name="Proposals with query param"},
     @{Path="/docs"; Name="API Docs"}
 )
 
