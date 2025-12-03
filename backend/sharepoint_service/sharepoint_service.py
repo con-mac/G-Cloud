@@ -7,7 +7,8 @@ import os
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
-# Check if we should use S3
+# Check which SharePoint backend to use
+USE_SHAREPOINT = os.environ.get('USE_SHAREPOINT', 'false').lower() == 'true'
 USE_S3 = os.environ.get('USE_S3', 'false').lower() == 'true'
 
 # Check if we're in Azure (has storage connection string)
@@ -28,7 +29,33 @@ get_file_from_s3 = None
 delete_file_from_s3 = None
 list_files_in_folder = None
 
-if USE_S3:
+if USE_SHAREPOINT:
+    # Import live SharePoint Online service
+    try:
+        from sharepoint_service.sharepoint_online import (
+            fuzzy_match,
+            read_metadata_file,
+            search_documents,
+            get_document_path,
+            create_folder,
+            create_metadata_file,
+            list_all_folders,
+            MOCK_BASE_PATH,
+        )
+        # For SharePoint Online, get_document_path returns a string (item ID), not a Path
+        # S3 helper functions are not available
+        upload_file_to_s3 = None
+        download_file_from_s3 = None
+        get_file_from_s3 = None
+        delete_file_from_s3 = None
+        list_files_in_folder = None
+    except (ImportError, AttributeError) as e:
+        import logging
+        logging.warning(f"Failed to import SharePoint Online service: {e}")
+        # Functions will be None, calling code should handle this
+        if not IN_AZURE:
+            logging.error(f"SharePoint Online import failed and not in Azure: {e}")
+elif USE_S3:
     # Import S3 service
     try:
         from sharepoint_service.s3_sharepoint import (
