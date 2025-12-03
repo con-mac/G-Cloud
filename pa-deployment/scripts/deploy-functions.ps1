@@ -434,6 +434,8 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($WEB_APP_URL)) {
 }
 
 $appSettings = @()
+# CRITICAL: Enable automatic dependency installation from requirements.txt
+$appSettings += "SCM_DO_BUILD_DURING_DEPLOYMENT=true"
 $appSettings += "AZURE_KEY_VAULT_URL=$KEY_VAULT_URI"
 $appSettings += "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL"
 $appSettings += "SHAREPOINT_SITE_ID=$SHAREPOINT_SITE_ID"
