@@ -20,7 +20,7 @@ class SharePointTestResponse(BaseModel):
     error: Optional[str] = None
 
 
-@router.get("/sharepoint/test", response_model=SharePointTestResponse, tags=["SharePoint"])
+@router.get("/test", response_model=SharePointTestResponse, tags=["SharePoint"])
 async def test_sharepoint_connectivity(
     x_user_email: Optional[str] = Header(None, alias="X-User-Email")
 ):
