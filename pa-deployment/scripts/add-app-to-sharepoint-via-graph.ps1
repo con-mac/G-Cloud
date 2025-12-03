@@ -79,34 +79,72 @@ if ($cleanSiteId -match '^([^?]+)') {
     $cleanSiteId = $matches[1]
 }
 
-Write-Info "Getting SharePoint site groups..."
+Write-Info "Getting SharePoint site information..."
 Write-Info "Site ID: $cleanSiteId"
 Write-Info ""
 
-# Get site groups
+# First, get the site to verify it exists and get the correct format
 $ErrorActionPreference = 'SilentlyContinue'
-$groups = az rest --method GET `
-    --uri "https://graph.microsoft.com/v1.0/sites/$cleanSiteId/sites/root/web/siteGroups" `
+$siteInfo = az rest --method GET `
+    --uri "https://graph.microsoft.com/v1.0/sites/$cleanSiteId" `
     --headers "Authorization=Bearer $token" `
     -o json 2>&1 | ConvertFrom-Json
 $ErrorActionPreference = 'Stop'
 
-if ($LASTEXITCODE -ne 0 -or -not $groups.value) {
-    Write-Error "Could not retrieve site groups"
-    Write-Info "Error: $groups"
-    Write-Info ""
-    Write-Info "Trying alternative method..."
+if ($LASTEXITCODE -ne 0 -or -not $siteInfo.id) {
+    Write-Warning "Could not get site by ID, trying by URL..."
     
-    # Try alternative endpoint
+    # Try getting site by URL
+    $siteUrlEncoded = [System.Web.HttpUtility]::UrlEncode($SHAREPOINT_SITE_URL)
     $ErrorActionPreference = 'SilentlyContinue'
-    $groups = az rest --method GET `
-        --uri "https://graph.microsoft.com/v1.0/sites/$cleanSiteId/siteGroups" `
+    $siteInfo = az rest --method GET `
+        --uri "https://graph.microsoft.com/v1.0/sites/$siteUrlEncoded" `
         --headers "Authorization=Bearer $token" `
         -o json 2>&1 | ConvertFrom-Json
     $ErrorActionPreference = 'Stop'
 }
 
-if ($LASTEXITCODE -eq 0 -and $groups.value) {
+if ($LASTEXITCODE -eq 0 -and $siteInfo.id) {
+    Write-Success "Site found: $($siteInfo.displayName)"
+    Write-Info "Site ID: $($siteInfo.id)"
+    Write-Info ""
+    
+    # Use the site ID from the response
+    $actualSiteId = $siteInfo.id
+    
+    Write-Info "Getting site groups..."
+    
+    # Get site groups using the correct endpoint
+    $ErrorActionPreference = 'SilentlyContinue'
+    $groups = az rest --method GET `
+        --uri "https://graph.microsoft.com/v1.0/sites/$actualSiteId/siteGroups" `
+        --headers "Authorization=Bearer $token" `
+        -o json 2>&1 | ConvertFrom-Json
+    $ErrorActionPreference = 'Stop'
+    
+    if ($LASTEXITCODE -ne 0 -or -not $groups.value) {
+        Write-Warning "Could not get groups via /siteGroups, trying /sites/root/web/siteGroups..."
+        
+        # Try alternative endpoint
+        $ErrorActionPreference = 'SilentlyContinue'
+        $groups = az rest --method GET `
+            --uri "https://graph.microsoft.com/v1.0/sites/$actualSiteId/sites/root/web/siteGroups" `
+            --headers "Authorization=Bearer $token" `
+            -o json 2>&1 | ConvertFrom-Json
+        $ErrorActionPreference = 'Stop'
+    }
+} else {
+    Write-Error "Could not find SharePoint site"
+    Write-Info "Error: $siteInfo"
+    Write-Info ""
+    Write-Info "Please verify:"
+    Write-Info "1. Site URL is correct: $SHAREPOINT_SITE_URL"
+    Write-Info "2. Site ID is correct: $cleanSiteId"
+    Write-Info "3. You have permissions to access the site"
+    exit 1
+}
+
+if ($LASTEXITCODE -eq 0 -and $groups -and $groups.value) {
     Write-Success "Found site groups:"
     foreach ($group in $groups.value) {
         Write-Info "  - $($group.displayName) (ID: $($group.id))"
