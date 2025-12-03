@@ -67,17 +67,9 @@ Write-Info ""
 $GRAPH_API_ID = "00000003-0000-0000-c000-000000000000"
 
 # Remove incorrect Delegated permissions
-Write-Info "Removing incorrect Delegated permissions..."
-$delegatedToRemove = @(
-    "e1fe6dd8-ba31-4d61-89e7-88639da4683d", # User.Read (we'll keep this one)
-    # Sites.FullControl.All - Delegated (WRONG - should be Application)
-    # Sites.ReadWrite.All - Delegated (WRONG - should be Application)
-)
-
-# Actually, let's remove all SharePoint-related delegated permissions
-# We'll keep User.Read as it's needed for SSO
-Write-Info "Note: Keeping User.Read (needed for SSO)"
+# Note: We'll keep User.Read as it's needed for SSO
 Write-Info "Removing SharePoint Delegated permissions..."
+Write-Info "Note: Keeping User.Read (needed for SSO)"
 
 # Get current permissions
 $currentPerms = az ad app show --id $APP_ID --query "requiredResourceAccess" -o json | ConvertFrom-Json
