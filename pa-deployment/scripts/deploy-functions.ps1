@@ -100,18 +100,19 @@ if (-not (Test-Path "host.json")) {
     }
 }
 
-# CRITICAL: Set SCM_DO_BUILD_DURING_DEPLOYMENT BEFORE any deployment
-# This must be set BEFORE deployment so Azure Functions installs dependencies
-Write-Info "Setting SCM_DO_BUILD_DURING_DEPLOYMENT=true (REQUIRED for dependency installation)..."
+# CRITICAL: Set build settings BEFORE any deployment
+# Azure Functions requires BOTH settings for automatic dependency installation
+Write-Info "Setting build settings (REQUIRED for dependency installation)..."
 az functionapp config appsettings set `
     --name $FUNCTION_APP_NAME `
     --resource-group $RESOURCE_GROUP `
-    --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=true" `
+    --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=true" "ENABLE_ORYX_BUILD=true" `
     --output none
 if ($LASTEXITCODE -eq 0) {
-    Write-Success "✓ SCM_DO_BUILD_DURING_DEPLOYMENT enabled (dependencies will install during deployment)"
+    Write-Success "✓ Build settings enabled (dependencies will install during deployment)"
 } else {
-    Write-Warning "Failed to set SCM_DO_BUILD_DURING_DEPLOYMENT. Dependencies may not install automatically."
+    Write-Warning "Failed to set build settings. Dependencies may not install automatically."
+    Write-Warning "You may need to run manually-install-dependencies.ps1 after deployment."
 }
 
 # Try using Azure Functions Core Tools first
