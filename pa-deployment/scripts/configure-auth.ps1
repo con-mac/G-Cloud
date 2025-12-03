@@ -473,6 +473,52 @@ az keyvault secret set `
     --value $TENANT_ID `
     --output none | Out-Null
 
+# Enable system-assigned managed identity for Function App (required for Key Vault references)
+Write-Info "Enabling system-assigned managed identity for Function App..."
+$ErrorActionPreference = 'SilentlyContinue'
+$identityResult = az functionapp identity assign `
+    --name "$FUNCTION_APP_NAME" `
+    --resource-group "$RESOURCE_GROUP" `
+    --query "principalId" -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($identityResult)) {
+    Write-Success "Managed identity enabled for Function App"
+    $FUNCTION_APP_PRINCIPAL_ID = $identityResult
+    
+    # Grant Key Vault access to Function App managed identity
+    Write-Info "Granting Key Vault access to Function App managed identity..."
+    $kvScope = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
+    
+    $ErrorActionPreference = 'SilentlyContinue'
+    $existingRole = az role assignment list `
+        --assignee "$FUNCTION_APP_PRINCIPAL_ID" `
+        --scope "$kvScope" `
+        --role "Key Vault Secrets User" `
+        --query "[].id" -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
+    
+    if ([string]::IsNullOrWhiteSpace($existingRole)) {
+        az role assignment create `
+            --role "Key Vault Secrets User" `
+            --assignee "$FUNCTION_APP_PRINCIPAL_ID" `
+            --scope "$kvScope" `
+            --output none 2>&1 | Out-Null
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Key Vault access granted to Function App managed identity"
+            Start-Sleep -Seconds 5  # Wait for propagation
+        } else {
+            Write-Warning "Failed to grant Key Vault access. You may need to grant 'Key Vault Secrets User' role manually."
+        }
+    } else {
+        Write-Success "Key Vault access already granted to Function App managed identity"
+    }
+} else {
+    Write-Warning "Could not enable managed identity. Key Vault references may not work."
+    Write-Info "You may need to enable it manually: az functionapp identity assign --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP"
+}
+
 # Update Function App settings (build array to avoid PowerShell parsing issues)
 Write-Info "Updating Function App with authentication settings..."
 $kvUri = "https://${KEY_VAULT_NAME}.vault.azure.net"
