@@ -398,7 +398,11 @@ if ($buildMethod -eq "2") {
         
         Write-Info "SSO Configuration:"
         Write-Info "  Tenant ID: $($tenantId.Substring(0,8))..."
-        Write-Info "  Client ID: $($clientId.Substring(0,8))..." 
+        if (-not [string]::IsNullOrWhiteSpace($clientId)) {
+            Write-Info "  Client ID: $($clientId.Substring(0,8))..."
+        } else {
+            Write-Warning "  Client ID: Not found (SSO may not work until App Registration is configured)"
+        }
         Write-Info "  Redirect URI: $redirectUri"
         if ($adminGroupId) {
             Write-Info "  Admin Group ID: $($adminGroupId.Substring(0,8))..."

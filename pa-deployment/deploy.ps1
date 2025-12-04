@@ -1225,9 +1225,9 @@ function Start-Deployment {
             New-Item -ItemType Directory -Path "config" | Out-Null
         }
         
-        # Final verification: ensure all globally unique names have suffix
-        # (Most should already have it from prompts, but double-check)
-        Write-Info "Verifying all globally unique names have random suffix..."
+        # All names should already have suffixes from prompts above
+        # No additional processing needed - suffixes are added during prompts
+        Write-Info "Resource names configured with random suffixes"
         $configLines = @(
             "RESOURCE_GROUP=$RESOURCE_GROUP",
             "FUNCTION_APP_NAME=$FUNCTION_APP_NAME",

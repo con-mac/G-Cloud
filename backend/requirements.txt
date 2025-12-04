@@ -33,8 +33,8 @@ redis==5.0.1
 hiredis==2.2.3
 
 # Monitoring and logging
-opencensus-ext-azure==1.1.13
-opencensus-ext-logging==0.1.1
+# Note: opencensus-ext-azure removed due to grpcio compilation issues in Azure Functions
+# Azure Functions has built-in Application Insights integration via APPLICATIONINSIGHTS_CONNECTION_STRING
 
 # Document utilities
 requests==2.32.3
