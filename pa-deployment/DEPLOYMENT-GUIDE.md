@@ -256,15 +256,20 @@ The script uses regex extraction to get the password, which works even when warn
 
    **IMPORTANT:** Azure Function Apps have built-in CORS settings that override application-level CORS.
    
-   **Fix via Azure Portal:**
-   1. Go to Azure Portal → Function App (`pa-gcloud15-api`)
-   2. Navigate to **"API" → "CORS"** (or search for "CORS")
-   3. Add allowed origins:
-      - `https://pa-gcloud15-web.azurewebsites.net`
-      - `http://localhost:3000`
-      - `http://localhost:5173`
-   4. Click **"Save"**
-   5. Restart the Function App (Overview → Restart)
+   **Fix via Azure Portal (REQUIRED):**
+   1. Go to Azure Portal: https://portal.azure.com
+   2. Navigate to your Function App: `pa-gcloud15-api-14sxir` (or your actual Function App name)
+   3. In the left menu, under **Settings**, click **"CORS"**
+   4. In the **"Allowed Origins"** section, add each origin (one per line or comma-separated):
+      - `https://pa-gcloud15-web-14sxir.azurewebsites.net` (use your actual Web App name)
+      - `http://localhost:3000` (for local development)
+      - `http://localhost:5173` (for local development)
+   5. **Enable** "Access-Control-Allow-Credentials" if you're using authentication
+   6. Click **"Save"** at the top
+   7. Restart the Function App: Go to **Overview** → Click **"Restart"**
+   8. Wait 30 seconds for changes to take effect
+   
+   **Note:** Replace `pa-gcloud15-web-14sxir` with your actual Web App name (check your `deployment-config.env` file for `WEB_APP_NAME`)
    
    **Alternative - PowerShell script:**
    ```powershell
