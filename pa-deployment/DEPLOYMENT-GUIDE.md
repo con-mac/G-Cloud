@@ -214,6 +214,93 @@ For frontend code changes:
 1. Rebuild image: `.\pa-deployment\scripts\build-and-push-images.ps1`
 2. Redeploy: `.\pa-deployment\scripts\deploy-frontend.ps1`
 
+## Config File Override
+
+The deployment uses `pa-deployment\config\deployment-config.env` to store resource names. You can override values in two ways:
+
+### Method 1: Edit Config File Before Deployment
+
+1. Edit `pa-deployment\config\deployment-config.env`
+2. Change any values (e.g., `FUNCTION_APP_NAME`, `WEB_APP_NAME`)
+3. Run `.\deploy.ps1` - it will use your values
+
+### Method 2: Auto-Fix Config File
+
+If your config file has wrong values (e.g., wrong Function App name):
+
+```powershell
+.\pa-deployment\scripts\fix-config-now.ps1
+```
+
+This script:
+- Detects actual Function App name from Azure
+- Updates `FUNCTION_APP_NAME` in config file
+- Shows next steps
+
+### Method 3: Delete and Recreate
+
+To start fresh:
+1. Delete `pa-deployment\config\deployment-config.env`
+2. Run `.\deploy.ps1`
+3. Answer prompts to create new config
+
+### After Config Changes
+
+If you change `FUNCTION_APP_NAME` or `WEB_APP_NAME`, you must:
+
+1. **Rebuild Docker image** (to include correct API URL):
+   ```powershell
+   .\pa-deployment\scripts\build-and-push-images.ps1
+   ```
+
+2. **Redeploy frontend**:
+   ```powershell
+   .\pa-deployment\scripts\deploy-frontend.ps1
+   ```
+
+3. **Restart Web App**:
+   ```powershell
+   az webapp restart --name <WEB_APP_NAME> --resource-group <RESOURCE_GROUP>
+   ```
+
+## Testing SharePoint Connectivity
+
+After deployment, test SharePoint connectivity:
+
+### Automated Test
+
+```powershell
+.\pa-deployment\scripts\test-sharepoint-connectivity.ps1
+```
+
+### Manual Test (curl)
+
+```powershell
+curl https://<FUNCTION_APP_NAME>.azurewebsites.net/api/v1/sharepoint/test
+```
+
+Replace `<FUNCTION_APP_NAME>` with your actual Function App name (e.g., `pa-gcloud15-api-14sxir`).
+
+**Expected Response:**
+```json
+{
+  "connected": true,
+  "site_id": "...",
+  "site_url": "https://...",
+  "message": "Successfully connected to SharePoint"
+}
+```
+
+**If you see "Tenant does not have SPO license":**
+- This is a test tenant limitation
+- Will work in production tenant
+- Not a blocker for deployment verification
+
+**If you see "SharePoint credentials not configured":**
+- Run: `.\pa-deployment\scripts\fix-keyvault-access.ps1`
+- Verify Key Vault secrets are set
+- Check managed identity is enabled
+
 ## Troubleshooting
 
 ### SSO Not Working / "SSO is not configured" Message

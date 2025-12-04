@@ -1412,16 +1412,20 @@ function Start-Deployment {
         }
         
         # Rebuild Docker image with SSO values (now that App Registration exists)
-        Write-Info "Rebuilding frontend Docker image with SSO configuration..."
+        # This ensures SSO config and API URL are baked into the build
+        Write-Info "Rebuilding frontend Docker image with SSO and API configuration..."
+        Write-Info "This includes: SSO Client ID, Tenant ID, Redirect URI, and API Base URL"
         $env:DEPLOY_NON_INTERACTIVE = "true"
         & ".\scripts\build-and-push-images.ps1"
         $env:DEPLOY_NON_INTERACTIVE = $null
         
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "Failed to rebuild Docker image with SSO config"
-            Write-Info "Continuing with deployment (you can rebuild manually later)..."
+            Write-Warning "Frontend may not work correctly until image is rebuilt"
+            Write-Info "You can rebuild manually: .\scripts\build-and-push-images.ps1"
+            Write-Info "Then redeploy: .\scripts\deploy-frontend.ps1"
         } else {
-            Write-Success "Frontend Docker image rebuilt with SSO configuration"
+            Write-Success "Frontend Docker image rebuilt with SSO and API configuration"
         }
         
         # Deploy frontend to Web App
