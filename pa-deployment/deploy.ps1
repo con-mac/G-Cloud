@@ -1400,13 +1400,9 @@ function Start-Deployment {
             Write-Success "Frontend Docker image already exists in ACR: frontend:$IMAGE_TAG"
         }
         
-        # Deploy frontend to Web App
-        Write-Info "Deploying frontend to Web App using Docker container from ACR..."
-        & ".\scripts\deploy-frontend.ps1"
-        
-        # Configure authentication
+        # Configure authentication FIRST (needed for Docker build to get Client ID)
         # Run configure-auth.ps1 without profile to bypass error handlers that intercept JSON parsing
-        Write-Info "Configuring SSO authentication (running without PowerShell profile to avoid JSON parsing errors)..."
+        Write-Info "Configuring SSO authentication (needed before Docker build)..."
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\configure-auth.ps1"
         
         if ($LASTEXITCODE -ne 0) {
@@ -1414,6 +1410,26 @@ function Start-Deployment {
             Write-Warning "Some authentication features may not be configured correctly"
             Write-Warning "You may need to run configure-auth.ps1 manually to fix issues"
         }
+        
+        # Rebuild Docker image with SSO values (now that App Registration exists)
+        Write-Info "Rebuilding frontend Docker image with SSO configuration..."
+        $env:DEPLOY_NON_INTERACTIVE = "true"
+        & ".\scripts\build-and-push-images.ps1"
+        $env:DEPLOY_NON_INTERACTIVE = $null
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to rebuild Docker image with SSO config"
+            Write-Info "Continuing with deployment (you can rebuild manually later)..."
+        } else {
+            Write-Success "Frontend Docker image rebuilt with SSO configuration"
+        }
+        
+        # Deploy frontend to Web App
+        Write-Info "Deploying frontend to Web App using Docker container from ACR..."
+        & ".\scripts\deploy-frontend.ps1"
+        
+        # Verify authentication settings are correct
+        Write-Info "Verifying authentication configuration..."
         
         # Verify SPA platform configuration (critical for MSAL login)
         Write-Info "Verifying SPA platform configuration..."
