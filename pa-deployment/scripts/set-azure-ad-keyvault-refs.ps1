@@ -74,16 +74,15 @@ $kvClientIdRef = '@Microsoft.KeyVault(SecretUri=' + $kvUri + '/secrets/AzureADCl
 $kvClientSecretRef = '@Microsoft.KeyVault(SecretUri=' + $kvUri + '/secrets/AzureADClientSecret/)'
 
 # Set each setting individually
-# Use single quotes to prevent PowerShell from interpreting parentheses
+# Use --set parameter instead of --settings to avoid PowerShell parsing issues
 Write-Info "Setting AZURE_AD_TENANT_ID..."
 $ErrorActionPreference = 'SilentlyContinue'
-# Use single quotes around the entire setting value to prevent PowerShell parsing issues
-$settingValue = "AZURE_AD_TENANT_ID=$kvTenantRef"
+# Use --set which handles special characters better than --settings
 $result = az functionapp config appsettings set `
     --name "$FUNCTION_APP_NAME" `
     --resource-group "$RESOURCE_GROUP" `
-    --settings $settingValue `
-    --output none 2>&1
+    --set "AZURE_AD_TENANT_ID=$kvTenantRef" `
+    2>&1
 $ErrorActionPreference = 'Stop'
 
 if ($LASTEXITCODE -eq 0) {
@@ -91,23 +90,19 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Error "  ✗ Failed to set AZURE_AD_TENANT_ID"
     Write-Error "  Error: $result"
-    Write-Info "  Attempting with JSON format..."
+    Write-Info "  Attempting with --settings parameter..."
     
-    # Try using JSON format which handles special characters better
-    $jsonSettings = @{
-        AZURE_AD_TENANT_ID = $kvTenantRef
-    } | ConvertTo-Json -Compress
-    
+    # Try with --settings using proper escaping
     $ErrorActionPreference = 'SilentlyContinue'
     $result2 = az functionapp config appsettings set `
         --name "$FUNCTION_APP_NAME" `
         --resource-group "$RESOURCE_GROUP" `
-        --settings $jsonSettings `
-        --output none 2>&1
+        --settings "AZURE_AD_TENANT_ID=`"$kvTenantRef`"" `
+        2>&1
     $ErrorActionPreference = 'Stop'
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "  ✓ AZURE_AD_TENANT_ID set (with JSON format)"
+        Write-Success "  ✓ AZURE_AD_TENANT_ID set (with --settings)"
     } else {
         Write-Error "  ✗ Both methods failed"
         Write-Error "  Last error: $result2"
@@ -119,18 +114,19 @@ if ($LASTEXITCODE -eq 0) {
         Write-Warning "     Name: AZURE_AD_TENANT_ID"
         Write-Warning "     Value: $kvTenantRef"
         Write-Warning "  4. Click 'OK' and 'Save'"
+        Write-Info ""
+        Write-Info "  See: pa-deployment/scripts/set-keyvault-refs-portal.md for detailed steps"
         exit 1
     }
 }
 
 Write-Info "Setting AZURE_AD_CLIENT_ID..."
 $ErrorActionPreference = 'SilentlyContinue'
-$settingValue = "AZURE_AD_CLIENT_ID=$kvClientIdRef"
 $result = az functionapp config appsettings set `
     --name "$FUNCTION_APP_NAME" `
     --resource-group "$RESOURCE_GROUP" `
-    --settings $settingValue `
-    --output none 2>&1
+    --set "AZURE_AD_CLIENT_ID=$kvClientIdRef" `
+    2>&1
 $ErrorActionPreference = 'Stop'
 
 if ($LASTEXITCODE -eq 0) {
@@ -144,12 +140,11 @@ if ($LASTEXITCODE -eq 0) {
 
 Write-Info "Setting AZURE_AD_CLIENT_SECRET..."
 $ErrorActionPreference = 'SilentlyContinue'
-$settingValue = "AZURE_AD_CLIENT_SECRET=$kvClientSecretRef"
 $result = az functionapp config appsettings set `
     --name "$FUNCTION_APP_NAME" `
     --resource-group "$RESOURCE_GROUP" `
-    --settings $settingValue `
-    --output none 2>&1
+    --set "AZURE_AD_CLIENT_SECRET=$kvClientSecretRef" `
+    2>&1
 $ErrorActionPreference = 'Stop'
 
 if ($LASTEXITCODE -eq 0) {
