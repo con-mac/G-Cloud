@@ -244,17 +244,38 @@ if ([string]::IsNullOrWhiteSpace($APP_ID)) {
     if ($needsUpdate) {
         Write-Info "Updating redirect URIs to use base URL for SPA redirect flow..."
         Write-Info "Adding: $WEB_APP_URL (and localhost for development)"
-        # Update both web and SPA redirect URIs
+        # Update web redirect URIs
         az ad app update --id $APP_ID --web-redirect-uris "${WEB_APP_URL}" "http://localhost:3000" "http://localhost:5173" --output none 2>&1 | Out-Null
-        # Use --set for SPA redirect URIs (works across Azure CLI versions)
-        az ad app update --id $APP_ID --set "spa.redirectUris=['${WEB_APP_URL}','http://localhost:3000','http://localhost:5173']" --output none 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "Redirect URIs updated for SPA redirect flow"
+        
+        # Use Graph API to set SPA redirect URIs (more reliable - creates platform if needed)
+        $tenantId = az account show --query tenantId -o tsv
+        $token = az account get-access-token --resource "https://graph.microsoft.com" --query accessToken -o tsv
+        
+        if ($tenantId -and $token) {
+            $appUri = "https://graph.microsoft.com/v1.0/applications(appId='$APP_ID')"
+            $headers = @{
+                "Authorization" = "Bearer $token"
+                "Content-Type" = "application/json"
+            }
+            
+            $body = @{
+                spa = @{
+                    redirectUris = @($WEB_APP_URL, "http://localhost:3000", "http://localhost:5173")
+                }
+            } | ConvertTo-Json -Depth 10
+            
+            try {
+                Invoke-RestMethod -Uri $appUri -Method Patch -Headers $headers -Body $body | Out-Null
+                Write-Success "Redirect URIs updated for SPA redirect flow via Graph API"
+            } catch {
+                Write-Warning "Could not update SPA redirect URIs via Graph API: $_"
+                Write-Warning "Please update manually in Azure Portal:"
+                Write-Warning "  App Registrations -> $APP_REGISTRATION_NAME -> Authentication"
+                Write-Warning "  Add platform: Single-page application"
+                Write-Warning "  Add redirect URI: $WEB_APP_URL"
+            }
         } else {
-            Write-Warning "Could not update redirect URIs automatically. Please update manually in Azure Portal:"
-            Write-Warning "  App Registrations -> $APP_REGISTRATION_NAME -> Authentication"
-            Write-Warning "  Platform: Single-page application"
-            Write-Warning "  Add redirect URI: $WEB_APP_URL"
+            Write-Warning "Could not get Graph API token. Please update manually in Azure Portal"
         }
     } else {
         # Ensure SPA platform is configured even if redirect URI already exists
