@@ -64,11 +64,29 @@ function Test-Prerequisites {
 # Search for existing resources
 function Search-ResourceGroups {
     try {
-        $rgs = az group list --query "[].name" -o tsv 2>&1
-        if ($LASTEXITCODE -eq 0 -and $rgs) {
-            return $rgs -split "`n" | Where-Object { $_ -ne "" }
+        $ErrorActionPreference = 'SilentlyContinue'
+        $rgsJson = az group list --query "[].name" -o json 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsJson)) {
+            try {
+                $rgsArray = $rgsJson | ConvertFrom-Json
+                if ($rgsArray -and $rgsArray.Count -gt 0) {
+                    return $rgsArray | Where-Object { $_ -and $_.Trim() -ne "" } | ForEach-Object { $_.Trim() }
+                }
+            } catch {
+                # Fallback to TSV parsing if JSON fails
+                $ErrorActionPreference = 'SilentlyContinue'
+                $rgsTsv = az group list --query "[].name" -o tsv 2>&1
+                $ErrorActionPreference = 'Stop'
+                if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsTsv)) {
+                    return ($rgsTsv -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne "" } | ForEach-Object { $_.Trim() })
+                }
+            }
         }
-    } catch {}
+    } catch {
+        Write-Warning "Could not search for resource groups: $_"
+    }
     return @()
 }
 
@@ -344,16 +362,20 @@ function Start-Deployment {
     # Search for existing resource groups
     $existingRGs = Search-ResourceGroups
     
-    if ($existingRGs.Count -gt 0) {
+    # Filter out invalid entries (single characters, empty, etc.)
+    $validRGs = $existingRGs | Where-Object { $_ -and $_.Trim().Length -gt 1 }
+    
+    if ($validRGs.Count -gt 0) {
         Write-Host "Existing resource groups found:"
-        for ($i = 0; $i -lt $existingRGs.Count; $i++) {
-            Write-Host "  [$i] $($existingRGs[$i])"
+        for ($i = 0; $i -lt $validRGs.Count; $i++) {
+            $rgName = $validRGs[$i]
+            Write-Host "  [$i] $rgName"
         }
         Write-Host "  [n] Create new"
-        $rgChoice = Read-Host "Select option (0-$($existingRGs.Count - 1)) or 'n' for new"
+        $rgChoice = Read-Host "Select option (0-$($validRGs.Count - 1)) or 'n' for new"
         
-        if ($rgChoice -match '^\d+$' -and [int]$rgChoice -lt $existingRGs.Count) {
-            $RESOURCE_GROUP = $existingRGs[[int]$rgChoice]
+        if ($rgChoice -match '^\d+$' -and [int]$rgChoice -lt $validRGs.Count) {
+            $RESOURCE_GROUP = $validRGs[[int]$rgChoice]
             Write-Success "Using existing resource group: $RESOURCE_GROUP"
             # Get location from existing RG
             $LOCATION = az group show --name $RESOURCE_GROUP --query location -o tsv
