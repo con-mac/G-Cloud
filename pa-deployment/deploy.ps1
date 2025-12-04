@@ -1165,54 +1165,9 @@ function Start-Deployment {
             exit 1
         }
         
-        # Build config content line by line to avoid here-string issues
-        $configLines = @(
-            "RESOURCE_GROUP=$RESOURCE_GROUP",
-            "FUNCTION_APP_NAME=$FUNCTION_APP_NAME",
-            "WEB_APP_NAME=$WEB_APP_NAME",
-            "KEY_VAULT_NAME=$KEY_VAULT_NAME",
-            "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL",
-            "SHAREPOINT_SITE_ID=$($SHAREPOINT_SITE_ID -replace '\?.*$', '')",
-            "APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME",
-            "ADMIN_GROUP_ID=$ADMIN_GROUP_ID",
-            "EMPLOYEE_GROUP_ID=$EMPLOYEE_GROUP_ID",
-            "CUSTOM_DOMAIN=$CUSTOM_DOMAIN",
-            "LOCATION=$LOCATION",
-            "SUBSCRIPTION_ID=$SUBSCRIPTION_ID",
-            "STORAGE_ACCOUNT_CHOICE=$STORAGE_CHOICE_TYPE",
-            "STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME",
-            "ACR_NAME=$ACR_NAME",
-            "IMAGE_TAG=$IMAGE_TAG",
-            "PRIVATE_DNS_CHOICE=$PRIVATE_DNS_CHOICE_TYPE",
-            "PRIVATE_DNS_ZONE_NAME=$PRIVATE_DNS_ZONE_NAME",
-            "APP_INSIGHTS_CHOICE=$APP_INSIGHTS_CHOICE_TYPE",
-            "APP_INSIGHTS_NAME=$APP_INSIGHTS_NAME",
-            "CONFIGURE_PRIVATE_ENDPOINTS=$CONFIGURE_PRIVATE_ENDPOINTS",
-            "VNET_NAME=$VNET_NAME",
-            "SUBNET_NAME=$SUBNET_NAME"
-        )
-        
         # Ensure config directory exists
         if (-not (Test-Path "config")) {
             New-Item -ItemType Directory -Path "config" | Out-Null
-        }
-        
-        # Write config file
-        $configLines | Set-Content -Path "config\deployment-config.env" -Encoding UTF8
-        
-        # Verify the file was written correctly
-        Write-Info "Verifying config file..."
-        $verifyContent = Get-Content "config\deployment-config.env" -Encoding UTF8
-        $verifyFunctionApp = $verifyContent | Where-Object { $_ -match '^FUNCTION_APP_NAME=(.+)$' }
-        if ($verifyFunctionApp) {
-            $verifyValue = ($verifyFunctionApp -split '=')[1]
-            if ($verifyValue -ne $FUNCTION_APP_NAME) {
-                Write-Error "Config file verification failed! FUNCTION_APP_NAME mismatch:"
-                Write-Host "  Expected: $FUNCTION_APP_NAME" -ForegroundColor Red
-                Write-Host "  Found: $verifyValue" -ForegroundColor Red
-                Write-Error "Please report this issue."
-                exit 1
-            }
         }
         
         # Generate random suffix for globally unique names (BEFORE saving config)
