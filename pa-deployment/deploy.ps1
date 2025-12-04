@@ -1170,6 +1170,106 @@ function Start-Deployment {
         
         Write-Success "Configuration saved and verified: config\deployment-config.env"
         
+        # Register resource providers (required for new subscriptions)
+        Write-Info "Registering Azure resource providers (required for new subscriptions)..."
+        Write-Info "This ensures all required services are available..."
+        & ".\scripts\register-resource-providers.ps1"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Resource provider registration had issues, but continuing..."
+            Write-Warning "If resource creation fails, you may need to register providers manually"
+        }
+        
+        # Generate random suffix for globally unique names
+        Write-Info "Generating random suffix for globally unique resource names..."
+        $randomSuffix = -join ((48..57) + (97..122) | Get-Random -Count 6 | ForEach-Object {[char]$_})
+        Write-Info "Random suffix: $randomSuffix"
+        
+        # Update globally unique names with random suffix
+        # Storage Account (must be lowercase, alphanumeric, 3-24 chars)
+        if (-not [string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
+            $baseStorageName = ($STORAGE_ACCOUNT_NAME -replace '[^a-z0-9]', '').ToLower()
+            $maxBaseLength = 18  # Leave room for 6-char suffix
+            if ($baseStorageName.Length -gt $maxBaseLength) {
+                $baseStorageName = $baseStorageName.Substring(0, $maxBaseLength)
+            }
+            $STORAGE_ACCOUNT_NAME = ($baseStorageName + $randomSuffix).ToLower()
+            Write-Info "Storage Account name (with suffix): $STORAGE_ACCOUNT_NAME"
+        }
+        
+        # Key Vault (globally unique, 3-24 chars)
+        if (-not [string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
+            $baseKvName = $KEY_VAULT_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 18  # Leave room for 6-char suffix
+            if ($baseKvName.Length -gt $maxBaseLength) {
+                $baseKvName = $baseKvName.Substring(0, $maxBaseLength)
+            }
+            $KEY_VAULT_NAME = $baseKvName + "-" + $randomSuffix
+            Write-Info "Key Vault name (with suffix): $KEY_VAULT_NAME"
+        }
+        
+        # Function App (globally unique, 2-60 chars)
+        if (-not [string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
+            $baseFuncName = $FUNCTION_APP_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 54  # Leave room for 6-char suffix
+            if ($baseFuncName.Length -gt $maxBaseLength) {
+                $baseFuncName = $baseFuncName.Substring(0, $maxBaseLength)
+            }
+            $FUNCTION_APP_NAME = $baseFuncName + "-" + $randomSuffix
+            Write-Info "Function App name (with suffix): $FUNCTION_APP_NAME"
+        }
+        
+        # Web App (globally unique, 2-60 chars)
+        if (-not [string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
+            $baseWebName = $WEB_APP_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 54  # Leave room for 6-char suffix
+            if ($baseWebName.Length -gt $maxBaseLength) {
+                $baseWebName = $baseWebName.Substring(0, $maxBaseLength)
+            }
+            $WEB_APP_NAME = $baseWebName + "-" + $randomSuffix
+            Write-Info "Web App name (with suffix): $WEB_APP_NAME"
+        }
+        
+        # ACR (globally unique, 5-50 chars, lowercase, alphanumeric)
+        if (-not [string]::IsNullOrWhiteSpace($ACR_NAME)) {
+            $baseAcrName = ($ACR_NAME -replace '[^a-z0-9]', '').ToLower()
+            $maxBaseLength = 44  # Leave room for 6-char suffix
+            if ($baseAcrName.Length -gt $maxBaseLength) {
+                $baseAcrName = $baseAcrName.Substring(0, $maxBaseLength)
+            }
+            $ACR_NAME = ($baseAcrName + $randomSuffix).ToLower()
+            Write-Info "ACR name (with suffix): $ACR_NAME"
+        }
+        
+        # Update config file with actual names (including suffixes)
+        Write-Info "Updating config file with actual resource names..."
+        $configLines = @(
+            "RESOURCE_GROUP=$RESOURCE_GROUP",
+            "FUNCTION_APP_NAME=$FUNCTION_APP_NAME",
+            "WEB_APP_NAME=$WEB_APP_NAME",
+            "KEY_VAULT_NAME=$KEY_VAULT_NAME",
+            "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL",
+            "SHAREPOINT_SITE_ID=$($SHAREPOINT_SITE_ID -replace '\?.*$', '')",
+            "APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME",
+            "ADMIN_GROUP_ID=$ADMIN_GROUP_ID",
+            "EMPLOYEE_GROUP_ID=$EMPLOYEE_GROUP_ID",
+            "CUSTOM_DOMAIN=$CUSTOM_DOMAIN",
+            "LOCATION=$LOCATION",
+            "SUBSCRIPTION_ID=$SUBSCRIPTION_ID",
+            "STORAGE_ACCOUNT_CHOICE=$STORAGE_CHOICE_TYPE",
+            "STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME",
+            "ACR_NAME=$ACR_NAME",
+            "IMAGE_TAG=$IMAGE_TAG",
+            "PRIVATE_DNS_CHOICE=$PRIVATE_DNS_CHOICE_TYPE",
+            "PRIVATE_DNS_ZONE_NAME=$PRIVATE_DNS_ZONE_NAME",
+            "APP_INSIGHTS_CHOICE=$APP_INSIGHTS_CHOICE_TYPE",
+            "APP_INSIGHTS_NAME=$APP_INSIGHTS_NAME",
+            "CONFIGURE_PRIVATE_ENDPOINTS=$CONFIGURE_PRIVATE_ENDPOINTS",
+            "VNET_NAME=$VNET_NAME",
+            "SUBNET_NAME=$SUBNET_NAME"
+        )
+        $configLines | Set-Content -Path "config\deployment-config.env" -Encoding UTF8
+        Write-Success "Config file updated with actual resource names"
+        
         # Run deployment scripts
         Write-Info "Starting deployment..."
         & ".\scripts\setup-resources.ps1"

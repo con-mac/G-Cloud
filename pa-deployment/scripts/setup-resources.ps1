@@ -89,6 +89,32 @@ if ([string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_CHOICE) -or $STORAGE_ACCOUNT_C
     $storageExists = az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP" 2>&1
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
+        # Check if name is available globally (storage accounts must be globally unique)
+        Write-Info "Checking if storage account name is available globally..."
+        $ErrorActionPreference = 'SilentlyContinue'
+        $checkGlobal = az storage account check-name --name "$STORAGE_ACCOUNT_NAME" --query "nameAvailable" -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($checkGlobal -eq "false") {
+            Write-Error "Storage Account name '$STORAGE_ACCOUNT_NAME' is already taken globally."
+            Write-Error "Storage account names must be globally unique across all Azure subscriptions."
+            Write-Error "The deployment script should have added a random suffix. Please report this issue."
+            exit 1
+        }
+        
+        # Check if Microsoft.Storage provider is registered
+        Write-Info "Verifying Microsoft.Storage provider is registered..."
+        $ErrorActionPreference = 'SilentlyContinue'
+        $storageProvider = az provider show --namespace "Microsoft.Storage" --query "registrationState" -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($storageProvider -ne "Registered") {
+            Write-Warning "Microsoft.Storage provider is not registered. Registering now..."
+            az provider register --namespace "Microsoft.Storage" | Out-Null
+            Write-Info "Waiting for registration to complete (30 seconds)..."
+            Start-Sleep -Seconds 30
+        }
+        
         $ErrorActionPreference = 'SilentlyContinue'
         $createOutput = az storage account create `
             --name "$STORAGE_ACCOUNT_NAME" `
