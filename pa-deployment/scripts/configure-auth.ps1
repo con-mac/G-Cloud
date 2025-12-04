@@ -595,6 +595,13 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($identityResult))
     
     # Grant Key Vault access to Function App managed identity
     Write-Info "Granting Key Vault access to Function App managed identity..."
+    
+    # Get subscription ID if not in config
+    if ([string]::IsNullOrWhiteSpace($SUBSCRIPTION_ID)) {
+        $SUBSCRIPTION_ID = az account show --query id -o tsv
+    }
+    
+    # Build Key Vault scope
     $kvScope = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
     
     $ErrorActionPreference = 'SilentlyContinue'
@@ -606,6 +613,7 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($identityResult))
     $ErrorActionPreference = 'Stop'
     
     if ([string]::IsNullOrWhiteSpace($existingRole)) {
+        Write-Info "Creating role assignment for Key Vault access..."
         az role assignment create `
             --role "Key Vault Secrets User" `
             --assignee "$FUNCTION_APP_PRINCIPAL_ID" `
