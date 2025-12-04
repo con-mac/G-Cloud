@@ -1012,8 +1012,13 @@ function Start-Deployment {
     
     # Prompt for Storage Account
     Write-Info "Step 8: Storage Account Configuration"
-    $baseStorageName = (($FUNCTION_APP_NAME -replace '-', '') -replace '_', '').ToLower()
-    if ($baseStorageName.Length -gt 18) {  # Leave room for 6-char suffix
+    # Remove suffix from Function App name first (if it has one) to get base name
+    $funcBaseName = $FUNCTION_APP_NAME
+    if ($funcBaseName.EndsWith("-$randomSuffix")) {
+        $funcBaseName = $funcBaseName -replace "-$randomSuffix$", ""
+    }
+    $baseStorageName = (($funcBaseName -replace '-', '') -replace '_', '').ToLower()
+    if ($baseStorageName.Length -gt 18) {  # Leave room for "st" (2) + suffix (6) = 8 chars
         $baseStorageName = $baseStorageName.Substring(0, 18)
     }
     $defaultStorageName = ($baseStorageName + "st" + $randomSuffix).ToLower()
