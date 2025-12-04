@@ -64,28 +64,34 @@ function Test-Prerequisites {
 # Search for existing resources
 function Search-ResourceGroups {
     try {
-        # Use table output and parse it - most reliable
+        # Direct approach: Get full resource group objects and extract names
         $ErrorActionPreference = 'SilentlyContinue'
-        $rgsOutput = az group list --query "[].{Name:name}" -o table 2>&1
+        $rgsJson = az group list -o json 2>&1
         $ErrorActionPreference = 'Stop'
         
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsOutput)) {
-            $rgs = @()
-            $lines = $rgsOutput -split "`r?`n"
-            # Skip header line (usually "Name" or "---")
-            foreach ($line in $lines) {
-                $line = $line.Trim()
-                # Skip empty lines, header separators, and header text
-                if ($line -and $line -ne "Name" -and $line -notmatch "^[-]+$" -and $line.Length -gt 1) {
-                    $rgs += $line
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsJson)) {
+            try {
+                $rgsObjects = $rgsJson | ConvertFrom-Json
+                if ($rgsObjects -and $rgsObjects.Count -gt 0) {
+                    $rgs = @()
+                    foreach ($rg in $rgsObjects) {
+                        if ($rg -and $rg.name -and $rg.name.ToString().Trim().Length -gt 0) {
+                            $rgName = $rg.name.ToString().Trim()
+                            if ($rgName.Length -gt 1) {
+                                $rgs += $rgName
+                            }
+                        }
+                    }
+                    if ($rgs.Count -gt 0) {
+                        return $rgs
+                    }
                 }
-            }
-            if ($rgs.Count -gt 0) {
-                return $rgs
+            } catch {
+                # JSON parsing failed, try simpler approach
             }
         }
         
-        # Fallback: Try JSON
+        # Fallback: Direct name query with proper handling
         $ErrorActionPreference = 'SilentlyContinue'
         $rgsJson = az group list --query "[].name" -o json 2>&1
         $ErrorActionPreference = 'Stop'
@@ -93,25 +99,38 @@ function Search-ResourceGroups {
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsJson)) {
             try {
                 $rgsArray = $rgsJson | ConvertFrom-Json
-                if ($rgsArray -and $rgsArray.Count -gt 0) {
-                    $result = $rgsArray | Where-Object { $_ -and $_.ToString().Trim().Length -gt 1 } | ForEach-Object { $_.ToString().Trim() }
-                    if ($result.Count -gt 0) {
-                        return $result
+                if ($rgsArray) {
+                    $rgs = @()
+                    foreach ($item in $rgsArray) {
+                        $name = $item.ToString().Trim()
+                        if ($name -and $name.Length -gt 1) {
+                            $rgs += $name
+                        }
+                    }
+                    if ($rgs.Count -gt 0) {
+                        return $rgs
                     }
                 }
             } catch {
-                # JSON parsing failed, continue to TSV fallback
+                # Continue to TSV fallback
             }
         }
         
-        # Final fallback: TSV
+        # Final fallback: TSV with careful parsing
         $ErrorActionPreference = 'SilentlyContinue'
         $rgsTsv = az group list --query "[].name" -o tsv 2>&1
         $ErrorActionPreference = 'Stop'
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsTsv)) {
-            $result = ($rgsTsv -split "`r?`n" | Where-Object { $_ -and $_.Trim().Length -gt 1 } | ForEach-Object { $_.Trim() })
-            if ($result.Count -gt 0) {
-                return $result
+            $rgs = @()
+            $lines = $rgsTsv -split "`r?`n"
+            foreach ($line in $lines) {
+                $name = $line.Trim()
+                if ($name -and $name.Length -gt 1) {
+                    $rgs += $name
+                }
+            }
+            if ($rgs.Count -gt 0) {
+                return $rgs
             }
         }
     } catch {
