@@ -858,16 +858,18 @@ function Start-Deployment {
     $ADMIN_GROUP_ID = ""
     $ADMIN_GROUP_NAME = ""
     
-    if ($existingGroups.Count -gt 0) {
+    # Filter out invalid group names (single chars, null, etc.)
+    $validGroups = $existingGroups | Where-Object { $_ -and $_.Length -gt 1 }
+    if ($validGroups.Count -gt 0) {
         Write-Host "Existing security groups found:"
-        for ($i = 0; $i -lt $existingGroups.Count; $i++) {
-            Write-Host "  [$i] $($existingGroups[$i])"
+        for ($i = 0; $i -lt $validGroups.Count; $i++) {
+            Write-Host "  [$i] $($validGroups[$i])"
         }
         Write-Host "  [n] Create new"
-        $groupChoice = Read-Host "Select option (0-$($existingGroups.Count - 1)) or 'n' for new"
+        $groupChoice = Read-Host "Select option (0-$($validGroups.Count - 1)) or 'n' for new"
         
-        if ($groupChoice -match '^\d+$' -and [int]$groupChoice -lt $existingGroups.Count) {
-            $ADMIN_GROUP_NAME = $existingGroups[[int]$groupChoice]
+        if ($groupChoice -match '^\d+$' -and [int]$groupChoice -lt $validGroups.Count) {
+            $ADMIN_GROUP_NAME = $validGroups[[int]$groupChoice]
             Write-Info "Getting group ID for: $ADMIN_GROUP_NAME"
             $ErrorActionPreference = 'SilentlyContinue'
             $groupJson = az ad group list --display-name "$ADMIN_GROUP_NAME" --query "[0].{Id:id}" -o json 2>&1
@@ -937,16 +939,18 @@ function Start-Deployment {
             $existingEmployeeGroups = Search-SecurityGroups -Filter "gcloud"
         }
         
-        if ($existingEmployeeGroups.Count -gt 0) {
+        # Filter out invalid group names (single chars, null, etc.)
+        $validEmpGroups = $existingEmployeeGroups | Where-Object { $_ -and $_.Length -gt 1 }
+        if ($validEmpGroups.Count -gt 0) {
             Write-Host "Existing security groups found:"
-            for ($i = 0; $i -lt $existingEmployeeGroups.Count; $i++) {
-                Write-Host "  [$i] $($existingEmployeeGroups[$i])"
+            for ($i = 0; $i -lt $validEmpGroups.Count; $i++) {
+                Write-Host "  [$i] $($validEmpGroups[$i])"
             }
             Write-Host "  [n] Create new"
-            $empGroupChoice = Read-Host "Select option (0-$($existingEmployeeGroups.Count - 1)) or 'n' for new"
+            $empGroupChoice = Read-Host "Select option (0-$($validEmpGroups.Count - 1)) or 'n' for new"
             
-            if ($empGroupChoice -match '^\d+$' -and [int]$empGroupChoice -lt $existingEmployeeGroups.Count) {
-                $EMPLOYEE_GROUP_NAME = $existingEmployeeGroups[[int]$empGroupChoice]
+            if ($empGroupChoice -match '^\d+$' -and [int]$empGroupChoice -lt $validEmpGroups.Count) {
+                $EMPLOYEE_GROUP_NAME = $validEmpGroups[[int]$empGroupChoice]
                 Write-Info "Getting group ID for: $EMPLOYEE_GROUP_NAME"
                 $ErrorActionPreference = 'SilentlyContinue'
                 $empGroupJson = az ad group list --display-name "$EMPLOYEE_GROUP_NAME" --query "[0].{Id:id}" -o json 2>&1
