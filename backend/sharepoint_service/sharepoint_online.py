@@ -307,56 +307,83 @@ def create_folder(
     gcloud_version: str = "15"
 ) -> str:
     """
-    Create folder structure in SharePoint
+    Create folder structure in SharePoint, creating parent folders recursively if needed.
     Returns: Folder item ID
     """
     if not SHAREPOINT_SITE_ID:
         logger.error("SHAREPOINT_SITE_ID not configured")
         return ""
     
-    try:
-        # Parse folder path and create parent folders if needed
-        parts = folder_path.strip("/").split("/")
-        current_path = f"GCloud {gcloud_version}/PA Services"
+    def _ensure_folder_exists(full_path: str, parent_id: str = None) -> Optional[str]:
+        """
+        Recursively ensure a folder exists, creating parent folders if needed.
+        Returns: Folder item ID or None if failed
+        """
+        # Normalize path
+        path_parts = [p for p in full_path.strip("/").split("/") if p]
+        if not path_parts:
+            return parent_id  # Root folder
         
-        for part in parts:
-            if not part:
-                continue
-            current_path = f"{current_path}/{part}"
-            
-            # Check if folder exists
-            check_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/root:/{current_path}"
-            check_response = _make_graph_request("GET", check_endpoint)
-            
-            if check_response and check_response.status_code == 200:
-                # Folder exists, get its ID
-                folder_id = check_response.json().get("id", "")
+        # Check if folder exists
+        check_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/root:/{full_path}"
+        check_response = _make_graph_request("GET", check_endpoint)
+        
+        if check_response and check_response.status_code == 200:
+            # Folder exists
+            return check_response.json().get("id", "")
+        
+        # Folder doesn't exist, need to create it
+        # First, ensure parent exists
+        if not parent_id:
+            # Get parent path
+            parent_path = "/".join(path_parts[:-1])
+            if parent_path:
+                parent_id = _ensure_folder_exists(parent_path)
+                if not parent_id:
+                    logger.error(f"Failed to create parent folder: {parent_path}")
+                    return None
             else:
-                # Create folder
-                parent_path = "/".join(current_path.split("/")[:-1])
-                parent_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/root:/{parent_path}"
-                parent_response = _make_graph_request("GET", parent_endpoint)
-                
-                if parent_response and parent_response.status_code == 200:
-                    parent_id = parent_response.json().get("id", "")
-                    create_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/items/{parent_id}/children"
-                    create_data = {
-                        "name": part,
-                        "folder": {},
-                        "@microsoft.graph.conflictBehavior": "rename"
-                    }
-                    create_response = _make_graph_request("POST", create_endpoint, json=create_data)
-                    
-                    if create_response and create_response.status_code == 201:
-                        folder_id = create_response.json().get("id", "")
-                    else:
-                        logger.error(f"Failed to create folder {part}: {create_response.status_code if create_response else 'No response'}")
-                        return ""
+                # Root folder - use site drive root
+                root_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/root"
+                root_response = _make_graph_request("GET", root_endpoint)
+                if root_response and root_response.status_code == 200:
+                    parent_id = root_response.json().get("id", "")
                 else:
-                    logger.error(f"Failed to get parent folder: {parent_path}")
-                    return ""
+                    logger.error("Failed to get drive root")
+                    return None
         
-        return folder_id if 'folder_id' in locals() else ""
+        # Create the folder
+        folder_name = path_parts[-1]
+        create_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/items/{parent_id}/children"
+        create_data = {
+            "name": folder_name,
+            "folder": {},
+            "@microsoft.graph.conflictBehavior": "rename"
+        }
+        create_response = _make_graph_request("POST", create_endpoint, json=create_data)
+        
+        if create_response and create_response.status_code == 201:
+            folder_id = create_response.json().get("id", "")
+            logger.info(f"Created folder: {full_path} (ID: {folder_id})")
+            return folder_id
+        else:
+            error_msg = create_response.text if create_response else "No response"
+            logger.error(f"Failed to create folder {folder_name} at {full_path}: {create_response.status_code if create_response else 'No response'} - {error_msg}")
+            return None
+    
+    try:
+        # Construct full path: GCloud {version}/PA Services/{service_name}
+        full_path = f"GCloud {gcloud_version}/PA Services/{folder_path.strip('/')}"
+        
+        logger.info(f"Creating folder structure: {full_path}")
+        folder_id = _ensure_folder_exists(full_path)
+        
+        if folder_id:
+            logger.info(f"Successfully created/verified folder: {full_path} (ID: {folder_id})")
+            return folder_id
+        else:
+            logger.error(f"Failed to create folder: {full_path}")
+            return ""
         
     except Exception as e:
         logger.error(f"Error creating folder: {e}", exc_info=True)

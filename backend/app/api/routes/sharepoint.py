@@ -1,7 +1,7 @@
-"""SharePoint API routes for testing connectivity"""
+"""SharePoint API routes for testing connectivity and folder management"""
 
 from fastapi import APIRouter, HTTPException, Header
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel
 import os
 import logging
@@ -17,6 +17,23 @@ class SharePointTestResponse(BaseModel):
     site_id: str
     site_url: str
     message: str
+    error: Optional[str] = None
+
+
+class CreateFolderRequest(BaseModel):
+    """Request to create a folder in SharePoint"""
+    service_name: str
+    lot: Literal["2", "2a", "2b", "3"]
+    gcloud_version: Optional[Literal["14", "15"]] = "15"
+
+
+class CreateFolderResponse(BaseModel):
+    """Response after creating a folder"""
+    success: bool
+    folder_path: str
+    service_name: str
+    lot: str
+    gcloud_version: str
     error: Optional[str] = None
 
 
@@ -218,3 +235,85 @@ async def test_sharepoint_connectivity(
     except Exception as e:
         logger.error(f"Unexpected error in SharePoint test: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@router.post("/create-folder", response_model=CreateFolderResponse, tags=["SharePoint"])
+async def create_sharepoint_folder(
+    request: CreateFolderRequest,
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email")
+):
+    """
+    Create a folder structure in SharePoint for a service.
+    
+    Creates the folder path: GCloud {version}/PA Services/{service_name}
+    Parent folders are created automatically if they don't exist.
+    
+    Args:
+        request: CreateFolderRequest with service_name, lot, and gcloud_version
+        x_user_email: Optional user email from frontend (for logging)
+    
+    Returns:
+        CreateFolderResponse with success status and folder path
+    """
+    try:
+        # Import SharePoint service
+        try:
+            from sharepoint_service.sharepoint_online import create_folder
+        except ImportError:
+            logger.error("SharePoint Online service not available")
+            raise HTTPException(
+                status_code=500,
+                detail="SharePoint service not configured. Ensure USE_SHAREPOINT=true and SharePoint credentials are set."
+            )
+        
+        # Validate configuration
+        site_id = os.getenv("SHAREPOINT_SITE_ID", "")
+        if not site_id:
+            raise HTTPException(
+                status_code=500,
+                detail="SHAREPOINT_SITE_ID not configured"
+            )
+        
+        # Construct folder path: GCloud {version}/PA Services/{service_name}
+        gcloud_version = request.gcloud_version or "15"
+        folder_path = request.service_name
+        
+        logger.info(f"Creating SharePoint folder: {folder_path} (GCloud {gcloud_version}, Lot {request.lot})")
+        
+        # Create folder (this function handles creating parent folders if needed)
+        folder_id = create_folder(folder_path, gcloud_version)
+        
+        if not folder_id:
+            error_msg = f"Failed to create folder: {folder_path}"
+            logger.error(error_msg)
+            return CreateFolderResponse(
+                success=False,
+                folder_path=f"GCloud {gcloud_version}/PA Services/{folder_path}",
+                service_name=request.service_name,
+                lot=request.lot,
+                gcloud_version=gcloud_version,
+                error=error_msg
+            )
+        
+        # Construct full folder path for response
+        full_folder_path = f"GCloud {gcloud_version}/PA Services/{folder_path}"
+        
+        logger.info(f"Successfully created folder: {full_folder_path} (ID: {folder_id})")
+        
+        return CreateFolderResponse(
+            success=True,
+            folder_path=full_folder_path,
+            service_name=request.service_name,
+            lot=request.lot,
+            gcloud_version=gcloud_version,
+            error=None
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating SharePoint folder: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal error creating folder: {str(e)}"
+        )
