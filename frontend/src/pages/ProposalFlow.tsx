@@ -145,7 +145,6 @@ export default function ProposalFlow() {
     try {
       if (flowType === 'update' && selectedResult) {
         // Check if owner matches logged-in user (use Entra ID user profile)
-        const userEmail = user?.email || '';
         const userName = user?.name || '';
         const proposalOwner = selectedResult.owner || '';
         
@@ -232,7 +231,6 @@ export default function ProposalFlow() {
         }
       } else if (flowType === 'create') {
         // Get user name for last_edited_by (use Entra ID user profile)
-        const userEmail = user?.email || '';
         const userName = user?.name || '';
         
         // Create folder and metadata

@@ -64,28 +64,25 @@ function Test-Prerequisites {
 # Search for existing resources
 function Search-ResourceGroups {
     try {
-        # Use Invoke-Expression to properly capture output
         $ErrorActionPreference = 'SilentlyContinue'
-        $output = az group list --query "[].name" -o json 2>&1 | Out-String
+        $output = az group list --query "[].{Name:name}" -o json 2>&1
         $ErrorActionPreference = 'Stop'
         
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($output)) {
             try {
-                $rgsArray = $output | ConvertFrom-Json
-                if ($rgsArray) {
+                $rgsObjects = $output | ConvertFrom-Json
+                if ($rgsObjects) {
                     $rgs = @()
-                    # Handle both single item and array
-                    if ($rgsArray -is [System.Array]) {
-                        foreach ($item in $rgsArray) {
-                            $name = $item.ToString().Trim()
-                            if ($name -and $name.Length -gt 1 -and $name -ne "Name") {
-                                $rgs += $name
+                    # Handle both single object and array
+                    if ($rgsObjects -is [System.Array]) {
+                        foreach ($obj in $rgsObjects) {
+                            if ($obj.Name -and $obj.Name.Length -gt 1) {
+                                $rgs += $obj.Name
                             }
                         }
                     } else {
-                        $name = $rgsArray.ToString().Trim()
-                        if ($name -and $name.Length -gt 1 -and $name -ne "Name") {
-                            $rgs += $name
+                        if ($rgsObjects.Name -and $rgsObjects.Name.Length -gt 1) {
+                            $rgs += $rgsObjects.Name
                         }
                     }
                     if ($rgs.Count -gt 0) {
@@ -480,27 +477,47 @@ function Start-Deployment {
             $FUNCTION_APP_NAME = $existingFunctionApps[[int]$faChoice]
             Write-Success "Using existing Function App: $FUNCTION_APP_NAME"
         } else {
-            $FUNCTION_APP_NAME = Read-Host "Enter Function App name for backend API [pa-gcloud15-api]"
+            $defaultFuncName = "pa-gcloud15-api-$randomSuffix"
+            $FUNCTION_APP_NAME = Read-Host "Enter Function App name for backend API [$defaultFuncName]"
             if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
-                $FUNCTION_APP_NAME = "pa-gcloud15-api"
+                $FUNCTION_APP_NAME = $defaultFuncName
             }
             # Trim and validate
             $FUNCTION_APP_NAME = $FUNCTION_APP_NAME.Trim()
+            # Check if suffix already added, if not add it
+            if (-not $FUNCTION_APP_NAME.EndsWith($randomSuffix)) {
+                $baseFuncName = $FUNCTION_APP_NAME -replace '[^a-zA-Z0-9-]', ''
+                $maxBaseLength = 54
+                if ($baseFuncName.Length -gt $maxBaseLength) {
+                    $baseFuncName = $baseFuncName.Substring(0, $maxBaseLength)
+                }
+                $FUNCTION_APP_NAME = $baseFuncName + "-" + $randomSuffix
+            }
             if ($FUNCTION_APP_NAME.Length -lt 3) {
-                Write-Warning "Function App name too short, using default: pa-gcloud15-api"
-                $FUNCTION_APP_NAME = "pa-gcloud15-api"
+                Write-Warning "Function App name too short, using default: $defaultFuncName"
+                $FUNCTION_APP_NAME = $defaultFuncName
             }
         }
     } else {
-        $FUNCTION_APP_NAME = Read-Host "Enter Function App name for backend API [pa-gcloud15-api]"
+        $defaultFuncName = "pa-gcloud15-api-$randomSuffix"
+        $FUNCTION_APP_NAME = Read-Host "Enter Function App name for backend API [$defaultFuncName]"
         if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
-            $FUNCTION_APP_NAME = "pa-gcloud15-api"
+            $FUNCTION_APP_NAME = $defaultFuncName
         }
         # Trim and validate
         $FUNCTION_APP_NAME = $FUNCTION_APP_NAME.Trim()
+        # Check if suffix already added, if not add it
+        if (-not $FUNCTION_APP_NAME.EndsWith($randomSuffix)) {
+            $baseFuncName = $FUNCTION_APP_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 54
+            if ($baseFuncName.Length -gt $maxBaseLength) {
+                $baseFuncName = $baseFuncName.Substring(0, $maxBaseLength)
+            }
+            $FUNCTION_APP_NAME = $baseFuncName + "-" + $randomSuffix
+        }
         if ($FUNCTION_APP_NAME.Length -lt 3) {
-            Write-Warning "Function App name too short, using default: pa-gcloud15-api"
-            $FUNCTION_APP_NAME = "pa-gcloud15-api"
+            Write-Warning "Function App name too short, using default: $defaultFuncName"
+            $FUNCTION_APP_NAME = $defaultFuncName
         }
     }
     
