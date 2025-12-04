@@ -596,13 +596,20 @@ if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($identityResult))
     # Grant Key Vault access to Function App managed identity
     Write-Info "Granting Key Vault access to Function App managed identity..."
     
-    # Get subscription ID if not in config
-    if ([string]::IsNullOrWhiteSpace($SUBSCRIPTION_ID)) {
-        $SUBSCRIPTION_ID = az account show --query id -o tsv
-    }
+    # Get Key Vault resource ID (more reliable than building scope manually)
+    $ErrorActionPreference = 'SilentlyContinue'
+    $kvResourceId = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
     
-    # Build Key Vault scope
-    $kvScope = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($kvResourceId)) {
+        $kvScope = $kvResourceId
+    } else {
+        # Fallback: build scope manually
+        if ([string]::IsNullOrWhiteSpace($SUBSCRIPTION_ID)) {
+            $SUBSCRIPTION_ID = az account show --query id -o tsv
+        }
+        $kvScope = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME"
+    }
     
     $ErrorActionPreference = 'SilentlyContinue'
     $existingRole = az role assignment list `
