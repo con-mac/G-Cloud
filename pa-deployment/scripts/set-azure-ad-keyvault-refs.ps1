@@ -74,13 +74,15 @@ $kvClientIdRef = '@Microsoft.KeyVault(SecretUri=' + $kvUri + '/secrets/AzureADCl
 $kvClientSecretRef = '@Microsoft.KeyVault(SecretUri=' + $kvUri + '/secrets/AzureADClientSecret/)'
 
 # Set each setting individually
-# Use array format and pass to az command to avoid PowerShell parsing issues with parentheses
+# Use single quotes to prevent PowerShell from interpreting parentheses
 Write-Info "Setting AZURE_AD_TENANT_ID..."
 $ErrorActionPreference = 'SilentlyContinue'
+# Use single quotes around the entire setting value to prevent PowerShell parsing issues
+$settingValue = "AZURE_AD_TENANT_ID=$kvTenantRef"
 $result = az functionapp config appsettings set `
     --name "$FUNCTION_APP_NAME" `
     --resource-group "$RESOURCE_GROUP" `
-    --settings "AZURE_AD_TENANT_ID=$kvTenantRef" `
+    --settings $settingValue `
     --output none 2>&1
 $ErrorActionPreference = 'Stop'
 
@@ -89,37 +91,45 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Error "  ✗ Failed to set AZURE_AD_TENANT_ID"
     Write-Error "  Error: $result"
-    Write-Info "  Attempting with escaped parentheses..."
+    Write-Info "  Attempting with JSON format..."
     
-    # Escape parentheses for PowerShell
-    $escapedRef = $kvTenantRef -replace '\(', '`(' -replace '\)', '`)'
+    # Try using JSON format which handles special characters better
+    $jsonSettings = @{
+        AZURE_AD_TENANT_ID = $kvTenantRef
+    } | ConvertTo-Json -Compress
+    
     $ErrorActionPreference = 'SilentlyContinue'
     $result2 = az functionapp config appsettings set `
         --name "$FUNCTION_APP_NAME" `
         --resource-group "$RESOURCE_GROUP" `
-        --settings "AZURE_AD_TENANT_ID=$escapedRef" `
+        --settings $jsonSettings `
         --output none 2>&1
     $ErrorActionPreference = 'Stop'
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "  ✓ AZURE_AD_TENANT_ID set (with escaping)"
+        Write-Success "  ✓ AZURE_AD_TENANT_ID set (with JSON format)"
     } else {
         Write-Error "  ✗ Both methods failed"
         Write-Error "  Last error: $result2"
         Write-Info ""
-        Write-Warning "  Manual step required:"
-        Write-Warning "  Run this command manually:"
-        Write-Warning "  az functionapp config appsettings set --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --settings 'AZURE_AD_TENANT_ID=$kvTenantRef'"
+        Write-Warning "  Manual step required - use Azure Portal:"
+        Write-Warning "  1. Go to: https://portal.azure.com"
+        Write-Warning "  2. Function App → $FUNCTION_APP_NAME → Configuration"
+        Write-Warning "  3. Add new application setting:"
+        Write-Warning "     Name: AZURE_AD_TENANT_ID"
+        Write-Warning "     Value: $kvTenantRef"
+        Write-Warning "  4. Click 'OK' and 'Save'"
         exit 1
     }
 }
 
 Write-Info "Setting AZURE_AD_CLIENT_ID..."
 $ErrorActionPreference = 'SilentlyContinue'
+$settingValue = "AZURE_AD_CLIENT_ID=$kvClientIdRef"
 $result = az functionapp config appsettings set `
     --name "$FUNCTION_APP_NAME" `
     --resource-group "$RESOURCE_GROUP" `
-    --settings "AZURE_AD_CLIENT_ID=$kvClientIdRef" `
+    --settings $settingValue `
     --output none 2>&1
 $ErrorActionPreference = 'Stop'
 
@@ -128,34 +138,17 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Error "  ✗ Failed to set AZURE_AD_CLIENT_ID"
     Write-Error "  Error: $result"
-    Write-Info "  Attempting with escaped parentheses..."
-    
-    $escapedRef = $kvClientIdRef -replace '\(', '`(' -replace '\)', '`)'
-    $ErrorActionPreference = 'SilentlyContinue'
-    $result2 = az functionapp config appsettings set `
-        --name "$FUNCTION_APP_NAME" `
-        --resource-group "$RESOURCE_GROUP" `
-        --settings "AZURE_AD_CLIENT_ID=$escapedRef" `
-        --output none 2>&1
-    $ErrorActionPreference = 'Stop'
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "  ✓ AZURE_AD_CLIENT_ID set (with escaping)"
-    } else {
-        Write-Error "  ✗ Both methods failed"
-        Write-Error "  Last error: $result2"
-        Write-Warning "  Manual step required:"
-        Write-Warning "  az functionapp config appsettings set --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --settings 'AZURE_AD_CLIENT_ID=$kvClientIdRef'"
-        exit 1
-    }
+    Write-Warning "  Please set manually in Azure Portal (see instructions above)"
+    exit 1
 }
 
 Write-Info "Setting AZURE_AD_CLIENT_SECRET..."
 $ErrorActionPreference = 'SilentlyContinue'
+$settingValue = "AZURE_AD_CLIENT_SECRET=$kvClientSecretRef"
 $result = az functionapp config appsettings set `
     --name "$FUNCTION_APP_NAME" `
     --resource-group "$RESOURCE_GROUP" `
-    --settings "AZURE_AD_CLIENT_SECRET=$kvClientSecretRef" `
+    --settings $settingValue `
     --output none 2>&1
 $ErrorActionPreference = 'Stop'
 
@@ -164,26 +157,8 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Error "  ✗ Failed to set AZURE_AD_CLIENT_SECRET"
     Write-Error "  Error: $result"
-    Write-Info "  Attempting with escaped parentheses..."
-    
-    $escapedRef = $kvClientSecretRef -replace '\(', '`(' -replace '\)', '`)'
-    $ErrorActionPreference = 'SilentlyContinue'
-    $result2 = az functionapp config appsettings set `
-        --name "$FUNCTION_APP_NAME" `
-        --resource-group "$RESOURCE_GROUP" `
-        --settings "AZURE_AD_CLIENT_SECRET=$escapedRef" `
-        --output none 2>&1
-    $ErrorActionPreference = 'Stop'
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Success "  ✓ AZURE_AD_CLIENT_SECRET set (with escaping)"
-    } else {
-        Write-Error "  ✗ Both methods failed"
-        Write-Error "  Last error: $result2"
-        Write-Warning "  Manual step required:"
-        Write-Warning "  az functionapp config appsettings set --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --settings 'AZURE_AD_CLIENT_SECRET=$kvClientSecretRef'"
-        exit 1
-    }
+    Write-Warning "  Please set manually in Azure Portal (see instructions above)"
+    exit 1
 }
 
 Write-Info ""
