@@ -396,6 +396,14 @@ if ($buildMethod -eq "2") {
         $redirectUri = "https://${WEB_APP_NAME}.azurewebsites.net"
         $adminGroupId = $config.ADMIN_GROUP_ID
         
+        # Get Function App URL for API configuration
+        $FUNCTION_APP_NAME = $config.FUNCTION_APP_NAME
+        if ([string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
+            Write-Error "FUNCTION_APP_NAME not found in config"
+            exit 1
+        }
+        $apiBaseUrl = "https://${FUNCTION_APP_NAME}.azurewebsites.net"
+        
         Write-Info "SSO Configuration:"
         Write-Info "  Tenant ID: $($tenantId.Substring(0,8))..."
         if (-not [string]::IsNullOrWhiteSpace($clientId)) {
@@ -404,6 +412,7 @@ if ($buildMethod -eq "2") {
             Write-Warning "  Client ID: Not found (SSO may not work until App Registration is configured)"
         }
         Write-Info "  Redirect URI: $redirectUri"
+        Write-Info "  API Base URL: $apiBaseUrl"
         if ($adminGroupId) {
             Write-Info "  Admin Group ID: $($adminGroupId.Substring(0,8))..."
         }
@@ -412,7 +421,8 @@ if ($buildMethod -eq "2") {
         $buildArgs = @(
             "--build-arg", "VITE_AZURE_AD_TENANT_ID=$tenantId",
             "--build-arg", "VITE_AZURE_AD_CLIENT_ID=$clientId",
-            "--build-arg", "VITE_AZURE_AD_REDIRECT_URI=$redirectUri"
+            "--build-arg", "VITE_AZURE_AD_REDIRECT_URI=$redirectUri",
+            "--build-arg", "VITE_API_BASE_URL=$apiBaseUrl"
         )
         
         if (-not [string]::IsNullOrWhiteSpace($adminGroupId)) {
