@@ -342,12 +342,43 @@ if ($LASTEXITCODE -ne 0) {
     $planExists = az appservice plan show --name "$APP_SERVICE_PLAN" --resource-group "$RESOURCE_GROUP" 2>&1
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -ne 0) {
-        az appservice plan create `
+        Write-Info "Creating App Service Plan: $APP_SERVICE_PLAN"
+        Write-Info "SKU: B1 (Basic) - Location: $LOCATION"
+        
+        # Try to create the plan
+        $ErrorActionPreference = 'SilentlyContinue'
+        $planResult = az appservice plan create `
             --name "$APP_SERVICE_PLAN" `
             --resource-group "$RESOURCE_GROUP" `
             --location "$LOCATION" `
             --sku B1 `
-            --is-linux | Out-Null
+            --is-linux 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -ne 0) {
+            # Check if it's a capacity issue
+            if ($planResult -match "No available instances" -or $planResult -match "capacity") {
+                Write-Warning "App Service Plan capacity issue in region: $LOCATION"
+                Write-Warning "This region may be temporarily at capacity for B1 SKU"
+                Write-Info ""
+                Write-Info "SOLUTIONS:"
+                Write-Host "  1. Try a different region (eastus, westeurope, northeurope)" -ForegroundColor Yellow
+                Write-Host "  2. Create the plan manually in a different region:" -ForegroundColor Yellow
+                Write-Host "     az appservice plan create --name `"$APP_SERVICE_PLAN`" --resource-group `"$RESOURCE_GROUP`" --location eastus --sku B1 --is-linux" -ForegroundColor White
+                Write-Host "  3. Wait 10-15 minutes and retry (Azure is scaling capacity)" -ForegroundColor Yellow
+                Write-Host "  4. Use a different SKU (F1 for free tier, or S1 for more capacity)" -ForegroundColor Yellow
+                Write-Info ""
+                Write-Error "Cannot proceed without App Service Plan. Please create it manually or try a different region."
+                exit 1
+            } else {
+                Write-Error "Failed to create App Service Plan: $planResult"
+                exit 1
+            }
+        } else {
+            Write-Success "App Service Plan created: $APP_SERVICE_PLAN"
+        }
+    } else {
+        Write-Success "Using existing App Service Plan: $APP_SERVICE_PLAN"
     }
     
     # Create Web App with a basic runtime first (required by Azure)
