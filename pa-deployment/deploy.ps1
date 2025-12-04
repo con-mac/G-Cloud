@@ -599,27 +599,55 @@ function Start-Deployment {
             $KEY_VAULT_NAME = $existingKeyVaults[[int]$kvChoice]
             Write-Success "Using existing Key Vault: $KEY_VAULT_NAME"
         } else {
-            $KEY_VAULT_NAME = Read-Host "Enter Key Vault name [pa-gcloud15-kv]"
+            $defaultKvName = "pa-gcloud15-kv-$randomSuffix"
+            $KEY_VAULT_NAME = Read-Host "Enter Key Vault name [$defaultKvName]"
             if ([string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
-                $KEY_VAULT_NAME = "pa-gcloud15-kv"
+                $KEY_VAULT_NAME = $defaultKvName
             }
             # Trim and validate
             $KEY_VAULT_NAME = $KEY_VAULT_NAME.Trim()
+            # Check if suffix already added, if not add it
+            if (-not $KEY_VAULT_NAME.EndsWith($randomSuffix)) {
+                $baseKvName = $KEY_VAULT_NAME -replace '[^a-zA-Z0-9-]', ''
+                $maxBaseLength = 17  # Key Vault max is 24, suffix is 7 chars (including hyphen)
+                if ($baseKvName.Length -gt $maxBaseLength) {
+                    $baseKvName = $baseKvName.Substring(0, $maxBaseLength)
+                }
+                $KEY_VAULT_NAME = $baseKvName + "-" + $randomSuffix
+            }
             if ($KEY_VAULT_NAME.Length -lt 3) {
-                Write-Warning "Key Vault name too short, using default: pa-gcloud15-kv"
-                $KEY_VAULT_NAME = "pa-gcloud15-kv"
+                Write-Warning "Key Vault name too short, using default: $defaultKvName"
+                $KEY_VAULT_NAME = $defaultKvName
+            }
+            if ($KEY_VAULT_NAME.Length -gt 24) {
+                # Truncate if too long
+                $KEY_VAULT_NAME = $KEY_VAULT_NAME.Substring(0, 17) + "-" + $randomSuffix
             }
         }
     } else {
-        $KEY_VAULT_NAME = Read-Host "Enter Key Vault name [pa-gcloud15-kv]"
+        $defaultKvName = "pa-gcloud15-kv-$randomSuffix"
+        $KEY_VAULT_NAME = Read-Host "Enter Key Vault name [$defaultKvName]"
         if ([string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
-            $KEY_VAULT_NAME = "pa-gcloud15-kv"
+            $KEY_VAULT_NAME = $defaultKvName
         }
         # Trim and validate
         $KEY_VAULT_NAME = $KEY_VAULT_NAME.Trim()
+        # Check if suffix already added, if not add it
+        if (-not $KEY_VAULT_NAME.EndsWith($randomSuffix)) {
+            $baseKvName = $KEY_VAULT_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 17  # Key Vault max is 24, suffix is 7 chars (including hyphen)
+            if ($baseKvName.Length -gt $maxBaseLength) {
+                $baseKvName = $baseKvName.Substring(0, $maxBaseLength)
+            }
+            $KEY_VAULT_NAME = $baseKvName + "-" + $randomSuffix
+        }
         if ($KEY_VAULT_NAME.Length -lt 3) {
-            Write-Warning "Key Vault name too short, using default: pa-gcloud15-kv"
-            $KEY_VAULT_NAME = "pa-gcloud15-kv"
+            Write-Warning "Key Vault name too short, using default: $defaultKvName"
+            $KEY_VAULT_NAME = $defaultKvName
+        }
+        if ($KEY_VAULT_NAME.Length -gt 24) {
+            # Truncate if too long
+            $KEY_VAULT_NAME = $KEY_VAULT_NAME.Substring(0, 17) + "-" + $randomSuffix
         }
     }
     
