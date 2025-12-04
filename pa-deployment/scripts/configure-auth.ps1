@@ -355,9 +355,28 @@ try {
     $ErrorActionPreference = 'SilentlyContinue'
     $null = $Error.Clear()
     
-    # Run command and capture output - suppress errors to prevent JSON parsing
-    $secretOutput = & $azPath ad app credential reset --id $APP_ID --output json 2>&1 | Out-String
+    # Run command and capture ALL output (stdout + stderr) - warnings may be in stderr
+    # Use 2>&1 to merge stderr into stdout, then filter out warnings
+    $rawOutput = & $azPath ad app credential reset --id $APP_ID --output json 2>&1
     $secretExitCode = $LASTEXITCODE
+    
+    # Convert to string and filter out warning lines (lines starting with "WARNING:")
+    $secretOutput = ($rawOutput | Out-String)
+    
+    # Remove warning lines that might interfere
+    $lines = $secretOutput -split "`r?`n"
+    $jsonLines = @()
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        # Skip warning lines and empty lines
+        if ($trimmed -and -not $trimmed.StartsWith("WARNING:") -and -not $trimmed.StartsWith("Note:")) {
+            $jsonLines += $line
+        } elseif ($trimmed.StartsWith("WARNING:") -or $trimmed.StartsWith("Note:")) {
+            # Log warnings but don't include in JSON
+            Write-Info "Azure CLI warning (ignored): $trimmed"
+        }
+    }
+    $secretOutput = $jsonLines -join "`n"
     
     # Trim the output
     if (-not [string]::IsNullOrWhiteSpace($secretOutput)) {
