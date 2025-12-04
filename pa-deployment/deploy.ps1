@@ -64,6 +64,28 @@ function Test-Prerequisites {
 # Search for existing resources
 function Search-ResourceGroups {
     try {
+        # Use table output and parse it - most reliable
+        $ErrorActionPreference = 'SilentlyContinue'
+        $rgsOutput = az group list --query "[].{Name:name}" -o table 2>&1
+        $ErrorActionPreference = 'Stop'
+        
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsOutput)) {
+            $rgs = @()
+            $lines = $rgsOutput -split "`r?`n"
+            # Skip header line (usually "Name" or "---")
+            foreach ($line in $lines) {
+                $line = $line.Trim()
+                # Skip empty lines, header separators, and header text
+                if ($line -and $line -ne "Name" -and $line -notmatch "^[-]+$" -and $line.Length -gt 1) {
+                    $rgs += $line
+                }
+            }
+            if ($rgs.Count -gt 0) {
+                return $rgs
+            }
+        }
+        
+        # Fallback: Try JSON
         $ErrorActionPreference = 'SilentlyContinue'
         $rgsJson = az group list --query "[].name" -o json 2>&1
         $ErrorActionPreference = 'Stop'
@@ -72,16 +94,24 @@ function Search-ResourceGroups {
             try {
                 $rgsArray = $rgsJson | ConvertFrom-Json
                 if ($rgsArray -and $rgsArray.Count -gt 0) {
-                    return $rgsArray | Where-Object { $_ -and $_.Trim() -ne "" } | ForEach-Object { $_.Trim() }
+                    $result = $rgsArray | Where-Object { $_ -and $_.ToString().Trim().Length -gt 1 } | ForEach-Object { $_.ToString().Trim() }
+                    if ($result.Count -gt 0) {
+                        return $result
+                    }
                 }
             } catch {
-                # Fallback to TSV parsing if JSON fails
-                $ErrorActionPreference = 'SilentlyContinue'
-                $rgsTsv = az group list --query "[].name" -o tsv 2>&1
-                $ErrorActionPreference = 'Stop'
-                if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsTsv)) {
-                    return ($rgsTsv -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne "" } | ForEach-Object { $_.Trim() })
-                }
+                # JSON parsing failed, continue to TSV fallback
+            }
+        }
+        
+        # Final fallback: TSV
+        $ErrorActionPreference = 'SilentlyContinue'
+        $rgsTsv = az group list --query "[].name" -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsTsv)) {
+            $result = ($rgsTsv -split "`r?`n" | Where-Object { $_ -and $_.Trim().Length -gt 1 } | ForEach-Object { $_.Trim() })
+            if ($result.Count -gt 0) {
+                return $result
             }
         }
     } catch {
