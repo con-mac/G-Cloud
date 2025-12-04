@@ -381,6 +381,12 @@ function Start-Deployment {
     $SUBSCRIPTION_NAME = $subscription.name
     Write-Info "Using subscription: $SUBSCRIPTION_NAME ($SUBSCRIPTION_ID)"
     
+    # Generate random suffix EARLY (before any prompts) for globally unique names
+    Write-Info "Generating random suffix for globally unique resource names..."
+    $randomSuffix = -join ((48..57) + (97..122) | Get-Random -Count 6 | ForEach-Object {[char]$_})
+    Write-Info "Random suffix: $randomSuffix (will be added to all globally unique resource names)"
+    Write-Info ""
+    
     # Prompt for resource group
     Write-Info "Step 1: Resource Group Configuration"
     
@@ -514,21 +520,41 @@ function Start-Deployment {
             $WEB_APP_NAME = $existingWebApps[[int]$waChoice]
             Write-Success "Using existing Web App: $WEB_APP_NAME"
         } else {
-            $WEB_APP_NAME = Read-Host "Enter Static Web App name [pa-gcloud15-web]"
+            $defaultWebName = "pa-gcloud15-web-$randomSuffix"
+            $WEB_APP_NAME = Read-Host "Enter Static Web App name [$defaultWebName]"
             if ([string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
-                $WEB_APP_NAME = "pa-gcloud15-web"
+                $WEB_APP_NAME = $defaultWebName
             }
             # Trim and validate
             $WEB_APP_NAME = $WEB_APP_NAME.Trim()
+            # Check if suffix already added, if not add it
+            if (-not $WEB_APP_NAME.EndsWith($randomSuffix)) {
+                $baseWebName = $WEB_APP_NAME -replace '[^a-zA-Z0-9-]', ''
+                $maxBaseLength = 54
+                if ($baseWebName.Length -gt $maxBaseLength) {
+                    $baseWebName = $baseWebName.Substring(0, $maxBaseLength)
+                }
+                $WEB_APP_NAME = $baseWebName + "-" + $randomSuffix
+            }
             if ($WEB_APP_NAME.Length -lt 3) {
-                Write-Warning "Web App name too short, using default: pa-gcloud15-web"
-                $WEB_APP_NAME = "pa-gcloud15-web"
+                Write-Warning "Web App name too short, using default: $defaultWebName"
+                $WEB_APP_NAME = $defaultWebName
             }
         }
     } else {
-        $WEB_APP_NAME = Read-Host "Enter Static Web App name [pa-gcloud15-web]"
+        $defaultWebName = "pa-gcloud15-web-$randomSuffix"
+        $WEB_APP_NAME = Read-Host "Enter Static Web App name [$defaultWebName]"
         if ([string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
-            $WEB_APP_NAME = "pa-gcloud15-web"
+            $WEB_APP_NAME = $defaultWebName
+        }
+        # Check if suffix already added, if not add it
+        if (-not $WEB_APP_NAME.EndsWith($randomSuffix)) {
+            $baseWebName = $WEB_APP_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 54
+            if ($baseWebName.Length -gt $maxBaseLength) {
+                $baseWebName = $baseWebName.Substring(0, $maxBaseLength)
+            }
+            $WEB_APP_NAME = $baseWebName + "-" + $randomSuffix
         }
         # Trim and validate
         $WEB_APP_NAME = $WEB_APP_NAME.Trim()
@@ -937,14 +963,23 @@ function Start-Deployment {
     
     # Prompt for Storage Account
     Write-Info "Step 8: Storage Account Configuration"
-    $defaultStorageName = (($FUNCTION_APP_NAME -replace '-', '') -replace '_', '').ToLower()
-    if ($defaultStorageName.Length -gt 22) {
-        $defaultStorageName = $defaultStorageName.Substring(0, 22)
+    $baseStorageName = (($FUNCTION_APP_NAME -replace '-', '') -replace '_', '').ToLower()
+    if ($baseStorageName.Length -gt 18) {  # Leave room for 6-char suffix
+        $baseStorageName = $baseStorageName.Substring(0, 18)
     }
-    $defaultStorageName = $defaultStorageName + "st"
+    $defaultStorageName = ($baseStorageName + "st" + $randomSuffix).ToLower()
     $storageChoice = Get-ResourceChoice -ResourceType "Storage Account" -DefaultName $defaultStorageName -ResourceGroup $RESOURCE_GROUP -SearchFunction ${function:Search-StorageAccounts}
     $STORAGE_CHOICE_TYPE = ($storageChoice -split ':')[0]
     $STORAGE_ACCOUNT_NAME = ($storageChoice -split ':', 2)[1]
+    # Ensure storage account name has suffix (if user typed custom name)
+    if ($STORAGE_CHOICE_TYPE -eq "new" -and -not [string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME) -and -not $STORAGE_ACCOUNT_NAME.EndsWith($randomSuffix)) {
+        $baseStorageName = ($STORAGE_ACCOUNT_NAME -replace '[^a-z0-9]', '').ToLower()
+        $maxBaseLength = 18
+        if ($baseStorageName.Length -gt $maxBaseLength) {
+            $baseStorageName = $baseStorageName.Substring(0, $maxBaseLength)
+        }
+        $STORAGE_ACCOUNT_NAME = ($baseStorageName + $randomSuffix).ToLower()
+    }
     
     # Prompt for Azure Container Registry
     Write-Info "Step 8.5: Azure Container Registry Configuration"
@@ -973,14 +1008,24 @@ function Start-Deployment {
             Write-Success "Using existing Container Registry: $ACR_NAME"
         } else {
             # Create new
-            $ACR_NAME = Read-Host "Enter Container Registry name (5-50 alphanumeric, lowercase) [pa-gcloud15-acr]"
+            $baseAcrName = "pagcloud15acr"
+            $defaultAcrName = ($baseAcrName + $randomSuffix).ToLower()
+            $ACR_NAME = Read-Host "Enter Container Registry name (5-50 alphanumeric, lowercase) [$defaultAcrName]"
             if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
-                $ACR_NAME = "pa-gcloud15-acr"
+                $ACR_NAME = $defaultAcrName
             }
             # Validate ACR name: lowercase alphanumeric, 5-50 chars
             $ACR_NAME = $ACR_NAME.ToLower() -replace '[^a-z0-9]', ''
+            # Check if suffix already added, if not add it
+            if (-not $ACR_NAME.EndsWith($randomSuffix)) {
+                $maxBaseLength = 44
+                if ($ACR_NAME.Length -gt $maxBaseLength) {
+                    $ACR_NAME = $ACR_NAME.Substring(0, $maxBaseLength)
+                }
+                $ACR_NAME = ($ACR_NAME + $randomSuffix).ToLower()
+            }
             if ($ACR_NAME.Length -lt 5) {
-                $ACR_NAME = $ACR_NAME.PadRight(5, '0')
+                $ACR_NAME = ($ACR_NAME + "0").PadRight(5, '0')
             }
             if ($ACR_NAME.Length -gt 50) {
                 $ACR_NAME = $ACR_NAME.Substring(0, 50)
@@ -988,14 +1033,24 @@ function Start-Deployment {
         }
     } else {
         # No existing ACRs found, create new
-        $ACR_NAME = Read-Host "Enter Container Registry name (5-50 alphanumeric, lowercase) [pa-gcloud15-acr]"
+        $baseAcrName = "pagcloud15acr"
+        $defaultAcrName = ($baseAcrName + $randomSuffix).ToLower()
+        $ACR_NAME = Read-Host "Enter Container Registry name (5-50 alphanumeric, lowercase) [$defaultAcrName]"
         if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
-            $ACR_NAME = "pa-gcloud15-acr"
+            $ACR_NAME = $defaultAcrName
         }
         # Validate ACR name
         $ACR_NAME = $ACR_NAME.ToLower() -replace '[^a-z0-9]', ''
+        # Check if suffix already added, if not add it
+        if (-not $ACR_NAME.EndsWith($randomSuffix)) {
+            $maxBaseLength = 44
+            if ($ACR_NAME.Length -gt $maxBaseLength) {
+                $ACR_NAME = $ACR_NAME.Substring(0, $maxBaseLength)
+            }
+            $ACR_NAME = ($ACR_NAME + $randomSuffix).ToLower()
+        }
         if ($ACR_NAME.Length -lt 5) {
-            $ACR_NAME = $ACR_NAME.PadRight(5, '0')
+            $ACR_NAME = ($ACR_NAME + "0").PadRight(5, '0')
         }
         if ($ACR_NAME.Length -gt 50) {
             $ACR_NAME = $ACR_NAME.Substring(0, 50)
@@ -1170,69 +1225,9 @@ function Start-Deployment {
             New-Item -ItemType Directory -Path "config" | Out-Null
         }
         
-        # Generate random suffix for globally unique names (BEFORE saving config)
-        Write-Info "Generating random suffix for globally unique resource names..."
-        $randomSuffix = -join ((48..57) + (97..122) | Get-Random -Count 6 | ForEach-Object {[char]$_})
-        Write-Info "Random suffix: $randomSuffix"
-        
-        # Update globally unique names with random suffix
-        # Storage Account (must be lowercase, alphanumeric, 3-24 chars)
-        if (-not [string]::IsNullOrWhiteSpace($STORAGE_ACCOUNT_NAME)) {
-            $baseStorageName = ($STORAGE_ACCOUNT_NAME -replace '[^a-z0-9]', '').ToLower()
-            $maxBaseLength = 18  # Leave room for 6-char suffix
-            if ($baseStorageName.Length -gt $maxBaseLength) {
-                $baseStorageName = $baseStorageName.Substring(0, $maxBaseLength)
-            }
-            $STORAGE_ACCOUNT_NAME = ($baseStorageName + $randomSuffix).ToLower()
-            Write-Info "Storage Account name (with suffix): $STORAGE_ACCOUNT_NAME"
-        }
-        
-        # Key Vault (globally unique, 3-24 chars)
-        if (-not [string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
-            $baseKvName = $KEY_VAULT_NAME -replace '[^a-zA-Z0-9-]', ''
-            $maxBaseLength = 18  # Leave room for 6-char suffix
-            if ($baseKvName.Length -gt $maxBaseLength) {
-                $baseKvName = $baseKvName.Substring(0, $maxBaseLength)
-            }
-            $KEY_VAULT_NAME = $baseKvName + "-" + $randomSuffix
-            Write-Info "Key Vault name (with suffix): $KEY_VAULT_NAME"
-        }
-        
-        # Function App (globally unique, 2-60 chars)
-        if (-not [string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
-            $baseFuncName = $FUNCTION_APP_NAME -replace '[^a-zA-Z0-9-]', ''
-            $maxBaseLength = 54  # Leave room for 6-char suffix
-            if ($baseFuncName.Length -gt $maxBaseLength) {
-                $baseFuncName = $baseFuncName.Substring(0, $maxBaseLength)
-            }
-            $FUNCTION_APP_NAME = $baseFuncName + "-" + $randomSuffix
-            Write-Info "Function App name (with suffix): $FUNCTION_APP_NAME"
-        }
-        
-        # Web App (globally unique, 2-60 chars)
-        if (-not [string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
-            $baseWebName = $WEB_APP_NAME -replace '[^a-zA-Z0-9-]', ''
-            $maxBaseLength = 54  # Leave room for 6-char suffix
-            if ($baseWebName.Length -gt $maxBaseLength) {
-                $baseWebName = $baseWebName.Substring(0, $maxBaseLength)
-            }
-            $WEB_APP_NAME = $baseWebName + "-" + $randomSuffix
-            Write-Info "Web App name (with suffix): $WEB_APP_NAME"
-        }
-        
-        # ACR (globally unique, 5-50 chars, lowercase, alphanumeric)
-        if (-not [string]::IsNullOrWhiteSpace($ACR_NAME)) {
-            $baseAcrName = ($ACR_NAME -replace '[^a-z0-9]', '').ToLower()
-            $maxBaseLength = 44  # Leave room for 6-char suffix
-            if ($baseAcrName.Length -gt $maxBaseLength) {
-                $baseAcrName = $baseAcrName.Substring(0, $maxBaseLength)
-            }
-            $ACR_NAME = ($baseAcrName + $randomSuffix).ToLower()
-            Write-Info "ACR name (with suffix): $ACR_NAME"
-        }
-        
-        # Update config file with actual names (including suffixes)
-        Write-Info "Updating config file with actual resource names (including random suffixes)..."
+        # Final verification: ensure all globally unique names have suffix
+        # (Most should already have it from prompts, but double-check)
+        Write-Info "Verifying all globally unique names have random suffix..."
         $configLines = @(
             "RESOURCE_GROUP=$RESOURCE_GROUP",
             "FUNCTION_APP_NAME=$FUNCTION_APP_NAME",
@@ -1278,52 +1273,8 @@ function Start-Deployment {
             exit 1
         }
         
-        # Key Vault (globally unique, 3-24 chars)
-        if (-not [string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
-            $baseKvName = $KEY_VAULT_NAME -replace '[^a-zA-Z0-9-]', ''
-            $maxBaseLength = 18  # Leave room for 6-char suffix
-            if ($baseKvName.Length -gt $maxBaseLength) {
-                $baseKvName = $baseKvName.Substring(0, $maxBaseLength)
-            }
-            $KEY_VAULT_NAME = $baseKvName + "-" + $randomSuffix
-            Write-Info "Key Vault name (with suffix): $KEY_VAULT_NAME"
-        }
-        
-        # Function App (globally unique, 2-60 chars)
-        if (-not [string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
-            $baseFuncName = $FUNCTION_APP_NAME -replace '[^a-zA-Z0-9-]', ''
-            $maxBaseLength = 54  # Leave room for 6-char suffix
-            if ($baseFuncName.Length -gt $maxBaseLength) {
-                $baseFuncName = $baseFuncName.Substring(0, $maxBaseLength)
-            }
-            $FUNCTION_APP_NAME = $baseFuncName + "-" + $randomSuffix
-            Write-Info "Function App name (with suffix): $FUNCTION_APP_NAME"
-        }
-        
-        # Web App (globally unique, 2-60 chars)
-        if (-not [string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
-            $baseWebName = $WEB_APP_NAME -replace '[^a-zA-Z0-9-]', ''
-            $maxBaseLength = 54  # Leave room for 6-char suffix
-            if ($baseWebName.Length -gt $maxBaseLength) {
-                $baseWebName = $baseWebName.Substring(0, $maxBaseLength)
-            }
-            $WEB_APP_NAME = $baseWebName + "-" + $randomSuffix
-            Write-Info "Web App name (with suffix): $WEB_APP_NAME"
-        }
-        
-        # ACR (globally unique, 5-50 chars, lowercase, alphanumeric)
-        if (-not [string]::IsNullOrWhiteSpace($ACR_NAME)) {
-            $baseAcrName = ($ACR_NAME -replace '[^a-z0-9]', '').ToLower()
-            $maxBaseLength = 44  # Leave room for 6-char suffix
-            if ($baseAcrName.Length -gt $maxBaseLength) {
-                $baseAcrName = $baseAcrName.Substring(0, $maxBaseLength)
-            }
-            $ACR_NAME = ($baseAcrName + $randomSuffix).ToLower()
-            Write-Info "ACR name (with suffix): $ACR_NAME"
-        }
-        
-        # Update config file with actual names (including suffixes)
-        Write-Info "Updating config file with actual resource names..."
+        # All names should already have suffixes from prompts above
+        # This section removed - suffixes are added during prompts
         $configLines = @(
             "RESOURCE_GROUP=$RESOURCE_GROUP",
             "FUNCTION_APP_NAME=$FUNCTION_APP_NAME",
