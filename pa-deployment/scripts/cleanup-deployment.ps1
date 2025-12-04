@@ -226,6 +226,10 @@ Write-Info "      It may take 2-5 minutes to complete."
 Write-Info "      You can verify deletion in Azure Portal."
 Write-Info ""
 Write-Info "To verify cleanup:"
-Write-Host "  az group list --query \"[?name=='$RESOURCE_GROUP']\"" -ForegroundColor White
-Write-Host "  az ad app list --display-name \"$APP_REGISTRATION_NAME\"" -ForegroundColor White
+if ($RESOURCE_GROUP) {
+    Write-Host "  az group list --query `"[?name=='$RESOURCE_GROUP']`"" -ForegroundColor White
+}
+if ($APP_REGISTRATION_NAME) {
+    Write-Host "  az ad app list --display-name `"$APP_REGISTRATION_NAME`"" -ForegroundColor White
+}
 
