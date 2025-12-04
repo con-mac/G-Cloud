@@ -64,46 +64,27 @@ function Test-Prerequisites {
 # Search for existing resources
 function Search-ResourceGroups {
     try {
-        # Direct approach: Get full resource group objects and extract names
+        # Use Invoke-Expression to properly capture output
         $ErrorActionPreference = 'SilentlyContinue'
-        $rgsJson = az group list -o json 2>&1
+        $output = az group list --query "[].name" -o json 2>&1 | Out-String
         $ErrorActionPreference = 'Stop'
         
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsJson)) {
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($output)) {
             try {
-                $rgsObjects = $rgsJson | ConvertFrom-Json
-                if ($rgsObjects -and $rgsObjects.Count -gt 0) {
-                    $rgs = @()
-                    foreach ($rg in $rgsObjects) {
-                        if ($rg -and $rg.name -and $rg.name.ToString().Trim().Length -gt 0) {
-                            $rgName = $rg.name.ToString().Trim()
-                            if ($rgName.Length -gt 1) {
-                                $rgs += $rgName
-                            }
-                        }
-                    }
-                    if ($rgs.Count -gt 0) {
-                        return $rgs
-                    }
-                }
-            } catch {
-                # JSON parsing failed, try simpler approach
-            }
-        }
-        
-        # Fallback: Direct name query with proper handling
-        $ErrorActionPreference = 'SilentlyContinue'
-        $rgsJson = az group list --query "[].name" -o json 2>&1
-        $ErrorActionPreference = 'Stop'
-        
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsJson)) {
-            try {
-                $rgsArray = $rgsJson | ConvertFrom-Json
+                $rgsArray = $output | ConvertFrom-Json
                 if ($rgsArray) {
                     $rgs = @()
-                    foreach ($item in $rgsArray) {
-                        $name = $item.ToString().Trim()
-                        if ($name -and $name.Length -gt 1) {
+                    # Handle both single item and array
+                    if ($rgsArray -is [System.Array]) {
+                        foreach ($item in $rgsArray) {
+                            $name = $item.ToString().Trim()
+                            if ($name -and $name.Length -gt 1 -and $name -ne "Name") {
+                                $rgs += $name
+                            }
+                        }
+                    } else {
+                        $name = $rgsArray.ToString().Trim()
+                        if ($name -and $name.Length -gt 1 -and $name -ne "Name") {
                             $rgs += $name
                         }
                     }
@@ -112,25 +93,20 @@ function Search-ResourceGroups {
                     }
                 }
             } catch {
-                # Continue to TSV fallback
-            }
-        }
-        
-        # Final fallback: TSV with careful parsing
-        $ErrorActionPreference = 'SilentlyContinue'
-        $rgsTsv = az group list --query "[].name" -o tsv 2>&1
-        $ErrorActionPreference = 'Stop'
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($rgsTsv)) {
-            $rgs = @()
-            $lines = $rgsTsv -split "`r?`n"
-            foreach ($line in $lines) {
-                $name = $line.Trim()
-                if ($name -and $name.Length -gt 1) {
-                    $rgs += $name
+                # Try direct string parsing as fallback
+                $lines = $output -split "`r?`n"
+                $rgs = @()
+                foreach ($line in $lines) {
+                    $line = $line.Trim()
+                    # Remove JSON brackets and quotes
+                    $line = $line -replace '^\[|\]$|"|,', ''
+                    if ($line -and $line.Length -gt 1 -and $line -ne "Name") {
+                        $rgs += $line
+                    }
                 }
-            }
-            if ($rgs.Count -gt 0) {
-                return $rgs
+                if ($rgs.Count -gt 0) {
+                    return $rgs
+                }
             }
         }
     } catch {
@@ -1239,18 +1215,7 @@ function Start-Deployment {
             }
         }
         
-        Write-Success "Configuration saved and verified: config\deployment-config.env"
-        
-        # Register resource providers (required for new subscriptions)
-        Write-Info "Registering Azure resource providers (required for new subscriptions)..."
-        Write-Info "This ensures all required services are available..."
-        & ".\scripts\register-resource-providers.ps1"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Resource provider registration had issues, but continuing..."
-            Write-Warning "If resource creation fails, you may need to register providers manually"
-        }
-        
-        # Generate random suffix for globally unique names
+        # Generate random suffix for globally unique names (BEFORE saving config)
         Write-Info "Generating random suffix for globally unique resource names..."
         $randomSuffix = -join ((48..57) + (97..122) | Get-Random -Count 6 | ForEach-Object {[char]$_})
         Write-Info "Random suffix: $randomSuffix"
@@ -1265,6 +1230,97 @@ function Start-Deployment {
             }
             $STORAGE_ACCOUNT_NAME = ($baseStorageName + $randomSuffix).ToLower()
             Write-Info "Storage Account name (with suffix): $STORAGE_ACCOUNT_NAME"
+        }
+        
+        # Key Vault (globally unique, 3-24 chars)
+        if (-not [string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
+            $baseKvName = $KEY_VAULT_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 18  # Leave room for 6-char suffix
+            if ($baseKvName.Length -gt $maxBaseLength) {
+                $baseKvName = $baseKvName.Substring(0, $maxBaseLength)
+            }
+            $KEY_VAULT_NAME = $baseKvName + "-" + $randomSuffix
+            Write-Info "Key Vault name (with suffix): $KEY_VAULT_NAME"
+        }
+        
+        # Function App (globally unique, 2-60 chars)
+        if (-not [string]::IsNullOrWhiteSpace($FUNCTION_APP_NAME)) {
+            $baseFuncName = $FUNCTION_APP_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 54  # Leave room for 6-char suffix
+            if ($baseFuncName.Length -gt $maxBaseLength) {
+                $baseFuncName = $baseFuncName.Substring(0, $maxBaseLength)
+            }
+            $FUNCTION_APP_NAME = $baseFuncName + "-" + $randomSuffix
+            Write-Info "Function App name (with suffix): $FUNCTION_APP_NAME"
+        }
+        
+        # Web App (globally unique, 2-60 chars)
+        if (-not [string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
+            $baseWebName = $WEB_APP_NAME -replace '[^a-zA-Z0-9-]', ''
+            $maxBaseLength = 54  # Leave room for 6-char suffix
+            if ($baseWebName.Length -gt $maxBaseLength) {
+                $baseWebName = $baseWebName.Substring(0, $maxBaseLength)
+            }
+            $WEB_APP_NAME = $baseWebName + "-" + $randomSuffix
+            Write-Info "Web App name (with suffix): $WEB_APP_NAME"
+        }
+        
+        # ACR (globally unique, 5-50 chars, lowercase, alphanumeric)
+        if (-not [string]::IsNullOrWhiteSpace($ACR_NAME)) {
+            $baseAcrName = ($ACR_NAME -replace '[^a-z0-9]', '').ToLower()
+            $maxBaseLength = 44  # Leave room for 6-char suffix
+            if ($baseAcrName.Length -gt $maxBaseLength) {
+                $baseAcrName = $baseAcrName.Substring(0, $maxBaseLength)
+            }
+            $ACR_NAME = ($baseAcrName + $randomSuffix).ToLower()
+            Write-Info "ACR name (with suffix): $ACR_NAME"
+        }
+        
+        # Update config file with actual names (including suffixes)
+        Write-Info "Updating config file with actual resource names (including random suffixes)..."
+        $configLines = @(
+            "RESOURCE_GROUP=$RESOURCE_GROUP",
+            "FUNCTION_APP_NAME=$FUNCTION_APP_NAME",
+            "WEB_APP_NAME=$WEB_APP_NAME",
+            "KEY_VAULT_NAME=$KEY_VAULT_NAME",
+            "SHAREPOINT_SITE_URL=$SHAREPOINT_SITE_URL",
+            "SHAREPOINT_SITE_ID=$($SHAREPOINT_SITE_ID -replace '\?.*$', '')",
+            "APP_REGISTRATION_NAME=$APP_REGISTRATION_NAME",
+            "ADMIN_GROUP_ID=$ADMIN_GROUP_ID",
+            "EMPLOYEE_GROUP_ID=$EMPLOYEE_GROUP_ID",
+            "CUSTOM_DOMAIN=$CUSTOM_DOMAIN",
+            "LOCATION=$LOCATION",
+            "SUBSCRIPTION_ID=$SUBSCRIPTION_ID",
+            "STORAGE_ACCOUNT_CHOICE=$STORAGE_CHOICE_TYPE",
+            "STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME",
+            "ACR_NAME=$ACR_NAME",
+            "IMAGE_TAG=$IMAGE_TAG",
+            "PRIVATE_DNS_CHOICE=$PRIVATE_DNS_CHOICE_TYPE",
+            "PRIVATE_DNS_ZONE_NAME=$PRIVATE_DNS_ZONE_NAME",
+            "APP_INSIGHTS_CHOICE=$APP_INSIGHTS_CHOICE_TYPE",
+            "APP_INSIGHTS_NAME=$APP_INSIGHTS_NAME",
+            "CONFIGURE_PRIVATE_ENDPOINTS=$CONFIGURE_PRIVATE_ENDPOINTS",
+            "VNET_NAME=$VNET_NAME",
+            "SUBNET_NAME=$SUBNET_NAME"
+        )
+        $configLines | Set-Content -Path "config\deployment-config.env" -Encoding UTF8
+        Write-Success "Configuration saved with actual resource names (including random suffixes)"
+        
+        # Check resource providers (informational only - user should register manually)
+        Write-Info ""
+        Write-Warning "IMPORTANT: Ensure resource providers are registered before deployment!"
+        Write-Warning "If this is a new subscription, register providers in Azure Portal:"
+        Write-Host "  1. Go to: Subscriptions -> Your Subscription -> Resource providers" -ForegroundColor Yellow
+        Write-Host "  2. Search and register: Microsoft.KeyVault, Microsoft.Web, Microsoft.Storage" -ForegroundColor Yellow
+        Write-Host "  3. Also register: Microsoft.ContainerRegistry, Microsoft.Insights, Microsoft.Network" -ForegroundColor Yellow
+        Write-Host "  4. Wait 1-2 minutes for registration to complete" -ForegroundColor Yellow
+        Write-Info ""
+        $continue = Read-Host "Have you registered the resource providers? (y/n) [y]"
+        if ([string]::IsNullOrWhiteSpace($continue) -or $continue -eq "y") {
+            Write-Info "Continuing with deployment..."
+        } else {
+            Write-Error "Please register resource providers first, then run deploy.ps1 again"
+            exit 1
         }
         
         # Key Vault (globally unique, 3-24 chars)

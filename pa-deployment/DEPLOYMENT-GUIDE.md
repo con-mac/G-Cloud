@@ -13,10 +13,44 @@ Complete deployment guide for deploying the G-Cloud 15 automation tool to PA Con
 
 ## Prerequisites
 
+### Required Software
 - Azure CLI installed and configured
 - PowerShell 5.1 or later
 - Access to PA Consulting's Azure subscription
 - Appropriate Azure AD permissions (for App Registration and security groups)
+
+### **CRITICAL: Register Resource Providers (New Subscriptions Only)**
+
+**If this is a new Azure subscription, you MUST register resource providers BEFORE running deploy.ps1:**
+
+1. **Go to Azure Portal:**
+   - Navigate to: **Subscriptions** → **Your Subscription** → **Resource providers**
+
+2. **Register the following providers** (click "Register" for each):
+   - `Microsoft.KeyVault`
+   - `Microsoft.Web`
+   - `Microsoft.Storage`
+   - `Microsoft.ContainerRegistry`
+   - `Microsoft.Insights`
+   - `Microsoft.Network`
+
+3. **Wait 1-2 minutes** for registration to complete (status will show "Registered")
+
+4. **Alternative: Use Azure CLI** (if you prefer):
+   ```powershell
+   az provider register --namespace Microsoft.KeyVault
+   az provider register --namespace Microsoft.Web
+   az provider register --namespace Microsoft.Storage
+   az provider register --namespace Microsoft.ContainerRegistry
+   az provider register --namespace Microsoft.Insights
+   az provider register --namespace Microsoft.Network
+   
+   # Check status
+   az provider show --namespace Microsoft.KeyVault --query "registrationState" -o tsv
+   # Should return: "Registered"
+   ```
+
+**Why this is needed:** New Azure subscriptions don't have all resource providers registered by default. Without registration, resource creation will fail with "namespace not registered" errors.
 
 ## Initial Deployment
 

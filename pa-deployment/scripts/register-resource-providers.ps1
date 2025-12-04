@@ -44,7 +44,7 @@ foreach ($provider in $requiredProviders) {
             Write-Success "  ✓ $provider registration initiated"
             $registered++
         } else {
-            Write-Warning "  ⚠ Failed to register $provider: $result"
+            Write-Warning "  Failed to register $provider : $result"
             $failed++
         }
     }
