@@ -306,10 +306,13 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
                                             metadata[key.lower().replace(' ', '_')] = value
                             
                             folder_owner = metadata.get('owner', '').strip()
-                            if folder_owner.lower() != owner_name.lower():
+                            if not folder_owner or folder_owner.lower() != owner_name.lower():
+                                logger.debug(f"Skipping folder {folder_name}: owner '{folder_owner}' doesn't match '{owner_name}'")
                                 continue
                             
-                            service_name = metadata.get('service', folder_name)
+                            # Get service name from metadata (try both 'service' and 'service_name' keys)
+                            service_name = metadata.get('service_name') or metadata.get('service') or folder_name
+                            logger.debug(f"Found proposal: {service_name} (owner: {folder_owner}, lot: {lot}, version: {gcloud_version})")
                             
                             # Check if documents exist
                             service_desc_exists = False

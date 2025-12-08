@@ -83,7 +83,10 @@ async def get_questions(
         parser = get_parser()
         if not parser:
             logger.error("Questionnaire parser is None - initialization failed")
-            raise HTTPException(status_code=500, detail="Questionnaire parser not available. Please check server logs.")
+            raise HTTPException(
+                status_code=503, 
+                detail="Questionnaire parser not available. The questionnaire Excel file may not be deployed. Please contact support."
+            )
         
         if lot not in ["3", "2a", "2b"]:
             raise HTTPException(status_code=400, detail=f"Invalid LOT: {lot}. Must be '3', '2a', or '2b'")
@@ -94,9 +97,10 @@ async def get_questions(
             section_order = parser.get_sections_for_lot(lot)
         except FileNotFoundError as e:
             logger.error(f"Excel file not found for LOT {lot}: {e}", exc_info=True)
+            excel_path_info = parser.excel_path if hasattr(parser, 'excel_path') and parser.excel_path else 'unknown'
             raise HTTPException(
-                status_code=500, 
-                detail=f"Questionnaire Excel file not found. Expected at: {parser.excel_path if hasattr(parser, 'excel_path') else 'unknown'}"
+                status_code=503, 
+                detail=f"Questionnaire Excel file not found. Expected at: {excel_path_info}. Please ensure the file is deployed to Azure Functions."
             )
         except Exception as e:
             logger.error(f"Error parsing questions for LOT {lot}: {e}", exc_info=True)
