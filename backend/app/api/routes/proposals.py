@@ -273,7 +273,8 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
                         metadata_format = None  # 'json' or 'txt'
                         
                         for blob_name in blob_names:
-                            if blob_name.endswith('metadata.json'):
+                            # Check for metadata.json (can be at end or in path)
+                            if 'metadata.json' in blob_name or blob_name.endswith('/metadata.json'):
                                 metadata_blob = blob_name
                                 metadata_format = 'json'
                                 break
