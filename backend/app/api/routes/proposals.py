@@ -268,11 +268,18 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
                     
                     # Check each service folder
                     for folder_name, blob_names in service_folders.items():
-                        # Look for metadata file (OWNER *.txt)
+                        # Look for metadata file (metadata.json or OWNER *.txt)
                         metadata_blob = None
+                        metadata_format = None  # 'json' or 'txt'
+                        
                         for blob_name in blob_names:
-                            if blob_name.endswith('.txt') and 'OWNER' in blob_name:
+                            if blob_name.endswith('metadata.json'):
                                 metadata_blob = blob_name
+                                metadata_format = 'json'
+                                break
+                            elif blob_name.endswith('.txt') and 'OWNER' in blob_name:
+                                metadata_blob = blob_name
+                                metadata_format = 'txt'
                                 break
                         
                         if not metadata_blob:
@@ -281,17 +288,22 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
                         # Read metadata
                         try:
                             metadata_bytes = azure_blob_service.get_file_bytes(metadata_blob)
-                            metadata_content = metadata_bytes.decode('utf-8')
                             
-                            # Parse metadata (simple format)
-                            metadata = {}
-                            for line in metadata_content.split('\n'):
-                                if ':' in line:
-                                    key, value = line.split(':', 1)
-                                    key = key.strip().lstrip('0123456789. ').strip()
-                                    value = value.strip()
-                                    if key:
-                                        metadata[key.lower().replace(' ', '_')] = value
+                            if metadata_format == 'json':
+                                # Parse JSON metadata
+                                import json
+                                metadata = json.loads(metadata_bytes.decode('utf-8'))
+                            else:
+                                # Parse text metadata (legacy format)
+                                metadata_content = metadata_bytes.decode('utf-8')
+                                metadata = {}
+                                for line in metadata_content.split('\n'):
+                                    if ':' in line:
+                                        key, value = line.split(':', 1)
+                                        key = key.strip().lstrip('0123456789. ').strip()
+                                        value = value.strip()
+                                        if key:
+                                            metadata[key.lower().replace(' ', '_')] = value
                             
                             folder_owner = metadata.get('owner', '').strip()
                             if folder_owner.lower() != owner_name.lower():
