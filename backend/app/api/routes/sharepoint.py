@@ -37,6 +37,26 @@ class CreateFolderResponse(BaseModel):
     error: Optional[str] = None
 
 
+class CreateMetadataRequest(BaseModel):
+    """Request to create a metadata file in SharePoint"""
+    service_name: str
+    owner: str
+    sponsor: str
+    lot: Literal["2", "2a", "2b", "3"]
+    gcloud_version: Optional[Literal["14", "15"]] = "15"
+    last_edited_by: Optional[str] = None
+
+
+class CreateMetadataResponse(BaseModel):
+    """Response after creating a metadata file"""
+    success: bool
+    folder_path: str
+    service_name: str
+    owner: str
+    sponsor: str
+    error: Optional[str] = None
+
+
 @router.get("/test", response_model=SharePointTestResponse, tags=["SharePoint"])
 async def test_sharepoint_connectivity(
     x_user_email: Optional[str] = Header(None, alias="X-User-Email")
@@ -316,4 +336,95 @@ async def create_sharepoint_folder(
         raise HTTPException(
             status_code=500,
             detail=f"Internal error creating folder: {str(e)}"
+        )
+
+
+@router.post("/create-metadata", response_model=CreateMetadataResponse, tags=["SharePoint"])
+async def create_sharepoint_metadata(
+    request: CreateMetadataRequest,
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email")
+):
+    """
+    Create a metadata.json file in a SharePoint folder.
+    
+    The folder should already exist (created via /create-folder).
+    Creates metadata.json with service information.
+    
+    Args:
+        request: CreateMetadataRequest with service_name, owner, sponsor, lot, and gcloud_version
+        x_user_email: Optional user email from frontend (for logging)
+    
+    Returns:
+        CreateMetadataResponse with success status and folder path
+    """
+    try:
+        # Import SharePoint service
+        try:
+            from sharepoint_service.sharepoint_online import create_metadata_file
+        except ImportError:
+            logger.error("SharePoint Online service not available")
+            raise HTTPException(
+                status_code=500,
+                detail="SharePoint service not configured. Ensure USE_SHAREPOINT=true and SharePoint credentials are set."
+            )
+        
+        # Validate configuration
+        site_id = os.getenv("SHAREPOINT_SITE_ID", "")
+        if not site_id:
+            raise HTTPException(
+                status_code=500,
+                detail="SHAREPOINT_SITE_ID not configured"
+            )
+        
+        # Construct folder path: GCloud {version}/PA Services/{service_name}
+        gcloud_version = request.gcloud_version or "15"
+        full_folder_path = f"GCloud {gcloud_version}/PA Services/{request.service_name}"
+        
+        logger.info(f"Creating metadata file in folder: {full_folder_path} (Owner: {request.owner}, Sponsor: {request.sponsor})")
+        
+        # Prepare metadata dictionary
+        metadata = {
+            "service_name": request.service_name,
+            "owner": request.owner,
+            "sponsor": request.sponsor,
+            "lot": request.lot,
+            "gcloud_version": gcloud_version
+        }
+        
+        if request.last_edited_by:
+            metadata["last_edited_by"] = request.last_edited_by
+        
+        # Create metadata file
+        success = create_metadata_file(full_folder_path, metadata, gcloud_version)
+        
+        if not success:
+            error_msg = f"Failed to create metadata file in folder: {full_folder_path}"
+            logger.error(error_msg)
+            return CreateMetadataResponse(
+                success=False,
+                folder_path=full_folder_path,
+                service_name=request.service_name,
+                owner=request.owner,
+                sponsor=request.sponsor,
+                error=error_msg
+            )
+        
+        logger.info(f"Successfully created metadata file in folder: {full_folder_path}")
+        
+        return CreateMetadataResponse(
+            success=True,
+            folder_path=full_folder_path,
+            service_name=request.service_name,
+            owner=request.owner,
+            sponsor=request.sponsor,
+            error=None
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating SharePoint metadata: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal error creating metadata: {str(e)}"
         )
