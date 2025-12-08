@@ -216,7 +216,7 @@ class DocumentGenerator:
         if update_metadata or new_proposal_metadata:
             # Save to SharePoint folder (either update or new proposal)
             if update_metadata:
-                folder_path = update_metadata.get('folder_path', '')
+                folder_path = update_metadata.get('folder_path') or ''
                 gcloud_version = update_metadata.get('gcloud_version', '14')
                 doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
                 service_name = update_metadata.get('service_name', title)
@@ -335,8 +335,14 @@ class DocumentGenerator:
             else:
                 # Local environment: save directly to folder_path (Path object)
                 # Ensure folder_path is a Path object before using / operator
-                if isinstance(folder_path, str):
+                if folder_path is None:
+                    # Fallback to output_dir if folder_path is None
+                    folder_path = self.output_dir
+                elif isinstance(folder_path, str):
                     folder_path = Path(folder_path)
+                elif not isinstance(folder_path, Path):
+                    # If it's still not a Path, fallback to output_dir
+                    folder_path = self.output_dir
                 word_path = folder_path / word_filename
                 filename_base = service_name
                 output_dir = folder_path
