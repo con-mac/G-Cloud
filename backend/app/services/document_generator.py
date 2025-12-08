@@ -221,6 +221,14 @@ class DocumentGenerator:
                 doc_type = update_metadata.get('doc_type', 'SERVICE DESC')
                 service_name = update_metadata.get('service_name', title)
                 actual_folder_name = service_name  # Default to service_name
+                
+                # If folder_path is empty and we're in Azure/S3, construct it
+                if not folder_path:
+                    if self.use_azure:
+                        folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {update_metadata.get('lot', '2')}/{service_name}/"
+                    elif self.use_s3:
+                        folder_path = f"GCloud {gcloud_version}/PA Services/Cloud Support Services LOT {update_metadata.get('lot', '2')}/{service_name}/"
+                
                 # Only convert to Path for local filesystem (not Azure/S3)
                 if not self.use_s3 and not self.use_azure and folder_path:
                     folder_path = Path(folder_path)
@@ -268,6 +276,7 @@ class DocumentGenerator:
                     # For Azure, actual_folder_name stays as service_name (already set above)
                 else:
                     # Local environment: folder_path is a Path object
+                    # But if MOCK_BASE_PATH is None (Azure environment), fallback to output_dir
                     try:
                         try:
                             from sharepoint_service.sharepoint_service import MOCK_BASE_PATH
@@ -276,21 +285,28 @@ class DocumentGenerator:
                     except ImportError:
                         from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
                     
-                    folder_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name
-                    
-                    # Verify folder exists, if not try to find it with fuzzy match
-                    actual_folder_name = service_name
-                    if not folder_path.exists():
-                        # Try to find folder with fuzzy match
-                        base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
-                        lot_folder = base_path / f"Cloud Support Services LOT {lot}"
-                        if lot_folder.exists():
-                            from sharepoint_service.mock_sharepoint import fuzzy_match
-                            for folder in lot_folder.iterdir():
-                                if folder.is_dir() and fuzzy_match(service_name, folder.name):
-                                    folder_path = folder
-                                    actual_folder_name = folder.name  # Use actual folder name for filename
-                                    break
+                    # Check if MOCK_BASE_PATH is None (Azure environment without local mock)
+                    if MOCK_BASE_PATH is None:
+                        # Fallback to output_dir if MOCK_BASE_PATH is None
+                        logger.warning("MOCK_BASE_PATH is None, using output_dir for folder_path")
+                        folder_path = self.output_dir
+                        actual_folder_name = service_name
+                    else:
+                        folder_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name
+                        
+                        # Verify folder exists, if not try to find it with fuzzy match
+                        actual_folder_name = service_name
+                        if not folder_path.exists():
+                            # Try to find folder with fuzzy match
+                            base_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services"
+                            lot_folder = base_path / f"Cloud Support Services LOT {lot}"
+                            if lot_folder.exists():
+                                from sharepoint_service.mock_sharepoint import fuzzy_match
+                                for folder in lot_folder.iterdir():
+                                    if folder.is_dir() and fuzzy_match(service_name, folder.name):
+                                        folder_path = folder
+                                        actual_folder_name = folder.name  # Use actual folder name for filename
+                                        break
             
             # Use exact filename format: PA GC15 SERVICE DESC [Folder Name].docx
             # Use actual_folder_name (folder.name) to match what get_document_path expects
@@ -344,15 +360,27 @@ class DocumentGenerator:
                 s3_key = None  # Not used in Azure
             else:
                 # Local environment: save directly to folder_path (Path object)
-                # Ensure folder_path is a Path object before using / operator
-                if folder_path is None:
-                    # Fallback to output_dir if folder_path is None
+                # Ensure folder_path is a valid Path object before using / operator
+                if folder_path is None or folder_path == '':
+                    # Fallback to output_dir if folder_path is None or empty
+                    logger.warning(f"folder_path is None or empty, using output_dir: {self.output_dir}")
                     folder_path = self.output_dir
                 elif isinstance(folder_path, str):
-                    folder_path = Path(folder_path)
+                    # Convert string to Path, but check if it's empty
+                    if not folder_path.strip():
+                        logger.warning(f"folder_path is empty string, using output_dir: {self.output_dir}")
+                        folder_path = self.output_dir
+                    else:
+                        folder_path = Path(folder_path)
                 elif not isinstance(folder_path, Path):
                     # If it's still not a Path, fallback to output_dir
+                    logger.warning(f"folder_path is not a Path or string, using output_dir: {self.output_dir}")
                     folder_path = self.output_dir
+                
+                # Final safety check: ensure folder_path is a valid Path
+                if not isinstance(folder_path, Path):
+                    folder_path = self.output_dir
+                
                 word_path = folder_path / word_filename
                 filename_base = service_name
                 output_dir = folder_path
@@ -552,13 +580,24 @@ class DocumentGenerator:
             # Docker/local: return local paths
             if update_metadata:
                 # For updates, PDF path should be in same folder
-                # Ensure output_dir is not None
-                if output_dir is None:
+                # Ensure output_dir is a valid Path object
+                if output_dir is None or output_dir == '':
+                    logger.warning(f"output_dir is None or empty for update, using self.output_dir: {self.output_dir}")
                     output_dir = self.output_dir
                 elif isinstance(output_dir, str):
-                    output_dir = Path(output_dir)
+                    if not output_dir.strip():
+                        logger.warning(f"output_dir is empty string, using self.output_dir: {self.output_dir}")
+                        output_dir = self.output_dir
+                    else:
+                        output_dir = Path(output_dir)
                 elif not isinstance(output_dir, Path):
+                    logger.warning(f"output_dir is not a Path, using self.output_dir: {self.output_dir}")
                     output_dir = self.output_dir
+                
+                # Final safety check
+                if not isinstance(output_dir, Path):
+                    output_dir = self.output_dir
+                
                 pdf_path = output_dir / f"PA GC{update_metadata.get('gcloud_version', '14')} SERVICE DESC {update_metadata.get('service_name', title)}.pdf"
             else:
                 pdf_path = self.output_dir / f"{filename_base}.pdf"
