@@ -396,24 +396,36 @@ def create_metadata_file(
     gcloud_version: str = "15"
 ) -> bool:
     """
-    Create metadata.json file in SharePoint folder
+    Create or update metadata.json file in SharePoint folder
     """
     if not SHAREPOINT_SITE_ID:
         logger.error("SHAREPOINT_SITE_ID not configured")
         return False
     
     try:
+        # Construct full folder path: GCloud {version}/PA Services/{service_name}
+        # If folder_path doesn't start with "GCloud", prepend it
+        if not folder_path.startswith("GCloud"):
+            full_folder_path = f"GCloud {gcloud_version}/PA Services/{folder_path.strip('/')}"
+        else:
+            full_folder_path = folder_path
+        
         # Get folder ID
-        folder_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/root:/{folder_path}"
+        folder_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/root:/{full_folder_path}"
         folder_response = _make_graph_request("GET", folder_endpoint)
         
         if not folder_response or folder_response.status_code != 200:
-            logger.error(f"Folder not found: {folder_path}")
-            return False
+            logger.warning(f"Folder not found: {full_folder_path}, attempting to create it")
+            # Try to create the folder first
+            service_name = folder_path.strip('/').split('/')[-1] if '/' in folder_path else folder_path
+            folder_id = create_folder(service_name, gcloud_version)
+            if not folder_id:
+                logger.error(f"Failed to create folder: {full_folder_path}")
+                return False
+        else:
+            folder_id = folder_response.json().get("id", "")
         
-        folder_id = folder_response.json().get("id", "")
-        
-        # Upload metadata.json file
+        # Upload metadata.json file (PUT will create or update)
         upload_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/items/{folder_id}:/metadata.json:/content"
         metadata_json = json.dumps(metadata, indent=2)
         # For file content upload, we need to set Content-Type to application/json
@@ -425,10 +437,11 @@ def create_metadata_file(
         )
         
         if upload_response and upload_response.status_code in [200, 201]:
-            logger.info(f"Metadata file created at {folder_path}/metadata.json")
+            logger.info(f"Metadata file created/updated at {full_folder_path}/metadata.json")
             return True
         else:
-            logger.error(f"Failed to create metadata file: {upload_response.status_code if upload_response else 'No response'}")
+            error_text = upload_response.text if upload_response else "No response"
+            logger.error(f"Failed to create metadata file: {upload_response.status_code if upload_response else 'No response'} - {error_text}")
             return False
             
     except Exception as e:

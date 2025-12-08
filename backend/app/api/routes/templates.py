@@ -106,6 +106,41 @@ async def generate_service_description(request: ServiceDescriptionRequest):
     If update_metadata is provided, replaces existing documents instead of creating new ones.
     """
     try:
+        # If this is a new proposal, ensure metadata.json exists
+        # This ensures proposals appear in the dashboard even if metadata wasn't created during folder creation
+        if request.new_proposal_metadata and not request.update_metadata:
+            try:
+                from sharepoint_service.sharepoint_online import create_metadata_file
+                import os
+                
+                service_name = request.new_proposal_metadata.get('service', title)
+                lot = request.new_proposal_metadata.get('lot', '2')
+                gcloud_version = request.new_proposal_metadata.get('gcloud_version', '15')
+                owner = request.new_proposal_metadata.get('owner', '')
+                sponsor = request.new_proposal_metadata.get('sponsor', '')
+                
+                if service_name and owner:
+                    # Construct folder path
+                    folder_path = f"GCloud {gcloud_version}/PA Services/{service_name}"
+                    
+                    # Prepare metadata
+                    metadata = {
+                        "service_name": service_name,
+                        "owner": owner,
+                        "sponsor": sponsor or '',
+                        "lot": lot,
+                        "gcloud_version": gcloud_version
+                    }
+                    
+                    # Try to create/update metadata file (don't fail if it doesn't work)
+                    try:
+                        create_metadata_file(folder_path, metadata, gcloud_version)
+                        logger.info(f"Created/updated metadata.json for {service_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to create/update metadata.json (non-fatal): {e}")
+            except Exception as e:
+                logger.warning(f"Failed to ensure metadata.json exists (non-fatal): {e}")
+        
         result = document_generator.generate_service_description(
             title=request.title,
             description=request.description,
