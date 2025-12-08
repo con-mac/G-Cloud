@@ -416,7 +416,13 @@ def create_metadata_file(
         # Upload metadata.json file
         upload_endpoint = f"sites/{SHAREPOINT_SITE_ID}/drive/items/{folder_id}:/metadata.json:/content"
         metadata_json = json.dumps(metadata, indent=2)
-        upload_response = _make_graph_request("PUT", upload_endpoint, data=metadata_json.encode('utf-8'))
+        # For file content upload, we need to set Content-Type to application/json
+        upload_response = _make_graph_request(
+            "PUT", 
+            upload_endpoint, 
+            data=metadata_json.encode('utf-8'),
+            headers={"Content-Type": "application/json"}
+        )
         
         if upload_response and upload_response.status_code in [200, 201]:
             logger.info(f"Metadata file created at {folder_path}/metadata.json")
