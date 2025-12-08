@@ -230,7 +230,7 @@ export default function ProposalFlow() {
           return;
         }
       } else if (flowType === 'create') {
-        // Get user name for last_edited_by (use Entra ID user profile)
+        // Get user name for owner and last_edited_by (use Entra ID user profile)
         const userName = user?.name || '';
         
         // Create folder and metadata
@@ -240,14 +240,18 @@ export default function ProposalFlow() {
           gcloud_version: '15',
         });
 
+        // Use SSO user's display name as owner (from Entra ID)
         await sharepointApi.createMetadata({
           service_name: createData.service,
-          owner: createData.owner,
+          owner: userName, // Use SSO user's Entra ID display name
           sponsor: createData.sponsor,
           lot: createData.lot!,
           gcloud_version: '15',
           last_edited_by: userName,
         });
+        
+        // Update createData to use SSO user's name as owner
+        createData.owner = userName;
 
         // Check if we have existing content to load (from change metadata flow)
         const existingContent = sessionStorage.getItem('existingProposalContent');

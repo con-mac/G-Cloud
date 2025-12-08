@@ -305,17 +305,27 @@ class DocumentGenerator:
                 word_filename = word_filename.replace('.docx', '_draft.docx')
             else:
                 # Remove any existing _draft files when completing (only for local)
-                if not self.use_s3 and isinstance(folder_path, Path):
-                    draft_filename = word_filename.replace('.docx', '_draft.docx')
-                    draft_path = folder_path / draft_filename
-                    if draft_path.exists():
-                        draft_path.unlink()
+                # Ensure folder_path is valid before using it
+                if not self.use_s3 and not self.use_azure:
+                    # Ensure folder_path is a Path object
+                    if folder_path is None:
+                        folder_path = self.output_dir
+                    elif isinstance(folder_path, str):
+                        folder_path = Path(folder_path)
+                    elif not isinstance(folder_path, Path):
+                        folder_path = self.output_dir
                     
-                    # Remove any existing SERVICE DESC files (to replace them)
-                    if 'SERVICE DESC' in word_filename:
-                        for existing_file in folder_path.glob(f"PA GC{gcloud_version} SERVICE DESC {service_name}*.docx"):
-                            if existing_file.name != word_filename:
-                                existing_file.unlink()
+                    if isinstance(folder_path, Path) and folder_path.exists():
+                        draft_filename = word_filename.replace('.docx', '_draft.docx')
+                        draft_path = folder_path / draft_filename
+                        if draft_path.exists():
+                            draft_path.unlink()
+                        
+                        # Remove any existing SERVICE DESC files (to replace them)
+                        if 'SERVICE DESC' in word_filename:
+                            for existing_file in folder_path.glob(f"PA GC{gcloud_version} SERVICE DESC {service_name}*.docx"):
+                                if existing_file.name != word_filename:
+                                    existing_file.unlink()
             
             # Determine where to save the document
             if self.use_s3:
@@ -542,6 +552,13 @@ class DocumentGenerator:
             # Docker/local: return local paths
             if update_metadata:
                 # For updates, PDF path should be in same folder
+                # Ensure output_dir is not None
+                if output_dir is None:
+                    output_dir = self.output_dir
+                elif isinstance(output_dir, str):
+                    output_dir = Path(output_dir)
+                elif not isinstance(output_dir, Path):
+                    output_dir = self.output_dir
                 pdf_path = output_dir / f"PA GC{update_metadata.get('gcloud_version', '14')} SERVICE DESC {update_metadata.get('service_name', title)}.pdf"
             else:
                 pdf_path = self.output_dir / f"{filename_base}.pdf"

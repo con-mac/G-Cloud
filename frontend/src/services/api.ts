@@ -43,10 +43,14 @@ class ApiService {
           config.headers.Authorization = `Bearer ${token}`;
         }
 
-        // Add user email header from Entra ID user profile
+        // Add user email and name headers from Entra ID user profile
         const userEmail = sessionStorage.getItem('user_email');
+        const userName = sessionStorage.getItem('user_name');
         if (userEmail) {
           config.headers['X-User-Email'] = userEmail;
+        }
+        if (userName) {
+          config.headers['X-User-Name'] = userName;
         }
 
         // Add correlation ID for request tracking

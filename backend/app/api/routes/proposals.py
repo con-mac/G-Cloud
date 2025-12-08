@@ -535,39 +535,40 @@ def get_proposals_by_owner(owner_name: str) -> List[dict]:
 @router.get("/", response_model=List[dict])
 async def get_all_proposals(
     owner_email: Optional[str] = Query(None, description="Owner email from Entra ID"),
-    x_user_email: Optional[str] = Header(None, alias="X-User-Email", description="User email from Entra ID SSO token")
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email", description="User email from Entra ID SSO token"),
+    x_user_name: Optional[str] = Header(None, alias="X-User-Name", description="User display name from Entra ID SSO token")
 ):
     """
-    Get all proposals filtered by owner email.
+    Get all proposals filtered by owner.
     
-    Uses Entra ID user email directly. For backward compatibility with SharePoint
-    metadata that stores owner as name, we extract name from email for matching.
+    Uses Entra ID user display name (preferred) or extracts name from email for matching.
+    SharePoint metadata stores owner as display name, so we match by name.
     
     Args:
         owner_email: Email address from Entra ID (query param)
         x_user_email: User email from Entra ID SSO token (header, preferred)
+        x_user_name: User display name from Entra ID SSO token (header, preferred for matching)
         
     Returns:
         List of proposals matching the owner
     """
     try:
-        # Use X-User-Email header if available (from SSO), otherwise use query param
-        effective_email = x_user_email or owner_email
-        
-        # If no email provided, return empty list (we require it for security)
-        if not effective_email:
-            return []
-        
-        # For backward compatibility: SharePoint metadata stores owner as name
-        # Extract name from email for matching existing proposals
-        # TODO: Update SharePoint to store email instead of name for better Entra ID integration
-        owner_name = extract_name_from_email(effective_email)
+        # Use X-User-Name header if available (from SSO), this is the most reliable
+        # since SharePoint stores owner as display name
+        if x_user_name:
+            owner_name = x_user_name
+        else:
+            # Fallback: extract name from email
+            effective_email = x_user_email or owner_email
+            if not effective_email:
+                return []
+            owner_name = extract_name_from_email(effective_email)
         
         if not owner_name:
-            logger.warning(f"Could not extract name from email: {effective_email}")
+            logger.warning(f"Could not determine owner name from headers or email")
             return []
         
-        # Get proposals from mock_sharepoint (matches by owner name for now)
+        # Get proposals from SharePoint (matches by owner name)
         proposals = get_proposals_by_owner(owner_name)
         
         return proposals
