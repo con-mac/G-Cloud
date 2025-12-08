@@ -300,6 +300,10 @@ async def lock_questionnaire(
             # Local filesystem
             from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
             
+            # Check if MOCK_BASE_PATH is None (Azure environment)
+            if MOCK_BASE_PATH is None:
+                raise HTTPException(status_code=404, detail="Questionnaire responses not found: MOCK_BASE_PATH is None (Azure environment)")
+            
             response_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name / "questionnaire_responses.json"
             
             if not response_path.exists():
@@ -402,6 +406,11 @@ async def save_questionnaire_responses(
         try:
             from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
             
+            # Check if MOCK_BASE_PATH is None (Azure environment)
+            if MOCK_BASE_PATH is None:
+                logger.error("Cannot save questionnaire responses: MOCK_BASE_PATH is None (Azure environment)")
+                return False
+            
             # Construct path: mock_sharepoint/GCloud {version}/PA Services/Cloud Support Services LOT {lot}/{service_name}/questionnaire_responses.json
             response_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name / "questionnaire_responses.json"
             
@@ -474,6 +483,10 @@ async def load_questionnaire_responses(
         # Load from local filesystem
         try:
             from sharepoint_service.mock_sharepoint import MOCK_BASE_PATH
+            
+            # Check if MOCK_BASE_PATH is None (Azure environment)
+            if MOCK_BASE_PATH is None:
+                raise FileNotFoundError(f"Questionnaire responses not found: MOCK_BASE_PATH is None (Azure environment)")
             
             response_path = MOCK_BASE_PATH / f"GCloud {gcloud_version}" / "PA Services" / f"Cloud Support Services LOT {lot}" / service_name / "questionnaire_responses.json"
             
