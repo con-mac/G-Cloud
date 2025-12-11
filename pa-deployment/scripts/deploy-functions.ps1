@@ -101,43 +101,9 @@ if (-not (Test-Path "host.json")) {
     }
 }
 
-# CRITICAL: Set build settings BEFORE any deployment
-# Azure Functions requires BOTH settings for automatic dependency installation
-Write-Info "Setting build settings (REQUIRED for dependency installation)..."
-az functionapp config appsettings set `
-    --name $FUNCTION_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=true" "ENABLE_ORYX_BUILD=true" `
-    --output none
-if ($LASTEXITCODE -eq 0) {
-    Write-Success "✓ Build settings enabled (dependencies will install during deployment)"
-} else {
-    Write-Warning "Failed to set build settings. Dependencies may not install automatically."
-    Write-Warning "You may need to run manually-install-dependencies.ps1 after deployment."
-}
-
-# Try using Azure Functions Core Tools first
-$funcCheck = Get-Command func -ErrorAction SilentlyContinue
-if ($funcCheck) {
-    Write-Info "Using Azure Functions Core Tools for deployment..."
-    try {
-        func azure functionapp publish $FUNCTION_APP_NAME --python
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "Backend code deployed using Functions Core Tools"
-        } else {
-            Write-Warning "Functions Core Tools deployment failed, trying zip deploy..."
-            $funcCheck = $null  # Force zip deploy
-        }
-    } catch {
-        Write-Warning "Functions Core Tools deployment failed: $_"
-        Write-Info "Trying zip deploy instead..."
-        $funcCheck = $null
-    }
-}
-
-# Fallback to zip deploy if Functions Core Tools not available or failed
-if (-not $funcCheck) {
-    Write-Info "Deploying using zip deploy method..."
+# BULLETPROOF DEPLOYMENT: Skip func publish (triggers remote build which hangs)
+# Deploy zip directly WITHOUT remote build to avoid pip install hang
+Write-Info "Deploying using zip deploy method (skipping remote build to avoid pip install hang)..."
     
     # Verify essential files exist
     if (-not (Test-Path "host.json")) {
@@ -367,14 +333,37 @@ if (-not $funcCheck) {
                     exit 1
                 }
                 
+                # CRITICAL: Disable remote build to avoid pip install hang
+                Write-Info "Disabling remote build to avoid pip install hang..."
+                $ErrorActionPreference = 'SilentlyContinue'
+                az functionapp config appsettings set `
+                    --name $FUNCTION_APP_NAME `
+                    --resource-group $RESOURCE_GROUP `
+                    --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=false" "ENABLE_ORYX_BUILD=false" `
+                    --output none 2>&1 | Out-Null
+                $ErrorActionPreference = 'Stop'
+                Write-Success "✓ Remote build disabled (deployment will be fast, no pip install)"
+                Start-Sleep -Seconds 3
+                
                 # Use az webapp deploy (Kudu zip deploy) - doesn't require storage connection string
-                Write-Info "Using az webapp deploy (Kudu zip deploy method)..."
+                Write-Info "Deploying zip (this will be fast, no build process)..."
                 $deployOutput = az webapp deploy `
                     --resource-group $RESOURCE_GROUP `
                     --name $FUNCTION_APP_NAME `
                     --type zip `
                     --src-path $deployZipAbsolute `
-                    --timeout 1800 2>&1 | Tee-Object -Variable deployOutput
+                    --timeout 300 2>&1 | Tee-Object -Variable deployOutput
+                
+                # Re-enable build settings for future deployments
+                Write-Info "Re-enabling build settings for future deployments..."
+                $ErrorActionPreference = 'SilentlyContinue'
+                az functionapp config appsettings set `
+                    --name $FUNCTION_APP_NAME `
+                    --resource-group $RESOURCE_GROUP `
+                    --settings "SCM_DO_BUILD_DURING_DEPLOYMENT=true" "ENABLE_ORYX_BUILD=true" `
+                    --output none 2>&1 | Out-Null
+                $ErrorActionPreference = 'Stop'
+                Write-Success "✓ Build settings re-enabled"
                 
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "Backend code deployed successfully!"
