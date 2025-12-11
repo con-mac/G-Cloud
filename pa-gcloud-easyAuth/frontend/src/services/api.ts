@@ -155,28 +155,28 @@ class ApiService {
   }
 
   // Generic HTTP methods (expose axios client methods for other services)
-  async get(url: string, config?: any) {
-    const response = await this.client.get(url, config);
+  async get<T = any>(url: string, config?: any): Promise<T> {
+    const response = await this.client.get<T>(url, config);
     return response.data;
   }
 
-  async post(url: string, data?: any, config?: any) {
-    const response = await this.client.post(url, data, config);
+  async post<T = any>(url: string, data?: any, config?: any): Promise<T> {
+    const response = await this.client.post<T>(url, data, config);
     return response.data;
   }
 
-  async put(url: string, data?: any, config?: any) {
-    const response = await this.client.put(url, data, config);
+  async put<T = any>(url: string, data?: any, config?: any): Promise<T> {
+    const response = await this.client.put<T>(url, data, config);
     return response.data;
   }
 
-  async delete(url: string, config?: any) {
-    const response = await this.client.delete(url, config);
+  async delete<T = any>(url: string, config?: any): Promise<T> {
+    const response = await this.client.delete<T>(url, config);
     return response.data;
   }
 
-  async patch(url: string, data?: any, config?: any) {
-    const response = await this.client.patch(url, data, config);
+  async patch<T = any>(url: string, data?: any, config?: any): Promise<T> {
+    const response = await this.client.patch<T>(url, data, config);
     return response.data;
   }
 }
