@@ -320,6 +320,21 @@ Write-Info "  Tenant ID: $($tenantId.Substring(0, [Math]::Min(8, $tenantId.Lengt
 Write-Info "  Client ID: $($clientId.Substring(0, [Math]::Min(8, $clientId.Length)))..."
 Write-Info "  Redirect URI: $redirectUri"
 
+# Get function key (workaround for authLevel: function issue)
+Write-Info "Getting function key for API authentication..."
+$ErrorActionPreference = 'SilentlyContinue'
+$functionKey = az functionapp function keys list --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_GROUP" --function-name "function_app" --query "default" -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+
+if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($functionKey) -and $functionKey -notmatch "ERROR") {
+    Write-Success "✓ Function key retrieved"
+} else {
+    Write-Warning "Could not get function key automatically"
+    Write-Info "You may need to add it manually in Azure Portal:"
+    Write-Info "  Function App -> Functions -> function_app -> Function Keys"
+    $functionKey = ""
+}
+
 $appSettings = @(
     "VITE_API_BASE_URL=https://${FUNCTION_APP_URL}",
     "VITE_AZURE_AD_TENANT_ID=$tenantId",
@@ -328,6 +343,12 @@ $appSettings = @(
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false",
     "PORT=80"
 )
+
+# Add function key if available (workaround for authLevel: function)
+if (-not [string]::IsNullOrWhiteSpace($functionKey)) {
+    $appSettings += "VITE_FUNCTION_KEY=$functionKey"
+    Write-Info "  Function Key: $($functionKey.Substring(0, [Math]::Min(8, $functionKey.Length)))..."
+}
 
 # Add admin group ID if available
 if (-not [string]::IsNullOrWhiteSpace($adminGroupId)) {

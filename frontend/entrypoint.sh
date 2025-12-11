@@ -16,11 +16,17 @@ CLIENT_ID="${VITE_AZURE_AD_CLIENT_ID:-}"
 TENANT_ID="${VITE_AZURE_AD_TENANT_ID:-}"
 REDIRECT_URI="${VITE_AZURE_AD_REDIRECT_URI:-}"
 ADMIN_GROUP_ID="${VITE_AZURE_AD_ADMIN_GROUP_ID:-}"
+API_BASE_URL="${VITE_API_BASE_URL:-}"
+FUNCTION_KEY="${VITE_FUNCTION_KEY:-}"
 
 echo "Injecting environment variables..."
 echo "CLIENT_ID: ${CLIENT_ID:0:8}..."
 echo "TENANT_ID: ${TENANT_ID:0:8}..."
 echo "REDIRECT_URI: $REDIRECT_URI"
+echo "API_BASE_URL: $API_BASE_URL"
+if [ -n "$FUNCTION_KEY" ]; then
+  echo "FUNCTION_KEY: ${FUNCTION_KEY:0:8}..."
+fi
 
 # Escape single quotes in values for JavaScript
 escape_js() {
@@ -31,13 +37,17 @@ CLIENT_ID_ESC=$(escape_js "$CLIENT_ID")
 TENANT_ID_ESC=$(escape_js "$TENANT_ID")
 REDIRECT_URI_ESC=$(escape_js "$REDIRECT_URI")
 ADMIN_GROUP_ID_ESC=$(escape_js "$ADMIN_GROUP_ID")
+API_BASE_URL_ESC=$(escape_js "$API_BASE_URL")
+FUNCTION_KEY_ESC=$(escape_js "$FUNCTION_KEY")
 
 # Create JavaScript config object (must be injected before </head>)
 CONFIG_JS="window.__ENV__ = {
   VITE_AZURE_AD_CLIENT_ID: '${CLIENT_ID_ESC}',
   VITE_AZURE_AD_TENANT_ID: '${TENANT_ID_ESC}',
   VITE_AZURE_AD_REDIRECT_URI: '${REDIRECT_URI_ESC}',
-  VITE_AZURE_AD_ADMIN_GROUP_ID: '${ADMIN_GROUP_ID_ESC}'
+  VITE_AZURE_AD_ADMIN_GROUP_ID: '${ADMIN_GROUP_ID_ESC}',
+  VITE_API_BASE_URL: '${API_BASE_URL_ESC}',
+  VITE_FUNCTION_KEY: '${FUNCTION_KEY_ESC}'
 };"
 
 # Inject config into index.html before </head> tag (only if file exists)

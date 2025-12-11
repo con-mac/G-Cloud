@@ -8,6 +8,8 @@ import { toast } from 'react-toastify';
 // Support both VITE_API_BASE_URL (for AWS) and VITE_API_URL (for Docker)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_VERSION = import.meta.env.VITE_API_VERSION || 'v1';
+// Function key for Azure Functions with authLevel: function (workaround)
+const FUNCTION_KEY = (window as any).__ENV__?.VITE_FUNCTION_KEY || import.meta.env.VITE_FUNCTION_KEY || '';
 
 class ApiService {
   private client: AxiosInstance;
@@ -41,6 +43,15 @@ class ApiService {
         const token = localStorage.getItem('access_token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
+        }
+
+        // Add function key for Azure Functions with authLevel: function (workaround for CORS issue)
+        if (FUNCTION_KEY) {
+          // Add as query parameter (Azure Functions accepts code parameter)
+          config.params = config.params || {};
+          config.params.code = FUNCTION_KEY;
+          // Also add as header (some Azure Functions configurations prefer this)
+          config.headers['x-functions-key'] = FUNCTION_KEY;
         }
 
         // Add user email and name headers from Entra ID user profile
