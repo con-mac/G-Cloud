@@ -430,8 +430,51 @@ if (-not $funcCheck) {
 # Configure app settings (updates existing or creates new)
 Write-Info "Configuring Function App settings..."
 
-# Get Key Vault reference
-$KEY_VAULT_URI = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" --query properties.vaultUri -o tsv
+# Auto-detect Key Vault name if the configured one doesn't exist (do this early)
+if (-not [string]::IsNullOrWhiteSpace($KEY_VAULT_NAME)) {
+    $ErrorActionPreference = 'SilentlyContinue'
+    $kvCheck = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" --query name -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($kvCheck)) {
+        Write-Warning "Key Vault '$KEY_VAULT_NAME' not found. Auto-detecting from resource group..."
+        $ErrorActionPreference = 'SilentlyContinue'
+        $detectedKv = az keyvault list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($detectedKv)) {
+            $KEY_VAULT_NAME = $detectedKv
+            Write-Success "✓ Auto-detected Key Vault: $KEY_VAULT_NAME"
+        } else {
+            Write-Error "Could not find Key Vault in resource group '$RESOURCE_GROUP'"
+            Write-Error "Please ensure Key Vault exists or update KEY_VAULT_NAME in deployment-config.env"
+            exit 1
+        }
+    }
+} else {
+    # KEY_VAULT_NAME is empty, try to auto-detect
+    Write-Warning "KEY_VAULT_NAME not set in config. Auto-detecting from resource group..."
+    $ErrorActionPreference = 'SilentlyContinue'
+    $detectedKv = az keyvault list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($detectedKv)) {
+        $KEY_VAULT_NAME = $detectedKv
+        Write-Success "✓ Auto-detected Key Vault: $KEY_VAULT_NAME"
+    } else {
+        Write-Error "Could not find Key Vault in resource group '$RESOURCE_GROUP'"
+        Write-Error "Please ensure Key Vault exists or update KEY_VAULT_NAME in deployment-config.env"
+        exit 1
+    }
+}
+
+# Get Key Vault reference (now that we have the correct name)
+$ErrorActionPreference = 'SilentlyContinue'
+$KEY_VAULT_URI = az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" --query properties.vaultUri -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($KEY_VAULT_URI)) {
+    Write-Error "Failed to get Key Vault URI for '$KEY_VAULT_NAME'"
+    Write-Error "Please verify the Key Vault exists and you have access to it"
+    exit 1
+}
+Write-Success "✓ Key Vault URI: $KEY_VAULT_URI"
 
 # Build settings array to avoid PowerShell parsing issues with @ symbols
 # Use string concatenation to prevent PowerShell from misinterpreting @Microsoft.KeyVault
