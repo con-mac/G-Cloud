@@ -86,11 +86,14 @@ if ($KEY_VAULT_NAME) {
 if (-not $CLIENT_SECRET) {
     Write-Info "Creating new client secret..."
     $secretName = "EasyAuth-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-    $secretResponse = az ad app credential reset --id $CLIENT_ID --display-name $secretName --query "{password:password}" -o json 2>&1
     
-    if ($LASTEXITCODE -eq 0) {
-        $secretObj = $secretResponse | ConvertFrom-Json
-        $CLIENT_SECRET = $secretObj.password
+    # Use tsv output to get just the password value (more reliable than JSON)
+    $ErrorActionPreference = 'SilentlyContinue'
+    $CLIENT_SECRET = az ad app credential reset --id $CLIENT_ID --display-name $secretName --query "password" -o tsv 2>$null
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    
+    if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($CLIENT_SECRET)) {
         Write-Success "Created new client secret"
         
         # Store in Key Vault if available
@@ -99,10 +102,15 @@ if (-not $CLIENT_SECRET) {
             az keyvault secret set --vault-name $KEY_VAULT_NAME --name "AzureAdClientSecret" --value $CLIENT_SECRET 2>&1 | Out-Null
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "Stored client secret in Key Vault"
+            } else {
+                Write-Warning "Failed to store client secret in Key Vault, but secret was created successfully"
             }
         }
     } else {
-        Write-Error "Failed to create client secret: $secretResponse"
+        Write-Error "Failed to create client secret. Exit code: $exitCode"
+        if ([string]::IsNullOrWhiteSpace($CLIENT_SECRET)) {
+            Write-Error "Client secret is empty"
+        }
         exit 1
     }
 }
