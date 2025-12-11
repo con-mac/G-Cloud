@@ -434,7 +434,7 @@ if (-not (Test-Path "host.json")) {
             Write-Warning "No files found to deploy"
         }
     }
-}
+    # End of deployment else block (line 115)
 
 # Configure app settings (updates existing or creates new)
 Write-Info "Configuring Function App settings..."
