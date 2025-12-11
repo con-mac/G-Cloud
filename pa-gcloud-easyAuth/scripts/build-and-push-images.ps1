@@ -86,14 +86,13 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acrExists)) {
 Write-Success "ACR verified: $ACR_NAME"
 
 # Check if frontend directory exists
-# Try multiple paths: relative to pa-deployment/scripts, relative to pa-deployment, or root
+# For Easy Auth version, use pa-gcloud-easyAuth/frontend (not root frontend)
 $frontendPath = $null
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $possiblePaths = @(
-    "$scriptDir\..\..\frontend",        # From pa-deployment/scripts -> root/frontend (PREFERRED - has Dockerfile)
-    "$scriptDir\..\frontend",           # From pa-deployment/scripts -> pa-deployment/frontend
-    "..\..\frontend",                    # Relative from current directory (if in scripts)
-    "..\frontend",                       # Relative from current directory
+    "$scriptDir\..\frontend",            # From pa-gcloud-easyAuth/scripts -> pa-gcloud-easyAuth/frontend (PREFERRED for Easy Auth)
+    "$scriptDir\..\..\frontend",        # From pa-gcloud-easyAuth/scripts -> root/frontend (fallback)
+    "..\frontend",                       # Relative from current directory (if in scripts)
     "frontend"                           # If frontend is in current directory
 )
 
