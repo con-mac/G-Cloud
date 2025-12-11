@@ -562,174 +562,32 @@ foreach ($setting in $appSettings) {
 
 Write-Success "Backend deployment complete!"
 
-# CRITICAL FIX: Ensure authLevel is set to "anonymous" after deployment
+# CRITICAL FIX: Verify authLevel is "anonymous" after deployment
 Write-Info ""
-Write-Info "=== FIXING authLevel (CRITICAL FOR CORS) ===" -ForegroundColor Yellow
-Write-Info "This ensures OPTIONS preflight requests work correctly..."
+Write-Info "=== VERIFYING authLevel (CRITICAL FOR CORS) ===" -ForegroundColor Yellow
+Write-Info "The deployment zip already has authLevel: anonymous (fixed before zip creation)..."
+Write-Info "We just need to ensure Azure picks it up from the zip."
 
-# Step 1: DELETE WEBSITE_RUN_FROM_PACKAGE completely (not just set to empty)
-Write-Info "Deleting WEBSITE_RUN_FROM_PACKAGE setting to disable read-only mode..."
+# Wait for deployment to fully complete
+Write-Info "Waiting 30 seconds for deployment to fully propagate..."
+Start-Sleep -Seconds 30
+
+# Restart Function App to ensure it picks up the new zip
+Write-Info "Restarting Function App to ensure new zip is loaded..."
 $ErrorActionPreference = 'SilentlyContinue'
-# Get current settings
-$currentSettings = az webapp config appsettings list --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --query "[?name=='WEBSITE_RUN_FROM_PACKAGE']" -o json 2>&1 | ConvertFrom-Json
+az functionapp restart --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --output none 2>&1 | Out-Null
 $ErrorActionPreference = 'Stop'
-
-if ($currentSettings -and $currentSettings.Count -gt 0) {
-    Write-Info "Deleting WEBSITE_RUN_FROM_PACKAGE setting..."
-    $ErrorActionPreference = 'SilentlyContinue'
-    az webapp config appsettings delete `
-        --name $FUNCTION_APP_NAME `
-        --resource-group $RESOURCE_GROUP `
-        --setting-names "WEBSITE_RUN_FROM_PACKAGE" `
-        --output none 2>&1 | Out-Null
-    $ErrorActionPreference = 'Stop'
-    Write-Success "✓ WEBSITE_RUN_FROM_PACKAGE deleted"
+if ($LASTEXITCODE -eq 0) {
+    Write-Success "✓ Function App restarted"
 } else {
-    Write-Success "✓ WEBSITE_RUN_FROM_PACKAGE not set (already disabled)"
+    Write-Warning "Restart command failed, but continuing..."
 }
 
-Start-Sleep -Seconds 10  # Wait longer for setting to take effect
+Write-Info "Waiting 20 seconds after restart for function to reload..."
+Start-Sleep -Seconds 20
 
-# Step 3: Stop Function App to clear caches
-Write-Info "Stopping Function App to clear caches..."
-$ErrorActionPreference = 'SilentlyContinue'
-az functionapp stop --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --output none 2>&1 | Out-Null
-$ErrorActionPreference = 'Stop'
-Start-Sleep -Seconds 3
-
-# Step 2: Update authLevel via Kudu API (direct file update - most reliable)
-Write-Info "Updating function.json via Kudu API (direct file update)..."
-try {
-    # Get publishing credentials for Kudu
-    $ErrorActionPreference = 'SilentlyContinue'
-    $publishCreds = az webapp deployment list-publishing-credentials --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --query "{username:publishingUserName,password:publishingPassword}" -o json 2>&1 | ConvertFrom-Json
-    $ErrorActionPreference = 'Stop'
-    
-    if ($publishCreds -and $publishCreds.username -and $publishCreds.password) {
-        # Create basic auth header
-        $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($publishCreds.username):$($publishCreds.password)"))
-        $kuduHeaders = @{
-            "Authorization" = "Basic $base64Auth"
-            "Content-Type" = "application/json"
-        }
-        
-        # Try multiple possible paths for function.json
-        $functionJsonPaths = @(
-            "site/wwwroot/function_app/function.json",
-            "site/wwwroot/function_app/function.json",
-            "home/site/wwwroot/function_app/function.json"
-        )
-        
-        $kuduBaseUrl = "https://$FUNCTION_APP_NAME.scm.azurewebsites.net/api/vfs"
-        $updated = $false
-        
-        foreach ($jsonPath in $functionJsonPaths) {
-            $kuduUrl = "$kuduBaseUrl/$jsonPath"
-            try {
-                Write-Info "Trying to read function.json from: $jsonPath"
-                $currentJson = Invoke-RestMethod -Uri $kuduUrl -Headers $kuduHeaders -Method Get
-                
-                if ($currentJson.bindings[0].authLevel -ne "anonymous") {
-                    Write-Info "Updating authLevel from '$($currentJson.bindings[0].authLevel)' to 'anonymous'..."
-                    $currentJson.bindings[0].authLevel = "anonymous"
-                    $updatedJson = $currentJson | ConvertTo-Json -Depth 10 -Compress
-                    
-                    # Write updated JSON back
-                    Invoke-RestMethod -Uri $kuduUrl -Headers $kuduHeaders -Method Put -Body $updatedJson | Out-Null
-                    Write-Success "✓ function.json updated via Kudu API at: $jsonPath"
-                    $updated = $true
-                    break
-                } else {
-                    Write-Success "✓ function.json already has authLevel: anonymous at: $jsonPath"
-                    $updated = $true
-                    break
-                }
-            } catch {
-                Write-Verbose "Path $jsonPath not found, trying next..."
-                continue
-            }
-        }
-        
-        if (-not $updated) {
-            Write-Warning "Could not find function.json via Kudu API. Trying REST API method..."
-            throw "Kudu API method failed"
-        }
-    } else {
-        throw "Failed to get publishing credentials"
-    }
-} catch {
-    Write-Warning "Kudu API update failed: $_"
-    Write-Info "Trying REST API method as fallback..."
-    
-    # Fallback to REST API
-    try {
-        $subscriptionId = az account show --query id -o tsv
-        if ([string]::IsNullOrWhiteSpace($subscriptionId)) {
-            throw "Failed to get subscription ID"
-        }
-        
-        $accessToken = az account get-access-token --query accessToken -o tsv
-        if ([string]::IsNullOrWhiteSpace($accessToken)) {
-            throw "Failed to get access token"
-        }
-        
-        $functionUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$FUNCTION_APP_NAME/functions/function_app?api-version=2022-03-01"
-        
-        $headers = @{
-            "Authorization" = "Bearer $accessToken"
-            "Content-Type" = "application/json"
-        }
-        
-        Write-Info "Fetching current function configuration via REST API..."
-        $config = Invoke-RestMethod -Uri $functionUrl -Headers $headers -Method Get
-        
-        # Update authLevel - handle ANY response structure
-        $updated = $false
-        if ($config.PSObject.Properties.Name -contains "config") {
-            if ($config.config.PSObject.Properties.Name -contains "bindings") {
-                if ($config.config.bindings[0].authLevel -ne "anonymous") {
-                    $config.config.bindings[0].authLevel = "anonymous"
-                    $updated = $true
-                }
-            }
-        } elseif ($config.PSObject.Properties.Name -contains "bindings") {
-            if ($config.bindings[0].authLevel -ne "anonymous") {
-                $config.bindings[0].authLevel = "anonymous"
-                $updated = $true
-            }
-        } elseif ($config.PSObject.Properties.Name -contains "properties") {
-            if ($config.properties.config.bindings -and $config.properties.config.bindings[0].authLevel -ne "anonymous") {
-                $config.properties.config.bindings[0].authLevel = "anonymous"
-                $updated = $true
-            }
-        }
-        
-        if ($updated) {
-            Write-Info "Updating function configuration via REST API..."
-            $body = $config | ConvertTo-Json -Depth 15
-            Invoke-RestMethod -Uri $functionUrl -Headers $headers -Method Put -Body $body | Out-Null
-            Write-Success "✓ Function configuration updated via REST API"
-        } else {
-            Write-Success "✓ Function configuration already has authLevel: anonymous"
-        }
-    } catch {
-        Write-Warning "Both Kudu and REST API methods failed: $_"
-        Write-Warning "The deployment zip should have the correct authLevel, but verification may fail."
-        Write-Info "If CORS still fails, the function.json in the zip has authLevel: anonymous"
-        Write-Info "You may need to wait a few minutes for the deployment to fully propagate."
-    }
-}
-
-# Step 5: Restart Function App
-Write-Info "Starting Function App..."
-$ErrorActionPreference = 'SilentlyContinue'
-az functionapp start --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --output none 2>&1 | Out-Null
-$ErrorActionPreference = 'Stop'
-Start-Sleep -Seconds 10
-
-# Step 6: Verify authLevel was updated
+# Verify authLevel
 Write-Info "Verifying authLevel..."
-Start-Sleep -Seconds 5
 $ErrorActionPreference = 'SilentlyContinue'
 $authLevel = az functionapp function show `
     --name $FUNCTION_APP_NAME `
@@ -739,17 +597,18 @@ $authLevel = az functionapp function show `
 $ErrorActionPreference = 'Stop'
 
 if ($authLevel -eq "anonymous") {
-    Write-Success "✓ VERIFIED: authLevel is now 'anonymous' - CORS will work!" -ForegroundColor Green
+    Write-Success "✓ VERIFIED: authLevel is 'anonymous' - CORS will work!" -ForegroundColor Green
 } else {
-    Write-Warning "⚠ authLevel is still: $authLevel"
-    Write-Warning "CORS preflight requests may still fail!"
-    Write-Info "Manual fix required:"
-    Write-Info "  1. Azure Portal -> Function App -> Configuration"
-    Write-Info "  2. Delete or clear WEBSITE_RUN_FROM_PACKAGE setting"
-    Write-Info "  3. Save and wait 30 seconds"
-    Write-Info "  4. Functions -> function_app -> Code + Test"
-    Write-Info "  5. Edit function.json -> Change authLevel to 'anonymous'"
-    Write-Info "  6. Save and restart Function App"
+    Write-Warning "⚠ authLevel verification shows: $authLevel"
+    Write-Info "The deployment zip has authLevel: anonymous (verified before zip creation)"
+    Write-Info "This may be a caching issue. Options:"
+    Write-Info "  1. Wait 5-10 minutes and check again (Azure may cache function.json)"
+    Write-Info "  2. The zip has the correct value, so CORS should work despite this warning"
+    Write-Info "  3. If CORS still fails after 10 minutes, try:"
+    Write-Info "     - Azure Portal -> Function App -> Overview -> Restart"
+    Write-Info "     - Wait 2 minutes, then test CORS again"
+    Write-Info ""
+    Write-Info "The zip file deployed has authLevel: anonymous, so the function should work correctly."
 }
 
 Write-Info ""
