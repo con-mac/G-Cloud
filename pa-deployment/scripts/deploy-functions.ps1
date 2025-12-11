@@ -367,11 +367,13 @@ if (-not $funcCheck) {
                     exit 1
                 }
                 
-                # Use the proven method that doesn't hang
-                $deployOutput = az functionapp deployment source config-zip `
+                # Use az webapp deploy (Kudu zip deploy) - doesn't require storage connection string
+                Write-Info "Using az webapp deploy (Kudu zip deploy method)..."
+                $deployOutput = az webapp deploy `
                     --resource-group $RESOURCE_GROUP `
                     --name $FUNCTION_APP_NAME `
-                    --src $deployZipAbsolute `
+                    --type zip `
+                    --src-path $deployZipAbsolute `
                     --timeout 1800 2>&1 | Tee-Object -Variable deployOutput
                 
                 if ($LASTEXITCODE -eq 0) {
