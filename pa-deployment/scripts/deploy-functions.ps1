@@ -476,6 +476,30 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($KEY_VAULT_URI)) {
 }
 Write-Success "✓ Key Vault URI: $KEY_VAULT_URI"
 
+# Auto-detect Web App name if the configured one doesn't exist (for CORS configuration)
+if (-not [string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
+    $ErrorActionPreference = 'SilentlyContinue'
+    $webAppCheck = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query name -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($webAppCheck)) {
+        Write-Warning "Web App '$WEB_APP_NAME' not found. Auto-detecting from resource group..."
+        $ErrorActionPreference = 'SilentlyContinue'
+        # List all web apps, exclude Function Apps (they have kind 'functionapp')
+        $allWebApps = az webapp list --resource-group "$RESOURCE_GROUP" --query "[?kind!='functionapp'].name" -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allWebApps)) {
+            $detectedWebApp = ($allWebApps -split "`n" | Where-Object { $_ -match "web" } | Select-Object -First 1).Trim()
+            if ($detectedWebApp) {
+                $WEB_APP_NAME = $detectedWebApp
+                Write-Success "✓ Auto-detected Web App: $WEB_APP_NAME"
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($detectedWebApp)) {
+            Write-Warning "Could not auto-detect Web App. Using configured name: $WEB_APP_NAME"
+        }
+    }
+}
+
 # Build settings array to avoid PowerShell parsing issues with @ symbols
 # Use string concatenation to prevent PowerShell from misinterpreting @Microsoft.KeyVault
 $kvStorageRef = '@Microsoft.KeyVault(SecretUri=' + $KEY_VAULT_URI + '/secrets/StorageConnectionString/)'
@@ -488,8 +512,10 @@ $WEB_APP_URL = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE
 $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($WEB_APP_URL)) {
     $WEB_APP_URL = "https://$WEB_APP_URL"
+    Write-Success "✓ Web App URL for CORS: $WEB_APP_URL"
 } else {
     $WEB_APP_URL = "https://${WEB_APP_NAME}.azurewebsites.net"
+    Write-Warning "Could not get Web App URL, using default: $WEB_APP_URL"
 }
 
 $appSettings = @()
