@@ -517,6 +517,147 @@ foreach ($setting in $appSettings) {
 }
 
 Write-Success "Backend deployment complete!"
+
+# CRITICAL FIX: Ensure authLevel is set to "anonymous" after deployment
+Write-Info ""
+Write-Info "=== FIXING authLevel (CRITICAL FOR CORS) ===" -ForegroundColor Yellow
+Write-Info "This ensures OPTIONS preflight requests work correctly..."
+
+# Step 1: Verify local function.json has correct authLevel
+$functionJsonPath = Join-Path (Get-Location) "backend\function_app\function.json"
+if (Test-Path $functionJsonPath) {
+    $jsonContent = Get-Content $functionJsonPath -Raw | ConvertFrom-Json
+    if ($jsonContent.bindings[0].authLevel -ne "anonymous") {
+        Write-Warning "Local function.json has authLevel: $($jsonContent.bindings[0].authLevel)"
+        Write-Info "Updating local function.json to 'anonymous'..."
+        $jsonContent.bindings[0].authLevel = "anonymous"
+        $jsonContent | ConvertTo-Json -Depth 10 | Out-File -FilePath $functionJsonPath -Encoding utf8 -NoNewline
+        Write-Success "✓ Local function.json updated to 'anonymous'"
+    } else {
+        Write-Success "✓ Local function.json already has authLevel: anonymous"
+    }
+} else {
+    Write-Warning "Local function.json not found at: $functionJsonPath"
+}
+
+# Step 2: Disable package mode temporarily to allow updates
+Write-Info "Disabling package mode temporarily..."
+$ErrorActionPreference = 'SilentlyContinue'
+az webapp config appsettings set `
+    --name $FUNCTION_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --settings "WEBSITE_RUN_FROM_PACKAGE=" `
+    --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+Start-Sleep -Seconds 5
+
+# Step 3: Stop Function App to clear caches
+Write-Info "Stopping Function App to clear caches..."
+$ErrorActionPreference = 'SilentlyContinue'
+az functionapp stop --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+Start-Sleep -Seconds 3
+
+# Step 4: Update authLevel via REST API
+Write-Info "Updating authLevel via Azure Management API..."
+try {
+    $subscriptionId = az account show --query id -o tsv
+    if ([string]::IsNullOrWhiteSpace($subscriptionId)) {
+        throw "Failed to get subscription ID"
+    }
+    
+    $accessToken = az account get-access-token --query accessToken -o tsv
+    if ([string]::IsNullOrWhiteSpace($accessToken)) {
+        throw "Failed to get access token"
+    }
+    
+    $functionUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$FUNCTION_APP_NAME/functions/function_app?api-version=2022-03-01"
+    
+    $headers = @{
+        "Authorization" = "Bearer $accessToken"
+        "Content-Type" = "application/json"
+    }
+    
+    # Get current config
+    Write-Info "Fetching current function configuration..."
+    $config = Invoke-RestMethod -Uri $functionUrl -Headers $headers -Method Get
+    
+    # Update authLevel - handle ANY response structure
+    $updated = $false
+    if ($config.PSObject.Properties.Name -contains "config") {
+        if ($config.config.PSObject.Properties.Name -contains "bindings") {
+            if ($config.config.bindings[0].authLevel -ne "anonymous") {
+                $config.config.bindings[0].authLevel = "anonymous"
+                $updated = $true
+            }
+        } elseif ($config.config.PSObject.Properties.Name -contains "binding") {
+            if ($config.config.binding.authLevel -ne "anonymous") {
+                $config.config.binding.authLevel = "anonymous"
+                $updated = $true
+            }
+        }
+    } elseif ($config.PSObject.Properties.Name -contains "bindings") {
+        if ($config.bindings[0].authLevel -ne "anonymous") {
+            $config.bindings[0].authLevel = "anonymous"
+            $updated = $true
+        }
+    } elseif ($config.PSObject.Properties.Name -contains "properties") {
+        if ($config.properties.config.bindings -and $config.properties.config.bindings[0].authLevel -ne "anonymous") {
+            $config.properties.config.bindings[0].authLevel = "anonymous"
+            $updated = $true
+        }
+    }
+    
+    if ($updated) {
+        Write-Info "Updating function configuration..."
+        $body = $config | ConvertTo-Json -Depth 15
+        Invoke-RestMethod -Uri $functionUrl -Headers $headers -Method Put -Body $body | Out-Null
+        Write-Success "✓ Function configuration updated via REST API"
+    } else {
+        Write-Success "✓ Function configuration already has authLevel: anonymous"
+    }
+} catch {
+    Write-Warning "Failed to update via REST API: $_"
+    Write-Info "This is non-critical - the deployment zip should have the correct authLevel"
+    Write-Info "If CORS still fails, manually update in Azure Portal:"
+    Write-Info "  1. Disable WEBSITE_RUN_FROM_PACKAGE"
+    Write-Info "  2. Go to Functions -> function_app -> Code + Test"
+    Write-Info "  3. Edit function.json -> Change authLevel to 'anonymous'"
+}
+
+# Step 5: Restart Function App
+Write-Info "Starting Function App..."
+$ErrorActionPreference = 'SilentlyContinue'
+az functionapp start --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --output none 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+Start-Sleep -Seconds 10
+
+# Step 6: Verify authLevel was updated
+Write-Info "Verifying authLevel..."
+Start-Sleep -Seconds 5
+$ErrorActionPreference = 'SilentlyContinue'
+$authLevel = az functionapp function show `
+    --name $FUNCTION_APP_NAME `
+    --resource-group $RESOURCE_GROUP `
+    --function-name function_app `
+    --query "config.bindings[0].authLevel" -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+
+if ($authLevel -eq "anonymous") {
+    Write-Success "✓ VERIFIED: authLevel is now 'anonymous' - CORS will work!" -ForegroundColor Green
+} else {
+    Write-Warning "⚠ authLevel is still: $authLevel"
+    Write-Warning "CORS preflight requests may still fail!"
+    Write-Info "Manual fix required:"
+    Write-Info "  1. Azure Portal -> Function App -> Configuration"
+    Write-Info "  2. Delete or clear WEBSITE_RUN_FROM_PACKAGE setting"
+    Write-Info "  3. Save and wait 30 seconds"
+    Write-Info "  4. Functions -> function_app -> Code + Test"
+    Write-Info "  5. Edit function.json -> Change authLevel to 'anonymous'"
+    Write-Info "  6. Save and restart Function App"
+}
+
+Write-Info ""
 Write-Info "Note: SharePoint credentials need to be added to Key Vault"
 Write-Info "Note: App Registration credentials need to be configured"
 
