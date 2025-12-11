@@ -60,6 +60,44 @@ if ([string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
     exit 1
 }
 
+# Auto-detect Web App name if the configured one doesn't exist
+$ErrorActionPreference = 'SilentlyContinue'
+$webAppCheck = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query name -o tsv 2>&1
+$ErrorActionPreference = 'Stop'
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($webAppCheck)) {
+    Write-Warning "Web App '$WEB_APP_NAME' not found. Auto-detecting from resource group..."
+    $ErrorActionPreference = 'SilentlyContinue'
+    $allWebApps = az webapp list --resource-group "$RESOURCE_GROUP" --query "[].{name:name, kind:kind}" -o json 2>&1
+    $ErrorActionPreference = 'Stop'
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allWebApps)) {
+        $webApps = $allWebApps | ConvertFrom-Json
+        # Filter for Web Apps (exclude Function Apps which have kind='functionapp')
+        $detectedWebApp = $webApps | Where-Object { 
+            $_.kind -ne 'functionapp' -or [string]::IsNullOrWhiteSpace($_.kind)
+        } | Select-Object -First 1 -ExpandProperty name
+        
+        if (-not [string]::IsNullOrWhiteSpace($detectedWebApp)) {
+            $WEB_APP_NAME = $detectedWebApp
+            Write-Success "✓ Auto-detected Web App: $WEB_APP_NAME"
+        } else {
+            # Fallback: try to find by name pattern
+            $detectedWebApp = $webApps | Where-Object { $_.name -like '*web*' } | Select-Object -First 1 -ExpandProperty name
+            if (-not [string]::IsNullOrWhiteSpace($detectedWebApp)) {
+                $WEB_APP_NAME = $detectedWebApp
+                Write-Success "✓ Auto-detected Web App (by pattern): $WEB_APP_NAME"
+            } else {
+                Write-Error "Could not find Web App in resource group '$RESOURCE_GROUP'"
+                Write-Error "Please ensure Web App exists or update WEB_APP_NAME in deployment-config.env"
+                exit 1
+            }
+        }
+    } else {
+        Write-Error "Could not list web apps in resource group '$RESOURCE_GROUP'"
+        Write-Error "Please ensure Web App exists or update WEB_APP_NAME in deployment-config.env"
+        exit 1
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
     Write-Error "RESOURCE_GROUP is missing or empty in config file!"
     exit 1
