@@ -433,7 +433,6 @@ if (-not (Test-Path "host.json")) {
         } else {
             Write-Warning "No files found to deploy"
         }
-    }
 }
 
 # Configure app settings (updates existing or creates new)
