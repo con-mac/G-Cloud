@@ -393,6 +393,27 @@ if ($buildMethod -eq "2") {
             }
         }
         
+        # Auto-detect Web App name if configured one doesn't exist
+        if (-not [string]::IsNullOrWhiteSpace($WEB_APP_NAME)) {
+            $ErrorActionPreference = 'SilentlyContinue'
+            $webAppCheck = az webapp show --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query name -o tsv 2>&1
+            $ErrorActionPreference = 'Stop'
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($webAppCheck)) {
+                Write-Warning "Web App '$WEB_APP_NAME' not found. Auto-detecting from resource group..."
+                $ErrorActionPreference = 'SilentlyContinue'
+                # List all web apps, exclude Function Apps
+                $allWebApps = az webapp list --resource-group "$RESOURCE_GROUP" --query "[?kind!='functionapp'].name" -o tsv 2>&1
+                $ErrorActionPreference = 'Stop'
+                if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($allWebApps)) {
+                    $detectedWebApp = ($allWebApps -split "`n" | Where-Object { $_ -match "web" } | Select-Object -First 1).Trim()
+                    if ($detectedWebApp) {
+                        $WEB_APP_NAME = $detectedWebApp
+                        Write-Success "✓ Auto-detected Web App: $WEB_APP_NAME"
+                    }
+                }
+            }
+        }
+        
         $redirectUri = "https://${WEB_APP_NAME}.azurewebsites.net"
         $adminGroupId = $config.ADMIN_GROUP_ID
         
