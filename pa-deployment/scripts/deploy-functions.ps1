@@ -181,6 +181,24 @@ if (-not $funcCheck) {
                 exit 1
             }
             
+            # CRITICAL: Fix function.json authLevel BEFORE creating zip
+            $functionJsonPath = Join-Path $functionAppPath "function.json"
+            if (Test-Path $functionJsonPath) {
+                Write-Info "Verifying function.json has correct authLevel before deployment..."
+                $jsonContent = Get-Content $functionJsonPath -Raw | ConvertFrom-Json
+                if ($jsonContent.bindings[0].authLevel -ne "anonymous") {
+                    Write-Warning "function.json authLevel is '$($jsonContent.bindings[0].authLevel)'. Changing to 'anonymous'..."
+                    $jsonContent.bindings[0].authLevel = "anonymous"
+                    $jsonContent | ConvertTo-Json -Depth 10 | Out-File -FilePath $functionJsonPath -Encoding utf8 -NoNewline
+                    Write-Success "✓ function.json updated to authLevel: anonymous (will be in deployment zip)"
+                } else {
+                    Write-Success "✓ function.json already has authLevel: anonymous"
+                }
+            } else {
+                Write-Error "function.json not found at: $functionJsonPath"
+                exit 1
+            }
+            
             # Verify critical files exist
             $hasFunctionApp = $filesToZip | Where-Object { $_.FullName -like "*function_app\__init__.py" -or $_.FullName -like "*function_app/__init__.py" }
             $hasFunctionJson = $filesToZip | Where-Object { $_.FullName -like "*function_app\function.json" -or $_.FullName -like "*function_app/function.json" }
@@ -549,33 +567,28 @@ Write-Info ""
 Write-Info "=== FIXING authLevel (CRITICAL FOR CORS) ===" -ForegroundColor Yellow
 Write-Info "This ensures OPTIONS preflight requests work correctly..."
 
-# Step 1: Verify local function.json has correct authLevel
-$functionJsonPath = Join-Path (Get-Location) "backend\function_app\function.json"
-if (Test-Path $functionJsonPath) {
-    $jsonContent = Get-Content $functionJsonPath -Raw | ConvertFrom-Json
-    if ($jsonContent.bindings[0].authLevel -ne "anonymous") {
-        Write-Warning "Local function.json has authLevel: $($jsonContent.bindings[0].authLevel)"
-        Write-Info "Updating local function.json to 'anonymous'..."
-        $jsonContent.bindings[0].authLevel = "anonymous"
-        $jsonContent | ConvertTo-Json -Depth 10 | Out-File -FilePath $functionJsonPath -Encoding utf8 -NoNewline
-        Write-Success "✓ Local function.json updated to 'anonymous'"
-    } else {
-        Write-Success "✓ Local function.json already has authLevel: anonymous"
-    }
+# Step 1: DELETE WEBSITE_RUN_FROM_PACKAGE completely (not just set to empty)
+Write-Info "Deleting WEBSITE_RUN_FROM_PACKAGE setting to disable read-only mode..."
+$ErrorActionPreference = 'SilentlyContinue'
+# Get current settings
+$currentSettings = az webapp config appsettings list --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --query "[?name=='WEBSITE_RUN_FROM_PACKAGE']" -o json 2>&1 | ConvertFrom-Json
+$ErrorActionPreference = 'Stop'
+
+if ($currentSettings -and $currentSettings.Count -gt 0) {
+    Write-Info "Deleting WEBSITE_RUN_FROM_PACKAGE setting..."
+    $ErrorActionPreference = 'SilentlyContinue'
+    az webapp config appsettings delete `
+        --name $FUNCTION_APP_NAME `
+        --resource-group $RESOURCE_GROUP `
+        --setting-names "WEBSITE_RUN_FROM_PACKAGE" `
+        --output none 2>&1 | Out-Null
+    $ErrorActionPreference = 'Stop'
+    Write-Success "✓ WEBSITE_RUN_FROM_PACKAGE deleted"
 } else {
-    Write-Warning "Local function.json not found at: $functionJsonPath"
+    Write-Success "✓ WEBSITE_RUN_FROM_PACKAGE not set (already disabled)"
 }
 
-# Step 2: Disable package mode temporarily to allow updates
-Write-Info "Disabling package mode temporarily..."
-$ErrorActionPreference = 'SilentlyContinue'
-az webapp config appsettings set `
-    --name $FUNCTION_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --settings "WEBSITE_RUN_FROM_PACKAGE=" `
-    --output none 2>&1 | Out-Null
-$ErrorActionPreference = 'Stop'
-Start-Sleep -Seconds 5
+Start-Sleep -Seconds 10  # Wait longer for setting to take effect
 
 # Step 3: Stop Function App to clear caches
 Write-Info "Stopping Function App to clear caches..."
@@ -584,71 +597,127 @@ az functionapp stop --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP -
 $ErrorActionPreference = 'Stop'
 Start-Sleep -Seconds 3
 
-# Step 4: Update authLevel via REST API
-Write-Info "Updating authLevel via Azure Management API..."
+# Step 2: Update authLevel via Kudu API (direct file update - most reliable)
+Write-Info "Updating function.json via Kudu API (direct file update)..."
 try {
-    $subscriptionId = az account show --query id -o tsv
-    if ([string]::IsNullOrWhiteSpace($subscriptionId)) {
-        throw "Failed to get subscription ID"
-    }
+    # Get publishing credentials for Kudu
+    $ErrorActionPreference = 'SilentlyContinue'
+    $publishCreds = az webapp deployment list-publishing-credentials --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --query "{username:publishingUserName,password:publishingPassword}" -o json 2>&1 | ConvertFrom-Json
+    $ErrorActionPreference = 'Stop'
     
-    $accessToken = az account get-access-token --query accessToken -o tsv
-    if ([string]::IsNullOrWhiteSpace($accessToken)) {
-        throw "Failed to get access token"
-    }
-    
-    $functionUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$FUNCTION_APP_NAME/functions/function_app?api-version=2022-03-01"
-    
-    $headers = @{
-        "Authorization" = "Bearer $accessToken"
-        "Content-Type" = "application/json"
-    }
-    
-    # Get current config
-    Write-Info "Fetching current function configuration..."
-    $config = Invoke-RestMethod -Uri $functionUrl -Headers $headers -Method Get
-    
-    # Update authLevel - handle ANY response structure
-    $updated = $false
-    if ($config.PSObject.Properties.Name -contains "config") {
-        if ($config.config.PSObject.Properties.Name -contains "bindings") {
-            if ($config.config.bindings[0].authLevel -ne "anonymous") {
-                $config.config.bindings[0].authLevel = "anonymous"
-                $updated = $true
+    if ($publishCreds -and $publishCreds.username -and $publishCreds.password) {
+        # Create basic auth header
+        $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($publishCreds.username):$($publishCreds.password)"))
+        $kuduHeaders = @{
+            "Authorization" = "Basic $base64Auth"
+            "Content-Type" = "application/json"
+        }
+        
+        # Try multiple possible paths for function.json
+        $functionJsonPaths = @(
+            "site/wwwroot/function_app/function.json",
+            "site/wwwroot/function_app/function.json",
+            "home/site/wwwroot/function_app/function.json"
+        )
+        
+        $kuduBaseUrl = "https://$FUNCTION_APP_NAME.scm.azurewebsites.net/api/vfs"
+        $updated = $false
+        
+        foreach ($jsonPath in $functionJsonPaths) {
+            $kuduUrl = "$kuduBaseUrl/$jsonPath"
+            try {
+                Write-Info "Trying to read function.json from: $jsonPath"
+                $currentJson = Invoke-RestMethod -Uri $kuduUrl -Headers $kuduHeaders -Method Get
+                
+                if ($currentJson.bindings[0].authLevel -ne "anonymous") {
+                    Write-Info "Updating authLevel from '$($currentJson.bindings[0].authLevel)' to 'anonymous'..."
+                    $currentJson.bindings[0].authLevel = "anonymous"
+                    $updatedJson = $currentJson | ConvertTo-Json -Depth 10 -Compress
+                    
+                    # Write updated JSON back
+                    Invoke-RestMethod -Uri $kuduUrl -Headers $kuduHeaders -Method Put -Body $updatedJson | Out-Null
+                    Write-Success "✓ function.json updated via Kudu API at: $jsonPath"
+                    $updated = $true
+                    break
+                } else {
+                    Write-Success "✓ function.json already has authLevel: anonymous at: $jsonPath"
+                    $updated = $true
+                    break
+                }
+            } catch {
+                Write-Verbose "Path $jsonPath not found, trying next..."
+                continue
             }
-        } elseif ($config.config.PSObject.Properties.Name -contains "binding") {
-            if ($config.config.binding.authLevel -ne "anonymous") {
-                $config.config.binding.authLevel = "anonymous"
-                $updated = $true
-            }
         }
-    } elseif ($config.PSObject.Properties.Name -contains "bindings") {
-        if ($config.bindings[0].authLevel -ne "anonymous") {
-            $config.bindings[0].authLevel = "anonymous"
-            $updated = $true
+        
+        if (-not $updated) {
+            Write-Warning "Could not find function.json via Kudu API. Trying REST API method..."
+            throw "Kudu API method failed"
         }
-    } elseif ($config.PSObject.Properties.Name -contains "properties") {
-        if ($config.properties.config.bindings -and $config.properties.config.bindings[0].authLevel -ne "anonymous") {
-            $config.properties.config.bindings[0].authLevel = "anonymous"
-            $updated = $true
-        }
-    }
-    
-    if ($updated) {
-        Write-Info "Updating function configuration..."
-        $body = $config | ConvertTo-Json -Depth 15
-        Invoke-RestMethod -Uri $functionUrl -Headers $headers -Method Put -Body $body | Out-Null
-        Write-Success "✓ Function configuration updated via REST API"
     } else {
-        Write-Success "✓ Function configuration already has authLevel: anonymous"
+        throw "Failed to get publishing credentials"
     }
 } catch {
-    Write-Warning "Failed to update via REST API: $_"
-    Write-Info "This is non-critical - the deployment zip should have the correct authLevel"
-    Write-Info "If CORS still fails, manually update in Azure Portal:"
-    Write-Info "  1. Disable WEBSITE_RUN_FROM_PACKAGE"
-    Write-Info "  2. Go to Functions -> function_app -> Code + Test"
-    Write-Info "  3. Edit function.json -> Change authLevel to 'anonymous'"
+    Write-Warning "Kudu API update failed: $_"
+    Write-Info "Trying REST API method as fallback..."
+    
+    # Fallback to REST API
+    try {
+        $subscriptionId = az account show --query id -o tsv
+        if ([string]::IsNullOrWhiteSpace($subscriptionId)) {
+            throw "Failed to get subscription ID"
+        }
+        
+        $accessToken = az account get-access-token --query accessToken -o tsv
+        if ([string]::IsNullOrWhiteSpace($accessToken)) {
+            throw "Failed to get access token"
+        }
+        
+        $functionUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$FUNCTION_APP_NAME/functions/function_app?api-version=2022-03-01"
+        
+        $headers = @{
+            "Authorization" = "Bearer $accessToken"
+            "Content-Type" = "application/json"
+        }
+        
+        Write-Info "Fetching current function configuration via REST API..."
+        $config = Invoke-RestMethod -Uri $functionUrl -Headers $headers -Method Get
+        
+        # Update authLevel - handle ANY response structure
+        $updated = $false
+        if ($config.PSObject.Properties.Name -contains "config") {
+            if ($config.config.PSObject.Properties.Name -contains "bindings") {
+                if ($config.config.bindings[0].authLevel -ne "anonymous") {
+                    $config.config.bindings[0].authLevel = "anonymous"
+                    $updated = $true
+                }
+            }
+        } elseif ($config.PSObject.Properties.Name -contains "bindings") {
+            if ($config.bindings[0].authLevel -ne "anonymous") {
+                $config.bindings[0].authLevel = "anonymous"
+                $updated = $true
+            }
+        } elseif ($config.PSObject.Properties.Name -contains "properties") {
+            if ($config.properties.config.bindings -and $config.properties.config.bindings[0].authLevel -ne "anonymous") {
+                $config.properties.config.bindings[0].authLevel = "anonymous"
+                $updated = $true
+            }
+        }
+        
+        if ($updated) {
+            Write-Info "Updating function configuration via REST API..."
+            $body = $config | ConvertTo-Json -Depth 15
+            Invoke-RestMethod -Uri $functionUrl -Headers $headers -Method Put -Body $body | Out-Null
+            Write-Success "✓ Function configuration updated via REST API"
+        } else {
+            Write-Success "✓ Function configuration already has authLevel: anonymous"
+        }
+    } catch {
+        Write-Warning "Both Kudu and REST API methods failed: $_"
+        Write-Warning "The deployment zip should have the correct authLevel, but verification may fail."
+        Write-Info "If CORS still fails, the function.json in the zip has authLevel: anonymous"
+        Write-Info "You may need to wait a few minutes for the deployment to fully propagate."
+    }
 }
 
 # Step 5: Restart Function App
