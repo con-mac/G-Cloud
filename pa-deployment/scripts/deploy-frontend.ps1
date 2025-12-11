@@ -65,10 +65,39 @@ if ([string]::IsNullOrWhiteSpace($RESOURCE_GROUP)) {
     exit 1
 }
 
+# Auto-detect ACR name if missing or incorrect
 if ([string]::IsNullOrWhiteSpace($ACR_NAME)) {
-    Write-Error "ACR_NAME is missing in config file!"
-    Write-Info "Please run deploy.ps1 and configure Container Registry"
-    exit 1
+    Write-Warning "ACR_NAME not set in config. Auto-detecting from resource group..."
+    $ErrorActionPreference = 'SilentlyContinue'
+    $detectedAcr = az acr list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($detectedAcr)) {
+        $ACR_NAME = $detectedAcr
+        Write-Success "✓ Auto-detected ACR: $ACR_NAME"
+    } else {
+        Write-Error "ACR_NAME is missing and could not auto-detect from resource group '$RESOURCE_GROUP'"
+        Write-Info "Please run deploy.ps1 and configure Container Registry, or update ACR_NAME in deployment-config.env"
+        exit 1
+    }
+} else {
+    # Verify configured ACR exists, auto-detect if not
+    $ErrorActionPreference = 'SilentlyContinue'
+    $acrCheck = az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" --query name -o tsv 2>&1
+    $ErrorActionPreference = 'Stop'
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acrCheck)) {
+        Write-Warning "ACR '$ACR_NAME' not found. Auto-detecting from resource group..."
+        $ErrorActionPreference = 'SilentlyContinue'
+        $detectedAcr = az acr list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>&1
+        $ErrorActionPreference = 'Stop'
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($detectedAcr)) {
+            $ACR_NAME = $detectedAcr
+            Write-Success "✓ Auto-detected ACR: $ACR_NAME"
+        } else {
+            Write-Error "ACR '$ACR_NAME' not found and could not auto-detect from resource group '$RESOURCE_GROUP'"
+            Write-Info "Please ensure ACR exists or update ACR_NAME in deployment-config.env"
+            exit 1
+        }
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($IMAGE_TAG)) {
@@ -93,7 +122,7 @@ Write-Info "Using Function App URL: https://$FUNCTION_APP_URL"
 
 Write-Success "Function App URL: https://$FUNCTION_APP_URL"
 
-# Verify ACR exists
+# Verify ACR exists (should already be verified/auto-detected above, but double-check)
 Write-Info "Verifying Azure Container Registry: $ACR_NAME..."
 $ErrorActionPreference = 'SilentlyContinue'
 $acrExists = az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" --query "name" -o tsv 2>&1
@@ -107,7 +136,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acrExists)) {
     exit 1
 }
 
-Write-Success "ACR verified: $ACR_NAME"
+Write-Success "✓ ACR verified: $ACR_NAME"
 
 # Check if frontend image exists in ACR
 Write-Info "Checking if frontend image exists in ACR..."
