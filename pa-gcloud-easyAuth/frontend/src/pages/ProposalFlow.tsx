@@ -40,7 +40,7 @@ import {
 } from '@mui/icons-material';
 import SharePointSearch from '../components/SharePointSearch';
 import sharepointApi, { SearchResult } from '../services/sharepointApi';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/EasyAuthContext';
 
 type FlowType = 'update' | 'create' | null;
 type DocType = 'SERVICE DESC' | 'Pricing Doc' | null;

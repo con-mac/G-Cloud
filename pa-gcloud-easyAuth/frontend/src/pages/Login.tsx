@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/EasyAuthContext';
 import {
   Container,
   Box,
@@ -36,37 +36,26 @@ export default function Login() {
     }
   }, [isAuthenticated, user, navigate]);
 
-  // Email validation is handled by MSAL SSO - no manual validation needed
-  // const validateEmail = (emailValue: string): boolean => {
-  //   // Must end with @paconsulting.com
-  //   const emailRegex = /^[^\s@]+@paconsulting\.com$/i;
-  //   return emailRegex.test(emailValue);
-  // };
-
-  const handleSubmit = async (e?: React.FormEvent) => {
+  // Easy Auth handles authentication - just redirect to login endpoint
+  const handleSubmit = (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
     }
     setError('');
     setLoading(true);
 
-    try {
-      // Use MSAL SSO login
-      // After login, AuthContext will check security group membership
-      // and set user.isAdmin automatically
-      await login();
-      // Navigation will happen automatically via useEffect when user is authenticated
-      // based on their security group membership (admin vs employee)
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign in. Please try again.');
-      setLoading(false);
-    }
+    // Easy Auth login redirects to /.auth/login/aad
+    // Navigation will happen automatically via useEffect when user is authenticated
+    // based on their security group membership (admin vs employee)
+    login();
+    // Note: login() redirects immediately, so setLoading(false) won't execute
   };
 
-  // Check if SSO is configured (has client ID) - check both runtime and build-time
+  // Check if Easy Auth is configured (has API base URL)
+  // Easy Auth is configured at the Function App level, so we just need the API URL
   const runtimeConfig = (window as any).__ENV__;
-  const clientId = runtimeConfig?.VITE_AZURE_AD_CLIENT_ID || import.meta.env.VITE_AZURE_AD_CLIENT_ID || '';
-  const isSSOConfigured = clientId && clientId !== 'PLACEHOLDER_CLIENT_ID' && clientId.trim() !== '';
+  const apiBaseUrl = runtimeConfig?.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
+  const isSSOConfigured = apiBaseUrl && apiBaseUrl.trim() !== '';
 
   return (
     <Container maxWidth="sm" sx={{ mt: 8 }}>
@@ -80,7 +69,7 @@ export default function Login() {
           </Box>
 
           {isSSOConfigured ? (
-            // SSO Login (Microsoft 365)
+            // Easy Auth Login (Microsoft 365)
             // Access level (admin vs employee) is automatically determined by security group membership
             <Box>
               <Button
@@ -101,9 +90,9 @@ export default function Login() {
               )}
             </Box>
           ) : (
-            // SSO not configured - show error message
+            // Easy Auth not configured - show error message
             <Alert severity="warning" sx={{ mb: 2 }}>
-              SSO is not configured. Please run configure-auth.ps1 to enable Microsoft 365 SSO.
+              Easy Auth is not configured. Please run configure-easy-auth.ps1 to enable Microsoft 365 SSO.
               <br />
               Access level (admin vs employee) is automatically determined by your security group membership.
             </Alert>
@@ -121,7 +110,7 @@ export default function Login() {
                 </>
               ) : (
                 <>
-                  SSO is not configured. Please run configure-auth.ps1 to enable Microsoft 365 SSO.
+                  Easy Auth is not configured. Please run configure-easy-auth.ps1 to enable Microsoft 365 SSO.
                 </>
               )}
             </Typography>

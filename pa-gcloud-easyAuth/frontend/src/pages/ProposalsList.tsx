@@ -33,7 +33,7 @@ import {
 } from '@mui/icons-material';
 import { proposalsService } from '../services/proposals';
 import sharepointApi from '../services/sharepointApi';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/EasyAuthContext';
 
 export default function ProposalsList() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();

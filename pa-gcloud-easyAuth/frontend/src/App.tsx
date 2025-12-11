@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from './contexts/EasyAuthContext';
 import Login from './pages/Login';
 import ProposalFlow from './pages/ProposalFlow';
 import ProposalsList from './pages/ProposalsList';
