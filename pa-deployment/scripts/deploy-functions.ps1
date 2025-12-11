@@ -104,15 +104,15 @@ if (-not (Test-Path "host.json")) {
 # BULLETPROOF DEPLOYMENT: Skip func publish (triggers remote build which hangs)
 # Deploy zip directly WITHOUT remote build to avoid pip install hang
 Write-Info "Deploying using zip deploy method (skipping remote build to avoid pip install hang)..."
-    
-    # Verify essential files exist
-    if (-not (Test-Path "host.json")) {
-        Write-Warning "host.json not found. Cannot deploy backend code."
-        Write-Info "Function App will be configured with settings, but code deployment skipped."
-    } elseif (-not (Test-Path "requirements.txt")) {
-        Write-Warning "requirements.txt not found. Cannot deploy backend code."
-        Write-Info "Function App will be configured with settings, but code deployment skipped."
-    } else {
+
+# Verify essential files exist
+if (-not (Test-Path "host.json")) {
+    Write-Warning "host.json not found. Cannot deploy backend code."
+    Write-Info "Function App will be configured with settings, but code deployment skipped."
+} elseif (-not (Test-Path "requirements.txt")) {
+    Write-Warning "requirements.txt not found. Cannot deploy backend code."
+    Write-Info "Function App will be configured with settings, but code deployment skipped."
+} else {
         # Create deployment zip (exclude unnecessary files)
         Write-Info "Creating deployment package..."
         # Use absolute path to avoid path resolution issues
