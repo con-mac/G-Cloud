@@ -31,6 +31,7 @@ $FUNCTION_APP_NAME = $config.FUNCTION_APP_NAME
 $RESOURCE_GROUP = $config.RESOURCE_GROUP
 $APP_REGISTRATION_NAME = $config.APP_REGISTRATION_NAME
 $TENANT_ID = $config.TENANT_ID
+$WEB_APP_NAME = $config.WEB_APP_NAME
 
 function Write-Info { param([string]$msg) Write-Host "[INFO] $msg" -ForegroundColor Blue }
 function Write-Success { param([string]$msg) Write-Host "[SUCCESS] $msg" -ForegroundColor Green }
@@ -110,7 +111,11 @@ if (-not $CLIENT_SECRET) {
 $FUNCTION_APP_URL = "https://$FUNCTION_APP_NAME.azurewebsites.net"
 $REDIRECT_URI = "$FUNCTION_APP_URL/.auth/login/aad/callback"
 
+# Get Web App URL for allowed external redirects
+$WEB_APP_URL = if ($WEB_APP_NAME) { "https://$WEB_APP_NAME.azurewebsites.net" } else { "" }
+
 Write-Info "Function App URL: $FUNCTION_APP_URL"
+Write-Info "Web App URL: $WEB_APP_URL"
 Write-Info "Redirect URI: $REDIRECT_URI"
 
 # Configure Easy Auth using Azure CLI
@@ -149,16 +154,25 @@ $easyAuthJson = $easyAuthConfig | ConvertTo-Json -Depth 10 -Compress
 
 # Use Azure CLI to configure Easy Auth
 Write-Info "Applying Easy Auth configuration..."
-az webapp auth update `
-    --name $FUNCTION_APP_NAME `
-    --resource-group $RESOURCE_GROUP `
-    --enabled true `
-    --action LoginWithAzureActiveDirectory `
-    --aad-client-id $CLIENT_ID `
-    --aad-client-secret-setting-name "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET" `
-    --aad-allowed-token-audiences "api://$CLIENT_ID" "$CLIENT_ID" `
-    --token-store true `
-    2>&1 | Out-Null
+$authUpdateParams = @(
+    "webapp", "auth", "update",
+    "--name", $FUNCTION_APP_NAME,
+    "--resource-group", $RESOURCE_GROUP,
+    "--enabled", "true",
+    "--action", "LoginWithAzureActiveDirectory",
+    "--aad-client-id", $CLIENT_ID,
+    "--aad-client-secret-setting-name", "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET",
+    "--aad-allowed-token-audiences", "api://$CLIENT_ID", $CLIENT_ID,
+    "--token-store", "true"
+)
+
+# Add Web App URL to allowed external redirect URLs if available
+if ($WEB_APP_URL) {
+    $authUpdateParams += "--allowed-external-redirect-urls", $WEB_APP_URL
+    Write-Info "Adding Web App URL to allowed external redirect URLs: $WEB_APP_URL"
+}
+
+az $authUpdateParams 2>&1 | Out-Null
 
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Azure CLI auth update may have failed, trying alternative method..."

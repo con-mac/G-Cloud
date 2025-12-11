@@ -117,8 +117,10 @@ export const EasyAuthProvider: React.FC<EasyAuthProviderProps> = ({ children }) 
   const login = (): void => {
     const apiBaseUrl = getApiBaseUrl();
     const currentPath = window.location.pathname;
-    // Easy Auth login endpoint
-    const loginUrl = `${apiBaseUrl}/.auth/login/aad?post_login_redirect_url=${encodeURIComponent(window.location.origin + currentPath)}`;
+    const webAppUrl = window.location.origin + currentPath;
+    // Easy Auth login endpoint - redirect back to Web App after login
+    // The Function App's Easy Auth must have the Web App URL in allowedExternalRedirectUrls
+    const loginUrl = `${apiBaseUrl}/.auth/login/aad?post_login_redirect_url=${encodeURIComponent(webAppUrl)}`;
     window.location.href = loginUrl;
   };
 
