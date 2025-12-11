@@ -153,6 +153,32 @@ class ApiService {
     const response = await this.client.get('/health');
     return response.data;
   }
+
+  // Generic HTTP methods (expose axios client methods for other services)
+  async get(url: string, config?: any) {
+    const response = await this.client.get(url, config);
+    return response.data;
+  }
+
+  async post(url: string, data?: any, config?: any) {
+    const response = await this.client.post(url, data, config);
+    return response.data;
+  }
+
+  async put(url: string, data?: any, config?: any) {
+    const response = await this.client.put(url, data, config);
+    return response.data;
+  }
+
+  async delete(url: string, config?: any) {
+    const response = await this.client.delete(url, config);
+    return response.data;
+  }
+
+  async patch(url: string, data?: any, config?: any) {
+    const response = await this.client.patch(url, data, config);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();
